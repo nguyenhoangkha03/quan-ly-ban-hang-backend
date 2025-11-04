@@ -1,0 +1,60 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "ts-node src/prisma/seed.ts",
+    "lint": "echo \"Add ESLint later\"",
+    "test": "echo \"Add tests later\""
+  },
+  "keywords": [
+    "sales",
+    "production",
+    "erp",
+    "inventory",
+    "management"
+  ],
+  "author": "Nguyen Hoang Kha",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.3",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.18.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.10",
+    "prisma": "^6.18.0",
+    "redis": "^5.9.0",
+    "sharp": "^0.34.4",
+    "socket.io": "^4.8.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.1.12"
+  }
+}
