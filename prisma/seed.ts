@@ -1,0 +1,381 @@
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('🌱 Starting database seed...\n');
+
+  // =====================================================
+  // 1. SEED ROLES
+  // =====================================================
+  console.log('📝 Seeding roles...');
+
+  const roles = await Promise.all([
+    prisma.role.upsert({
+      where: { roleKey: 'admin' },
+      update: {},
+      create: {
+        roleKey: 'admin',
+        roleName: 'Quản trị viên hệ thống',
+        description: 'Có toàn quyền truy cập và quản lý hệ thống',
+        status: 'active',
+      },
+    }),
+    prisma.role.upsert({
+      where: { roleKey: 'accountant' },
+      update: {},
+      create: {
+        roleKey: 'accountant',
+        roleName: 'Kế toán',
+        description: 'Quản lý thu chi, công nợ, báo cáo tài chính',
+        status: 'active',
+      },
+    }),
+    prisma.role.upsert({
+      where: { roleKey: 'warehouse_manager' },
+      update: {},
+      create: {
+        roleKey: 'warehouse_manager',
+        roleName: 'Quản lý kho chính',
+        description: 'Giám sát tồn kho tổng thể, điều phối chuyển kho',
+        status: 'active',
+      },
+    }),
+    prisma.role.upsert({
+      where: { roleKey: 'warehouse_staff' },
+      update: {},
+      create: {
+        roleKey: 'warehouse_staff',
+        roleName: 'Nhân viên kho',
+        description: 'Quản lý nhập xuất tồn kho theo kho được phân công',
+        status: 'active',
+      },
+    }),
+    prisma.role.upsert({
+      where: { roleKey: 'production_manager' },
+      update: {},
+      create: {
+        roleKey: 'production_manager',
+        roleName: 'Quản lý sản xuất',
+        description: 'Quản lý công thức sản xuất, lệnh sản xuất',
+        status: 'active',
+      },
+    }),
+    prisma.role.upsert({
+      where: { roleKey: 'sales_staff' },
+      update: {},
+      create: {
+        roleKey: 'sales_staff',
+        roleName: 'Nhân viên bán hàng',
+        description: 'Quản lý khách hàng, tạo đơn hàng, theo dõi công nợ',
+        status: 'active',
+      },
+    }),
+    prisma.role.upsert({
+      where: { roleKey: 'delivery_staff' },
+      update: {},
+      create: {
+        roleKey: 'delivery_staff',
+        roleName: 'Nhân viên giao hàng',
+        description: 'Nhận và giao hàng, thu tiền COD',
+        status: 'active',
+      },
+    }),
+  ]);
+
+  console.log(`✅ Created ${roles.length} roles\n`);
+
+  // =====================================================
+  // 2. SEED PERMISSIONS
+  // =====================================================
+  console.log('📝 Seeding permissions...');
+
+  const permissionsData = [
+    // User Management
+    { key: 'view_users', name: 'Xem danh sách người dùng', module: 'users' },
+    { key: 'create_user', name: 'Tạo người dùng mới', module: 'users' },
+    { key: 'update_user', name: 'Cập nhật người dùng', module: 'users' },
+    { key: 'delete_user', name: 'Xóa người dùng', module: 'users' },
+    { key: 'manage_roles', name: 'Quản lý vai trò và quyền', module: 'users' },
+
+    // Warehouse Management
+    { key: 'view_warehouses', name: 'Xem danh sách kho', module: 'warehouse' },
+    { key: 'manage_warehouses', name: 'Quản lý kho', module: 'warehouse' },
+    { key: 'view_inventory', name: 'Xem tồn kho', module: 'warehouse' },
+    { key: 'manage_inventory', name: 'Quản lý tồn kho', module: 'warehouse' },
+    { key: 'create_stock_transaction', name: 'Tạo phiếu kho', module: 'warehouse' },
+    { key: 'approve_stock_transaction', name: 'Phê duyệt phiếu kho', module: 'warehouse' },
+
+    // Product Management
+    { key: 'view_products', name: 'Xem sản phẩm', module: 'products' },
+    { key: 'create_product', name: 'Tạo sản phẩm', module: 'products' },
+    { key: 'update_product', name: 'Cập nhật sản phẩm', module: 'products' },
+    { key: 'delete_product', name: 'Xóa sản phẩm', module: 'products' },
+
+    // Production Management
+    { key: 'view_bom', name: 'Xem công thức sản xuất', module: 'production' },
+    { key: 'create_bom', name: 'Tạo công thức sản xuất', module: 'production' },
+    { key: 'approve_bom', name: 'Phê duyệt công thức', module: 'production' },
+    { key: 'view_production_orders', name: 'Xem lệnh sản xuất', module: 'production' },
+    { key: 'create_production_order', name: 'Tạo lệnh sản xuất', module: 'production' },
+    { key: 'approve_production_order', name: 'Phê duyệt lệnh sản xuất', module: 'production' },
+
+    // Sales Management
+    { key: 'view_customers', name: 'Xem khách hàng', module: 'sales' },
+    { key: 'create_customer', name: 'Tạo khách hàng', module: 'sales' },
+    { key: 'update_customer', name: 'Cập nhật khách hàng', module: 'sales' },
+    { key: 'view_sales_orders', name: 'Xem đơn hàng', module: 'sales' },
+    { key: 'create_sales_order', name: 'Tạo đơn hàng', module: 'sales' },
+    { key: 'approve_sales_order', name: 'Phê duyệt đơn hàng', module: 'sales' },
+    { key: 'cancel_sales_order', name: 'Hủy đơn hàng', module: 'sales' },
+
+    // Financial Management
+    { key: 'view_financial_reports', name: 'Xem báo cáo tài chính', module: 'finance' },
+    { key: 'create_payment_receipt', name: 'Tạo phiếu thu', module: 'finance' },
+    { key: 'create_payment_voucher', name: 'Tạo phiếu chi', module: 'finance' },
+    { key: 'approve_payment', name: 'Phê duyệt thu chi', module: 'finance' },
+    { key: 'manage_debt', name: 'Quản lý công nợ', module: 'finance' },
+    { key: 'reconcile_debt', name: 'Đối chiếu công nợ', module: 'finance' },
+
+    // HR Management
+    { key: 'view_attendance', name: 'Xem chấm công', module: 'hr' },
+    { key: 'manage_attendance', name: 'Quản lý chấm công', module: 'hr' },
+    { key: 'view_salary', name: 'Xem lương', module: 'hr' },
+    { key: 'manage_salary', name: 'Quản lý lương', module: 'hr' },
+
+    // Reports
+    { key: 'view_dashboard', name: 'Xem dashboard', module: 'reports' },
+    { key: 'view_reports', name: 'Xem báo cáo', module: 'reports' },
+    { key: 'export_reports', name: 'Xuất báo cáo', module: 'reports' },
+  ];
+
+  const permissions = await Promise.all(
+    permissionsData.map((p) =>
+      prisma.permission.upsert({
+        where: { permissionKey: p.key },
+        update: {},
+        create: {
+          permissionKey: p.key,
+          permissionName: p.name,
+          module: p.module,
+        },
+      })
+    )
+  );
+
+  console.log(`✅ Created ${permissions.length} permissions\n`);
+
+  // =====================================================
+  // 3. SEED WAREHOUSES
+  // =====================================================
+  console.log('📝 Seeding warehouses...');
+
+  const warehouses = await Promise.all([
+    prisma.warehouse.upsert({
+      where: { warehouseCode: 'KNL-001' },
+      update: {},
+      create: {
+        warehouseCode: 'KNL-001',
+        warehouseName: 'Kho nguyên liệu trung tâm',
+        warehouseType: 'raw_material',
+        address: '123 Đường ABC, Quận 1',
+        city: 'Hồ Chí Minh',
+        region: 'Miền Nam',
+        capacity: 1000,
+        status: 'active',
+      },
+    }),
+    prisma.warehouse.upsert({
+      where: { warehouseCode: 'KBB-001' },
+      update: {},
+      create: {
+        warehouseCode: 'KBB-001',
+        warehouseName: 'Kho bao bì trung tâm',
+        warehouseType: 'packaging',
+        address: '456 Đường DEF, Quận 2',
+        city: 'Hồ Chí Minh',
+        region: 'Miền Nam',
+        capacity: 500,
+        status: 'active',
+      },
+    }),
+    prisma.warehouse.upsert({
+      where: { warehouseCode: 'KTP-001' },
+      update: {},
+      create: {
+        warehouseCode: 'KTP-001',
+        warehouseName: 'Kho thành phẩm trung tâm',
+        warehouseType: 'finished_product',
+        address: '789 Đường GHI, Quận 3',
+        city: 'Hồ Chí Minh',
+        region: 'Miền Nam',
+        capacity: 800,
+        status: 'active',
+      },
+    }),
+    prisma.warehouse.upsert({
+      where: { warehouseCode: 'KHH-001' },
+      update: {},
+      create: {
+        warehouseCode: 'KHH-001',
+        warehouseName: 'Kho hàng hóa trung tâm',
+        warehouseType: 'goods',
+        address: '101 Đường JKL, Quận 4',
+        city: 'Hồ Chí Minh',
+        region: 'Miền Nam',
+        capacity: 600,
+        status: 'active',
+      },
+    }),
+  ]);
+
+  console.log(`✅ Created ${warehouses.length} warehouses\n`);
+
+  // =====================================================
+  // 4. SEED ADMIN USER
+  // =====================================================
+  console.log('📝 Seeding admin user...');
+
+  const adminRole = roles.find((r) => r.roleKey === 'admin');
+  const hashedPassword = await bcrypt.hash('admin123', 10);
+
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@company.com' },
+    update: {},
+    create: {
+      employeeCode: 'NV-0001',
+      email: 'admin@company.com',
+      passwordHash: hashedPassword,
+      fullName: 'Quản trị viên hệ thống',
+      phone: '0123456789',
+      gender: 'male',
+      roleId: adminRole!.id,
+      status: 'active',
+    },
+  });
+
+  console.log(`✅ Created admin user: ${adminUser.email} (password: admin123)\n`);
+
+  // =====================================================
+  // 5. ASSIGN ALL PERMISSIONS TO ADMIN
+  // =====================================================
+  console.log('📝 Assigning permissions to admin role...');
+
+  const rolePermissions = await Promise.all(
+    permissions.map((p) =>
+      prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: adminRole!.id,
+            permissionId: p.id,
+          },
+        },
+        update: {},
+        create: {
+          roleId: adminRole!.id,
+          permissionId: p.id,
+          assignedBy: adminUser.id,
+        },
+      })
+    )
+  );
+
+  console.log(`✅ Assigned ${rolePermissions.length} permissions to admin role\n`);
+
+  // =====================================================
+  // 6. SEED CATEGORIES
+  // =====================================================
+  console.log('📝 Seeding categories...');
+
+  const categories = await Promise.all([
+    prisma.category.upsert({
+      where: { categoryCode: 'CAT-001' },
+      update: {},
+      create: {
+        categoryCode: 'CAT-001',
+        categoryName: 'Nước giải khát',
+        slug: 'nuoc-giai-khat',
+        status: 'active',
+      },
+    }),
+    prisma.category.upsert({
+      where: { categoryCode: 'CAT-002' },
+      update: {},
+      create: {
+        categoryCode: 'CAT-002',
+        categoryName: 'Nguyên liệu',
+        slug: 'nguyen-lieu',
+        status: 'active',
+      },
+    }),
+    prisma.category.upsert({
+      where: { categoryCode: 'CAT-003' },
+      update: {},
+      create: {
+        categoryCode: 'CAT-003',
+        categoryName: 'Bao bì',
+        slug: 'bao-bi',
+        status: 'active',
+      },
+    }),
+  ]);
+
+  console.log(`✅ Created ${categories.length} categories\n`);
+
+  // =====================================================
+  // 7. SEED SUPPLIERS
+  // =====================================================
+  console.log('📝 Seeding suppliers...');
+
+  const suppliers = await Promise.all([
+    prisma.supplier.upsert({
+      where: { supplierCode: 'NCC-001' },
+      update: {},
+      create: {
+        supplierCode: 'NCC-001',
+        supplierName: 'Công ty TNHH Nguyên liệu ABC',
+        supplierType: 'local',
+        contactName: 'Nguyễn Văn A',
+        phone: '0987654321',
+        email: 'contact@abc.com',
+        address: '123 Đường XYZ, Quận 5, TP.HCM',
+        taxCode: '0123456789',
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+    prisma.supplier.upsert({
+      where: { supplierCode: 'NCC-002' },
+      update: {},
+      create: {
+        supplierCode: 'NCC-002',
+        supplierName: 'Công ty CP Bao bì Việt Nam',
+        supplierType: 'local',
+        contactName: 'Trần Thị B',
+        phone: '0912345678',
+        email: 'info@baobivn.com',
+        address: '456 Đường DEF, Quận 6, TP.HCM',
+        taxCode: '0987654321',
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+  ]);
+
+  console.log(`✅ Created ${suppliers.length} suppliers\n`);
+
+  console.log('✅ Database seed completed successfully! 🎉\n');
+  console.log('📌 Admin credentials:');
+  console.log('   Email: admin@company.com');
+  console.log('   Password: admin123\n');
+}
+
+main()
+  .catch((e) => {
+    console.error('❌ Error seeding database:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
