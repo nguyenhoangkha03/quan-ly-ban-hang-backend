@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "test:redis": "ts-node -r tsconfig-paths/register src/test/test-redis.ts",
     "lint": "echo \"Add ESLint later\"",
     "test": "echo \"Add tests later\""
   },
@@ -35,6 +36,7 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
