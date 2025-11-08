@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import RedisConfig from '@config/redis';
 import RedisService from '@services/redis.service';
-import CacheHelper from '@utils/cache.helper';
+import CacheHelper from '@utils/redis.helper';
 
 // Load environment variables
 dotenv.config();

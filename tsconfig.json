@@ -15,7 +15,7 @@
         "@controllers/*": ["controllers/*"],
         "@services/*": ["services/*"],
         "@utils/*": ["utils/*"],
-        "@types/*": ["types/*"],
+        "@custom-types/*": ["types/*"],
         "@validators/*": ["validators/*"]
     },
     "resolveJsonModule": true,
@@ -41,7 +41,7 @@
 
     // Completeness
     "skipLibCheck": true,
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
   },
     "include": ["src/**/*"],
     "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
