@@ -3,6 +3,7 @@
 ## TECH STACK
 
 ### Core Technologies
+
 - **Runtime**: Node.js (v18+)
 - **Framework**: Express.js
 - **Database**: MySQL 8.0+
@@ -11,6 +12,7 @@
 - **Language**: TypeScript
 
 ### Additional Technologies
+
 - **Authentication**: JWT (jsonwebtoken) + bcrypt
 - **Validation**: Zod / Joi
 - **File Upload**: Multer + Sharp (image processing)
@@ -30,9 +32,11 @@
 ## PHASE 1: SETUP & FOUNDATION (Week 1-2)
 
 ### 1.1. Project Setup
+
 **Priority: CRITICAL**
 
 **Tasks:**
+
 - [ ] Init Node.js project với TypeScript
   ```bash
   npm init -y
@@ -60,43 +64,45 @@
   └── package.json
   ```
 - [ ] Install dependencies:
+
   ```bash
   # Core
   npm install express prisma @prisma/client redis
-  
+
   # TypeScript types
   npm install -D @types/express @types/node
-  
+
   # Security
   npm install helmet cors express-rate-limit
   npm install jsonwebtoken bcrypt
   npm install -D @types/jsonwebtoken @types/bcrypt
-  
+
   # Validation
   npm install zod
-  
+
   # File handling
   npm install multer sharp
   npm install -D @types/multer
-  
+
   # Utilities
   npm install dotenv morgan winston
   npm install date-fns dayjs
-  
+
   # Documentation
   npm install swagger-ui-express swagger-jsdoc
   npm install -D @types/swagger-ui-express @types/swagger-jsdoc
-  
+
   # Scheduler & Real-time
   npm install node-cron socket.io
   npm install -D @types/node-cron
-  
+
   # Email
   npm install nodemailer
   npm install -D @types/nodemailer
   ```
 
 **Deliverables:**
+
 - Project structure hoàn chỉnh
 - TypeScript config
 - Environment variables setup (.env.example)
@@ -104,21 +110,25 @@
 ---
 
 ### 1.2. Database Setup
+
 **Priority: CRITICAL**
 
 **Tasks:**
+
 - [ ] Chuyển đổi SQL schema sang Prisma schema
 - [ ] Config Prisma:
+
   ```prisma
   generator client {
     provider = "prisma-client-js"
   }
-  
+
   datasource db {
     provider = "mysql"
     url      = env("DATABASE_URL")
   }
   ```
+
 - [ ] Tạo Prisma models cho 36 bảng (theo database_explain.md)
 - [ ] Setup migrations:
   ```bash
@@ -132,6 +142,7 @@
   - Sample categories, warehouses
 
 **Deliverables:**
+
 - `prisma/schema.prisma` hoàn chỉnh
 - Seed script với dữ liệu mẫu
 - Database migrations
@@ -139,21 +150,23 @@
 ---
 
 ### 1.3. Redis Setup
+
 **Priority: HIGH**
 
 **Tasks:**
+
 - [ ] Config Redis connection
 - [ ] Tạo Redis service wrapper:
   ```typescript
   // src/config/redis.ts
   class RedisService {
     client: RedisClient;
-    
-    async get(key: string): Promise<any>
-    async set(key: string, value: any, ttl?: number): Promise<void>
-    async del(key: string): Promise<void>
-    async exists(key: string): Promise<boolean>
-    async flushPattern(pattern: string): Promise<void>
+
+    async get(key: string): Promise<any>;
+    async set(key: string, value: any, ttl?: number): Promise<void>;
+    async del(key: string): Promise<void>;
+    async exists(key: string): Promise<boolean>;
+    async flushPattern(pattern: string): Promise<void>;
   }
   ```
 - [ ] Define cache strategies:
@@ -163,16 +176,20 @@
   - **Rate limiting**: API rate limits (TTL: 1 min)
 
 **Deliverables:**
+
 - Redis connection service
 - Cache helper utilities
 
 ---
 
 ### 1.4. Core Middlewares
+
 **Priority: CRITICAL**
 
 **Tasks:**
+
 - [ ] **Error Handler Middleware**
+
   ```typescript
   // src/middlewares/errorHandler.ts
   - Global error handling
@@ -182,6 +199,7 @@
   ```
 
 - [ ] **Authentication Middleware**
+
   ```typescript
   // src/middlewares/auth.ts
   - JWT verification
@@ -191,6 +209,7 @@
   ```
 
 - [ ] **Authorization Middleware**
+
   ```typescript
   // src/middlewares/authorize.ts
   - Check user permissions
@@ -199,6 +218,7 @@
   ```
 
 - [ ] **Validation Middleware**
+
   ```typescript
   // src/middlewares/validate.ts
   - Request validation using Zod
@@ -206,6 +226,7 @@
   ```
 
 - [ ] **Logger Middleware**
+
   ```typescript
   // src/middlewares/logger.ts
   - Request logging (Winston)
@@ -222,6 +243,7 @@
   ```
 
 **Deliverables:**
+
 - All core middlewares implemented
 - Unit tests for middlewares
 
@@ -230,9 +252,11 @@
 ## PHASE 2: AUTHENTICATION & USER MANAGEMENT (Week 3)
 
 ### 2.1. Authentication Module
+
 **Priority: CRITICAL**
 
 **Endpoints:**
+
 ```
 POST   /api/auth/login              - Đăng nhập
 POST   /api/auth/logout             - Đăng xuất
@@ -244,6 +268,7 @@ PUT    /api/auth/change-password    - Đổi mật khẩu
 ```
 
 **Features:**
+
 - [ ] Login với email + password
 - [ ] JWT token generation (access token: 15min, refresh token: 7 days)
 - [ ] Token blacklist (Redis) khi logout
@@ -253,12 +278,14 @@ PUT    /api/auth/change-password    - Đổi mật khẩu
 - [ ] Activity log mọi thao tác quan trọng
 
 **Security:**
+
 - [ ] Sanitize input (XSS protection)
 - [ ] Rate limiting login endpoint
 - [ ] HTTPS only (production)
 - [ ] Secure HTTP headers (helmet)
 
 **Deliverables:**
+
 - Authentication service
 - Auth routes & controllers
 - Tests (unit + integration)
@@ -266,9 +293,11 @@ PUT    /api/auth/change-password    - Đổi mật khẩu
 ---
 
 ### 2.2. User Management
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/users                   - Danh sách users (phân trang, filter)
 GET    /api/users/:id               - Chi tiết user
@@ -280,6 +309,7 @@ POST   /api/users/:id/avatar        - Upload avatar
 ```
 
 **Features:**
+
 - [ ] CRUD operations với validation
 - [ ] Phân quyền: chỉ admin mới tạo/sửa/xóa user
 - [ ] Filter theo role, warehouse, status
@@ -289,6 +319,7 @@ POST   /api/users/:id/avatar        - Upload avatar
 - [ ] Validate: email unique, phone format, employee_code unique
 
 **Deliverables:**
+
 - User service & controllers
 - Avatar upload với image processing
 - API documentation (Swagger)
@@ -296,9 +327,11 @@ POST   /api/users/:id/avatar        - Upload avatar
 ---
 
 ### 2.3. Role & Permission Management
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/roles                   - Danh sách roles
 GET    /api/roles/:id/permissions   - Permissions của role
@@ -308,12 +341,14 @@ GET    /api/permissions             - Danh sách permissions
 ```
 
 **Features:**
+
 - [ ] Lấy danh sách roles với permissions
 - [ ] Gán/bỏ permissions cho role (chỉ admin)
 - [ ] Cache permissions trong Redis
 - [ ] Middleware check permission theo module
 
 **Deliverables:**
+
 - Role & permission service
 - RBAC middleware hoàn chỉnh
 
@@ -322,9 +357,11 @@ GET    /api/permissions             - Danh sách permissions
 ## PHASE 3: WAREHOUSE & INVENTORY MANAGEMENT (Week 4-5)
 
 ### 3.1. Warehouse Management
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/warehouses              - Danh sách kho
 GET    /api/warehouses/:id          - Chi tiết kho
@@ -334,21 +371,25 @@ DELETE /api/warehouses/:id          - Xóa kho
 ```
 
 **Features:**
+
 - [ ] Phân loại 4 loại kho: raw_material, packaging, finished_product, goods
 - [ ] Gán manager cho kho
 - [ ] Filter theo type, region, status
 - [ ] Validate capacity
 
 **Deliverables:**
+
 - Warehouse CRUD
 - API tests
 
 ---
 
 ### 3.2. Category & Supplier Management
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/categories              - Danh sách categories (tree structure)
 POST   /api/categories              - Tạo category
@@ -362,20 +403,24 @@ DELETE /api/suppliers/:id           - Xóa NCC
 ```
 
 **Features:**
+
 - [ ] Category tree structure (parent-child)
 - [ ] Supplier validation (tax_code, email, phone)
 - [ ] Filter, search, pagination
 
 **Deliverables:**
+
 - Category & Supplier services
 - Nested category handling
 
 ---
 
 ### 3.3. Product Management
+
 **Priority: CRITICAL**
 
 **Endpoints:**
+
 ```
 GET    /api/products                - Danh sách sản phẩm
 GET    /api/products/:id            - Chi tiết sản phẩm
@@ -389,6 +434,7 @@ GET    /api/products/expiring-soon  - Sản phẩm sắp hết hạn
 ```
 
 **Features:**
+
 - [ ] Phân loại 4 loại: raw_material, packaging, finished_product, goods
 - [ ] Loại bao bì: bottle, box, bag, label, other
 - [ ] Multi-image upload (max 5 ảnh)
@@ -401,6 +447,7 @@ GET    /api/products/expiring-soon  - Sản phẩm sắp hết hạn
 - [ ] Cache hot products (Redis)
 
 **Deliverables:**
+
 - Product CRUD hoàn chỉnh
 - Image upload service
 - Low stock alert service
@@ -408,9 +455,11 @@ GET    /api/products/expiring-soon  - Sản phẩm sắp hết hạn
 ---
 
 ### 3.4. Inventory Management
+
 **Priority: CRITICAL**
 
 **Endpoints:**
+
 ```
 GET    /api/inventory                    - Tồn kho tổng thể
 GET    /api/inventory/warehouse/:id      - Tồn kho theo kho
@@ -420,6 +469,7 @@ GET    /api/inventory/alerts             - Cảnh báo tồn kho thấp
 ```
 
 **Features:**
+
 - [ ] Real-time inventory tracking
 - [ ] Cache inventory trong Redis (TTL: 5 min)
 - [ ] Tính: available_quantity = quantity - reserved_quantity
@@ -428,6 +478,7 @@ GET    /api/inventory/alerts             - Cảnh báo tồn kho thấp
 - [ ] Performance optimization với indexes
 
 **Deliverables:**
+
 - Inventory service
 - Redis caching strategy
 - Real-time updates (Socket.io)
@@ -435,9 +486,11 @@ GET    /api/inventory/alerts             - Cảnh báo tồn kho thấp
 ---
 
 ### 3.5. Stock Transactions
+
 **Priority: CRITICAL**
 
 **Endpoints:**
+
 ```
 GET    /api/stock-transactions           - Danh sách phiếu kho
 GET    /api/stock-transactions/:id       - Chi tiết phiếu
@@ -451,6 +504,7 @@ PUT    /api/stock-transactions/:id/cancel  - Hủy phiếu
 ```
 
 **Features:**
+
 - [ ] 5 loại giao dịch: import, export, transfer, disposal, stocktake
 - [ ] Generate transaction_code tự động (PNK-YYYYMMDD-XXX)
 - [ ] Workflow: draft → pending → approved → completed
@@ -470,6 +524,7 @@ PUT    /api/stock-transactions/:id/cancel  - Hủy phiếu
 - [ ] Reference linking (purchase_order_id, sales_order_id, production_order_id)
 
 **Deliverables:**
+
 - Stock transaction service (complex logic)
 - Inventory update triggers
 - Transaction history tracking
@@ -478,9 +533,11 @@ PUT    /api/stock-transactions/:id/cancel  - Hủy phiếu
 ---
 
 ### 3.6. Stock Transfer
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/stock-transfers              - Danh sách phiếu chuyển kho
 POST   /api/stock-transfers              - Tạo phiếu chuyển kho
@@ -490,6 +547,7 @@ PUT    /api/stock-transfers/:id/cancel   - Hủy phiếu
 ```
 
 **Features:**
+
 - [ ] Workflow: pending → in_transit → completed
 - [ ] Validate: from_warehouse != to_warehouse
 - [ ] Kiểm tra tồn kho kho nguồn
@@ -497,6 +555,7 @@ PUT    /api/stock-transfers/:id/cancel   - Hủy phiếu
 - [ ] Notification cho người quản lý 2 kho
 
 **Deliverables:**
+
 - Transfer service
 - Notification integration
 
@@ -505,9 +564,11 @@ PUT    /api/stock-transfers/:id/cancel   - Hủy phiếu
 ## PHASE 4: PRODUCTION MANAGEMENT (Week 6)
 
 ### 4.1. BOM (Bill of Materials)
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/bom                     - Danh sách công thức
 GET    /api/bom/:id                 - Chi tiết công thức
@@ -519,6 +580,7 @@ GET    /api/bom/:id/calculate       - Tính toán định mức cho số lượn
 ```
 
 **Features:**
+
 - [ ] Tạo công thức với materials list (nguyên liệu + bao bì)
 - [ ] Phân loại: raw_material, packaging
 - [ ] Version control (1.0, 1.1, 2.0...)
@@ -533,6 +595,7 @@ GET    /api/bom/:id/calculate       - Tính toán định mức cho số lượn
 - [ ] Production time estimate
 
 **Deliverables:**
+
 - BOM service
 - Material calculation algorithm
 - Version management
@@ -540,9 +603,11 @@ GET    /api/bom/:id/calculate       - Tính toán định mức cho số lượn
 ---
 
 ### 4.2. Production Orders
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/production-orders           - Danh sách lệnh sản xuất
 GET    /api/production-orders/:id       - Chi tiết lệnh
@@ -555,6 +620,7 @@ GET    /api/production-orders/:id/wastage  - Báo cáo hao hụt
 ```
 
 **Features:**
+
 - [ ] Workflow: pending → in_progress → completed
 - [ ] Khi tạo lệnh:
   - Tính toán material requirements từ BOM
@@ -575,6 +641,7 @@ GET    /api/production-orders/:id/wastage  - Báo cáo hao hụt
 - [ ] Link với stock_transactions
 
 **Deliverables:**
+
 - Production order service (complex workflow)
 - Material shortage alerts
 - Wastage analysis
@@ -585,9 +652,11 @@ GET    /api/production-orders/:id/wastage  - Báo cáo hao hụt
 ## PHASE 5: CUSTOMER & SALES MANAGEMENT (Week 7-8)
 
 ### 5.1. Customer Management
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/customers                   - Danh sách khách hàng
 GET    /api/customers/:id               - Chi tiết khách hàng
@@ -601,6 +670,7 @@ GET    /api/customers/overdue-debt      - Khách hàng nợ quá hạn
 ```
 
 **Features:**
+
 - [ ] Customer types: individual, company
 - [ ] Classification: retail, wholesale, vip, distributor
 - [ ] Debt tracking: current_debt, credit_limit
@@ -611,6 +681,7 @@ GET    /api/customers/overdue-debt      - Khách hàng nợ quá hạn
 - [ ] Cache customer data (Redis)
 
 **Deliverables:**
+
 - Customer CRUD
 - Debt management service
 - Credit limit enforcement
@@ -618,9 +689,11 @@ GET    /api/customers/overdue-debt      - Khách hàng nợ quá hạn
 ---
 
 ### 5.2. Sales Orders
+
 **Priority: CRITICAL**
 
 **Endpoints:**
+
 ```
 GET    /api/sales-orders                - Danh sách đơn hàng
 GET    /api/sales-orders/:id            - Chi tiết đơn hàng
@@ -634,6 +707,7 @@ GET    /api/sales-orders/revenue        - Doanh thu theo thời gian
 ```
 
 **Features:**
+
 - [ ] Workflow: pending → preparing → delivering → completed
 - [ ] Khi tạo đơn:
   - **Validate customer credit**: current_debt + order_amount <= credit_limit
@@ -662,16 +736,21 @@ GET    /api/sales-orders/revenue        - Doanh thu theo thời gian
 - [ ] Price tiers: retail, wholesale, vip (based on customer classification)
 
 **Complex Logic:**
+
 ```typescript
 // Tính giá bán theo phân loại khách hàng
 const getProductPrice = (product, customer) => {
-  switch(customer.classification) {
-    case 'retail': return product.selling_price_retail;
-    case 'wholesale': return product.selling_price_wholesale;
-    case 'vip': return product.selling_price_vip;
-    case 'distributor': return product.selling_price_wholesale * 0.95;
+  switch (customer.classification) {
+    case 'retail':
+      return product.selling_price_retail;
+    case 'wholesale':
+      return product.selling_price_wholesale;
+    case 'vip':
+      return product.selling_price_vip;
+    case 'distributor':
+      return product.selling_price_wholesale * 0.95;
   }
-}
+};
 
 // Tính tổng đơn hàng
 final_amount = total_amount - discount_amount + tax_amount + shipping_fee;
@@ -679,6 +758,7 @@ debt_amount = final_amount - paid_amount;
 ```
 
 **Deliverables:**
+
 - Sales order service (most complex module)
 - Inventory reservation system
 - Payment tracking
@@ -688,9 +768,11 @@ debt_amount = final_amount - paid_amount;
 ---
 
 ### 5.3. Deliveries
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/deliveries                  - Danh sách giao hàng
 GET    /api/deliveries/:id              - Chi tiết
@@ -701,6 +783,7 @@ PUT    /api/deliveries/:id/collect      - Ghi nhận thu tiền COD
 ```
 
 **Features:**
+
 - [ ] Link với sales_order
 - [ ] Workflow: pending → in_transit → delivered / failed
 - [ ] COD tracking: cod_amount, collected_amount
@@ -711,6 +794,7 @@ PUT    /api/deliveries/:id/collect      - Ghi nhận thu tiền COD
 - [ ] Settlement với delivery staff
 
 **Deliverables:**
+
 - Delivery service
 - COD management
 - Status tracking
@@ -720,9 +804,11 @@ PUT    /api/deliveries/:id/collect      - Ghi nhận thu tiền COD
 ## PHASE 6: FINANCIAL MANAGEMENT (Week 9)
 
 ### 6.1. Payment Receipts (Phiếu thu)
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/payment-receipts            - Danh sách phiếu thu
 POST   /api/payment-receipts            - Tạo phiếu thu
@@ -731,6 +817,7 @@ DELETE /api/payment-receipts/:id        - Hủy phiếu
 ```
 
 **Features:**
+
 - [ ] Receipt types: sales, debt_collection, refund, other
 - [ ] Payment methods: cash, transfer, card
 - [ ] Link với sales_order (nếu có)
@@ -745,6 +832,7 @@ DELETE /api/payment-receipts/:id        - Hủy phiếu
 - [ ] Print receipt PDF
 
 **Deliverables:**
+
 - Payment receipt service
 - Debt update automation
 - PDF generation
@@ -752,9 +840,11 @@ DELETE /api/payment-receipts/:id        - Hủy phiếu
 ---
 
 ### 6.2. Payment Vouchers (Phiếu chi)
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/payment-vouchers            - Danh sách phiếu chi
 POST   /api/payment-vouchers            - Tạo phiếu chi
@@ -762,6 +852,7 @@ PUT    /api/payment-vouchers/:id/approve - Phê duyệt
 ```
 
 **Features:**
+
 - [ ] Voucher types: salary, operating_cost, supplier_payment, refund, other
 - [ ] Link với supplier (nếu payment supplier)
 - [ ] Link với salary (nếu trả lương)
@@ -770,15 +861,18 @@ PUT    /api/payment-vouchers/:id/approve - Phê duyệt
 - [ ] Expense account tracking (kế toán)
 
 **Deliverables:**
+
 - Payment voucher service
 - Expense tracking
 
 ---
 
 ### 6.3. Debt Reconciliation (Đối chiếu công nợ)
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/debt-reconciliation         - Danh sách biên bản
 POST   /api/debt-reconciliation/monthly - Tạo đối chiếu tháng
@@ -790,6 +884,7 @@ POST   /api/debt-reconciliation/:id/send-email - Gửi email
 ```
 
 **Features:**
+
 - [ ] Auto-calculate:
   ```typescript
   closing_balance = opening_balance + transactions_amount - payment_amount;
@@ -803,6 +898,7 @@ POST   /api/debt-reconciliation/:id/send-email - Gửi email
 - [ ] Discrepancy handling
 
 **Deliverables:**
+
 - Debt reconciliation service
 - Auto-calculation logic
 - Email notification
@@ -811,9 +907,11 @@ POST   /api/debt-reconciliation/:id/send-email - Gửi email
 ---
 
 ### 6.4. Cash Fund Management
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/cash-fund                   - Quỹ tiền mặt hàng ngày
 GET    /api/cash-fund/:date             - Quỹ tiền theo ngày
@@ -821,6 +919,7 @@ PUT    /api/cash-fund/:date/lock        - Khóa sổ ngày
 ```
 
 **Features:**
+
 - [ ] Daily cash fund tracking
 - [ ] Auto-calculate:
   ```typescript
@@ -831,6 +930,7 @@ PUT    /api/cash-fund/:date/lock        - Khóa sổ ngày
 - [ ] Alert on discrepancies
 
 **Deliverables:**
+
 - Cash fund service
 - Daily reconciliation
 
@@ -839,9 +939,11 @@ PUT    /api/cash-fund/:date/lock        - Khóa sổ ngày
 ## PHASE 7: PROMOTION MANAGEMENT (Week 10)
 
 ### 7.1. Promotions
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/promotions                  - Danh sách khuyến mãi
 POST   /api/promotions                  - Tạo chương trình KM
@@ -853,6 +955,7 @@ POST   /api/promotions/:id/apply        - Áp dụng KM cho đơn hàng
 ```
 
 **Features:**
+
 - [ ] 4 promotion types:
   1. **percent_discount**: Giảm % (có max_discount_value)
   2. **fixed_discount**: Giảm cố định
@@ -875,13 +978,14 @@ POST   /api/promotions/:id/apply        - Áp dụng KM cho đơn hàng
     // Calculate discount
     // Track usage_count
     // Check quantity_limit
-  }
+  };
   ```
 - [ ] Promotion stacking rules
 - [ ] Auto-activate/expire based on dates
 - [ ] Usage tracking
 
 **Deliverables:**
+
 - Promotion service
 - Complex condition checking
 - Discount calculation logic
@@ -892,9 +996,11 @@ POST   /api/promotions/:id/apply        - Áp dụng KM cho đơn hàng
 ## PHASE 8: HR MANAGEMENT (Week 11)
 
 ### 8.1. Attendance
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/attendance                  - Danh sách chấm công
 POST   /api/attendance/check-in         - Chấm công vào
@@ -905,6 +1011,7 @@ GET    /api/attendance/report           - Báo cáo chấm công tháng
 ```
 
 **Features:**
+
 - [ ] Check-in/check-out với timestamp
 - [ ] Auto-calculate work_hours
 - [ ] Overtime tracking
@@ -915,6 +1022,7 @@ GET    /api/attendance/report           - Báo cáo chấm công tháng
 - [ ] Approval workflow for leaves
 
 **Deliverables:**
+
 - Attendance service
 - Work hours calculation
 - Leave approval
@@ -922,9 +1030,11 @@ GET    /api/attendance/report           - Báo cáo chấm công tháng
 ---
 
 ### 8.2. Salary
+
 **Priority: MEDIUM**
 
 **Endpoints:**
+
 ```
 GET    /api/salary                      - Danh sách bảng lương
 GET    /api/salary/:userId/:month       - Bảng lương user theo tháng
@@ -934,21 +1044,23 @@ POST   /api/salary/:id/pay              - Trả lương (tạo payment_voucher)
 ```
 
 **Features:**
+
 - [ ] Auto-calculate salary:
+
   ```typescript
   // Overtime pay
   overtime_pay = (basic_salary / 208) * overtime_hours * 1.5;
-  
+
   // Commission (5% doanh số)
   commission = user_sales_revenue * 0.05;
-  
+
   // Deductions (BHXH, BHYT, thuế)
   deduction = basic_salary * 0.105 + tax;
-  
+
   // Total
-  total_salary = basic_salary + allowance + overtime_pay + bonus 
-                 + commission - deduction - advance;
+  total_salary = basic_salary + allowance + overtime_pay + bonus + commission - deduction - advance;
   ```
+
 - [ ] Salary components:
   - basic_salary
   - allowance (phụ cấp)
@@ -961,6 +1073,7 @@ POST   /api/salary/:id/pay              - Trả lương (tạo payment_voucher)
 - [ ] Salary slip PDF
 
 **Deliverables:**
+
 - Salary calculation service
 - Complex formula implementation
 - Integration với attendance & sales
@@ -970,9 +1083,11 @@ POST   /api/salary/:id/pay              - Trả lương (tạo payment_voucher)
 ## PHASE 9: NOTIFICATION & REPORTING (Week 12)
 
 ### 9.1. Notification System
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/notifications               - Danh sách thông báo
 GET    /api/notifications/unread        - Thông báo chưa đọc
@@ -981,6 +1096,7 @@ DELETE /api/notifications/:id           - Xóa thông báo
 ```
 
 **Features:**
+
 - [ ] 8 notification types:
   1. **system**: Thông báo hệ thống
   2. **low_stock**: Cảnh báo tồn kho thấp
@@ -1001,6 +1117,7 @@ DELETE /api/notifications/:id           - Xóa thông báo
   - Approval pending (instant)
 
 **Scheduled Jobs (node-cron):**
+
 ```typescript
 // Every day at 8:00 AM
 cron.schedule('0 8 * * *', async () => {
@@ -1011,6 +1128,7 @@ cron.schedule('0 8 * * *', async () => {
 ```
 
 **Deliverables:**
+
 - Notification service
 - Socket.io real-time
 - Email service
@@ -1020,9 +1138,11 @@ cron.schedule('0 8 * * *', async () => {
 ---
 
 ### 9.2. Reporting & Analytics
+
 **Priority: HIGH**
 
 **Endpoints:**
+
 ```
 GET    /api/reports/dashboard           - Dashboard tổng quan
 GET    /api/reports/revenue             - Báo cáo doanh thu
@@ -1036,6 +1156,7 @@ GET    /api/reports/export/:type        - Export Excel/PDF
 ```
 
 **Dashboard Metrics:**
+
 - [ ] **Doanh thu**:
   - Hôm nay, tuần này, tháng này, năm nay
   - So sánh cùng kỳ
@@ -1057,23 +1178,27 @@ GET    /api/reports/export/:type        - Export Excel/PDF
   - Sản lượng tuần/tháng
 
 **Revenue Analytics:**
+
 - [ ] Doanh thu theo kênh bán (retail, wholesale, online)
 - [ ] Doanh thu theo region
 - [ ] Doanh thu theo sản phẩm/danh mục
 - [ ] Lợi nhuận = Revenue - Cost
 
 **Inventory Analytics:**
+
 - [ ] Tồn kho theo loại (nguyên liệu, bao bì, thành phẩm, hàng hóa)
 - [ ] Tồn kho theo kho
 - [ ] Inventory turnover rate
 - [ ] Slow-moving products
 
 **Export Features:**
+
 - [ ] Export to Excel (xlsx)
 - [ ] Export to PDF
 - [ ] Schedule reports (daily/weekly/monthly email)
 
 **Deliverables:**
+
 - Dashboard API
 - Complex analytics queries
 - Data aggregation (Redis caching)
@@ -1085,15 +1210,18 @@ GET    /api/reports/export/:type        - Export Excel/PDF
 ## PHASE 10: API DOCUMENTATION & TESTING (Week 13)
 
 ### 10.1. API Documentation
+
 **Priority: HIGH**
 
 **Tasks:**
+
 - [ ] Setup Swagger/OpenAPI:
+
   ```typescript
   // src/config/swagger.ts
   import swaggerJsdoc from 'swagger-jsdoc';
   import swaggerUi from 'swagger-ui-express';
-  
+
   const options = {
     definition: {
       openapi: '3.0.0',
@@ -1101,9 +1229,7 @@ GET    /api/reports/export/:type        - Export Excel/PDF
         title: 'Sales & Production API',
         version: '1.0.0',
       },
-      servers: [
-        { url: 'http://localhost:3000/api' },
-      ],
+      servers: [{ url: 'http://localhost:3000/api' }],
       components: {
         securitySchemes: {
           bearerAuth: {
@@ -1117,6 +1243,7 @@ GET    /api/reports/export/:type        - Export Excel/PDF
     apis: ['./src/routes/*.ts'],
   };
   ```
+
 - [ ] Document all endpoints với JSDoc comments:
   ```typescript
   /**
@@ -1142,6 +1269,7 @@ GET    /api/reports/export/:type        - Export Excel/PDF
 - [ ] Error code reference
 
 **Deliverables:**
+
 - Swagger UI at `/api-docs`
 - Complete API documentation
 - Postman collection
@@ -1149,21 +1277,25 @@ GET    /api/reports/export/:type        - Export Excel/PDF
 ---
 
 ### 10.2. Testing
+
 **Priority: HIGH**
 
 **Testing Strategy:**
 
 1. **Unit Tests** (70% coverage target)
+
    ```bash
    npm install -D jest ts-jest @types/jest
    npm install -D supertest @types/supertest
    ```
+
    - Services logic
    - Utilities
    - Validators
    - Middleware
 
 2. **Integration Tests** (critical flows)
+
    - Authentication flow
    - Sales order creation flow
    - Production order flow
@@ -1176,6 +1308,7 @@ GET    /api/reports/export/:type        - Export Excel/PDF
    - Production order → materials exported → finished product imported
 
 **Test Files Structure:**
+
 ```
 src/
 ├── __tests__/
@@ -1192,6 +1325,7 @@ src/
 ```
 
 **Tasks:**
+
 - [ ] Setup Jest configuration
 - [ ] Write unit tests for all services
 - [ ] Write integration tests for API endpoints
@@ -1200,6 +1334,7 @@ src/
 - [ ] Code coverage report (aim for 70%+)
 
 **Deliverables:**
+
 - Comprehensive test suite
 - CI/CD pipeline
 - Coverage reports
@@ -1211,6 +1346,7 @@ src/
 ### 11.1. Performance Optimization
 
 **Database Optimization:**
+
 - [ ] Add missing indexes:
   ```sql
   -- Frequently queried fields
@@ -1222,6 +1358,7 @@ src/
 - [ ] Database query profiling
 
 **Caching Strategy:**
+
 - [ ] **Hot data** (Redis, TTL: 1h):
   - Products list
   - Categories tree
@@ -1236,6 +1373,7 @@ src/
   - TTL expiration
 
 **API Performance:**
+
 - [ ] Response compression (gzip)
 - [ ] API response pagination
 - [ ] Field selection (?fields=id,name)
@@ -1244,6 +1382,7 @@ src/
 - [ ] Connection pooling (Prisma)
 
 **Monitoring:**
+
 - [ ] Setup APM (New Relic / DataDog)
 - [ ] Log slow queries (> 1s)
 - [ ] Monitor Redis hit rate
@@ -1251,6 +1390,7 @@ src/
 - [ ] Memory leak detection
 
 **Deliverables:**
+
 - Optimized database schema
 - Comprehensive caching
 - Performance benchmarks
@@ -1261,6 +1401,7 @@ src/
 ### 11.2. Security Hardening
 
 **Authentication & Authorization:**
+
 - [ ] Implement refresh token rotation
 - [ ] Add 2FA (optional, for admin)
 - [ ] Brute-force protection (rate limiting)
@@ -1271,6 +1412,7 @@ src/
   - Password history (no reuse last 3)
 
 **Input Validation:**
+
 - [ ] Strict Zod schemas for all endpoints
 - [ ] SQL injection prevention (Prisma handles)
 - [ ] XSS prevention (sanitize HTML)
@@ -1281,6 +1423,7 @@ src/
   - Scan for malware (ClamAV)
 
 **Data Protection:**
+
 - [ ] Sensitive data encryption (crypto)
   - Encrypt tax_code, bank info
 - [ ] Password hashing (bcrypt, rounds: 10)
@@ -1289,6 +1432,7 @@ src/
 - [ ] Environment secrets (.env not in git)
 
 **API Security:**
+
 - [ ] Rate limiting:
   - Global: 100 req/15min per IP
   - Login: 5 req/15min per IP
@@ -1302,11 +1446,13 @@ src/
 - [ ] Audit logs (activity_logs table)
 
 **Dependency Security:**
+
 - [ ] Regular `npm audit` checks
 - [ ] Automated security updates (Dependabot)
 - [ ] License compliance check
 
 **Deliverables:**
+
 - Security audit report
 - Penetration testing
 - Security documentation
@@ -1319,6 +1465,7 @@ src/
 ### 12.1. Docker Setup
 
 **Dockerfile:**
+
 ```dockerfile
 FROM node:18-alpine
 
@@ -1336,6 +1483,7 @@ CMD ["npm", "start"]
 ```
 
 **docker-compose.yml:**
+
 ```yaml
 version: '3.8'
 
@@ -1343,7 +1491,7 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - NODE_ENV=production
       - DATABASE_URL=mysql://user:pass@db:3306/dbname
@@ -1371,8 +1519,8 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
       - ./ssl:/etc/nginx/ssl
@@ -1385,6 +1533,7 @@ volumes:
 ```
 
 **Tasks:**
+
 - [ ] Create Dockerfile
 - [ ] Setup docker-compose
 - [ ] Configure Nginx (reverse proxy, SSL, load balancing)
@@ -1395,6 +1544,7 @@ volumes:
 ### 12.2. CI/CD Pipeline
 
 **GitHub Actions:**
+
 ```yaml
 name: CI/CD
 
@@ -1430,6 +1580,7 @@ jobs:
 ```
 
 **Tasks:**
+
 - [ ] Setup GitHub Actions
 - [ ] Automated testing on PR
 - [ ] Auto-deploy to staging (develop branch)
@@ -1441,12 +1592,14 @@ jobs:
 ### 12.3. Production Setup
 
 **Server Requirements:**
+
 - CPU: 4 cores
 - RAM: 8GB
 - Storage: 100GB SSD
 - OS: Ubuntu 22.04 LTS
 
 **Deployment Checklist:**
+
 - [ ] Setup VPS/Cloud (AWS EC2, DigitalOcean, etc.)
 - [ ] Install Docker & Docker Compose
 - [ ] Configure firewall (ufw):
@@ -1469,6 +1622,7 @@ jobs:
 - [ ] Setup Redis persistence (AOF + RDB)
 
 **Environment Variables:**
+
 ```env
 NODE_ENV=production
 PORT=3000
@@ -1496,6 +1650,7 @@ SENTRY_DSN=your-sentry-dsn
 ```
 
 **Deliverables:**
+
 - Production server setup
 - SSL certificates
 - Automated backups
@@ -1507,6 +1662,7 @@ SENTRY_DSN=your-sentry-dsn
 ## PHASE 13: ADVANCED FEATURES (Optional - Week 16+)
 
 ### 13.1. Advanced Analytics
+
 - [ ] Business Intelligence dashboard
 - [ ] Predictive analytics (sales forecasting)
 - [ ] Inventory optimization recommendations
@@ -1515,6 +1671,7 @@ SENTRY_DSN=your-sentry-dsn
 - [ ] Seasonal trend analysis
 
 ### 13.2. Advanced Integrations
+
 - [ ] SMS gateway integration (for notifications)
 - [ ] Payment gateway (VNPay, MoMo, ZaloPay)
 - [ ] Shipping API (GHN, Giao Hàng Nhanh)
@@ -1522,12 +1679,14 @@ SENTRY_DSN=your-sentry-dsn
 - [ ] E-invoice API (HÓA ĐƠN ĐIỆN TỬ)
 
 ### 13.3. Mobile App API
+
 - [ ] Optimize APIs for mobile
 - [ ] Push notification service (FCM)
 - [ ] Offline sync support
 - [ ] QR code scanning API (cho chấm công, kiểm kê)
 
 ### 13.4. Advanced Warehouse Features
+
 - [ ] Barcode/QR code generation
 - [ ] Warehouse heat map (most/least accessed areas)
 - [ ] Picking optimization (shortest path)
@@ -1539,6 +1698,7 @@ SENTRY_DSN=your-sentry-dsn
 ## DEVELOPMENT BEST PRACTICES
 
 ### Code Quality
+
 - [ ] Use ESLint + Prettier
 - [ ] Follow Airbnb style guide
 - [ ] TypeScript strict mode
@@ -1546,6 +1706,7 @@ SENTRY_DSN=your-sentry-dsn
 - [ ] Conventional commits
 
 ### Git Workflow
+
 - [ ] Main branch (production)
 - [ ] Develop branch (staging)
 - [ ] Feature branches (feature/xxx)
@@ -1553,6 +1714,7 @@ SENTRY_DSN=your-sentry-dsn
 - [ ] Semantic versioning (v1.0.0)
 
 ### Documentation
+
 - [ ] README.md with setup instructions
 - [ ] API documentation (Swagger)
 - [ ] Architecture diagram
@@ -1561,6 +1723,7 @@ SENTRY_DSN=your-sentry-dsn
 - [ ] Contributing guidelines
 
 ### Error Handling
+
 ```typescript
 // Consistent error response
 {
@@ -1575,6 +1738,7 @@ SENTRY_DSN=your-sentry-dsn
 ```
 
 ### API Response Format
+
 ```typescript
 // Success response
 {
@@ -1593,27 +1757,28 @@ SENTRY_DSN=your-sentry-dsn
 
 ## ESTIMATED TIMELINE
 
-| Phase | Duration | Priority | Dependencies |
-|-------|----------|----------|--------------|
-| 1. Setup & Foundation | 2 weeks | CRITICAL | - |
-| 2. Auth & User | 1 week | CRITICAL | Phase 1 |
-| 3. Warehouse & Inventory | 2 weeks | CRITICAL | Phase 2 |
-| 4. Production | 1 week | HIGH | Phase 3 |
-| 5. Customer & Sales | 2 weeks | CRITICAL | Phase 3 |
-| 6. Financial | 1 week | HIGH | Phase 5 |
-| 7. Promotion | 1 week | MEDIUM | Phase 5 |
-| 8. HR | 1 week | MEDIUM | Phase 2 |
-| 9. Notification & Reporting | 1 week | HIGH | All phases |
-| 10. Documentation & Testing | 1 week | HIGH | All phases |
-| 11. Performance & Security | 1 week | HIGH | All phases |
-| 12. Deployment | 1 week | HIGH | All phases |
-| **TOTAL** | **15 weeks** | | |
+| Phase                       | Duration     | Priority | Dependencies |
+| --------------------------- | ------------ | -------- | ------------ |
+| 1. Setup & Foundation       | 2 weeks      | CRITICAL | -            |
+| 2. Auth & User              | 1 week       | CRITICAL | Phase 1      |
+| 3. Warehouse & Inventory    | 2 weeks      | CRITICAL | Phase 2      |
+| 4. Production               | 1 week       | HIGH     | Phase 3      |
+| 5. Customer & Sales         | 2 weeks      | CRITICAL | Phase 3      |
+| 6. Financial                | 1 week       | HIGH     | Phase 5      |
+| 7. Promotion                | 1 week       | MEDIUM   | Phase 5      |
+| 8. HR                       | 1 week       | MEDIUM   | Phase 2      |
+| 9. Notification & Reporting | 1 week       | HIGH     | All phases   |
+| 10. Documentation & Testing | 1 week       | HIGH     | All phases   |
+| 11. Performance & Security  | 1 week       | HIGH     | All phases   |
+| 12. Deployment              | 1 week       | HIGH     | All phases   |
+| **TOTAL**                   | **15 weeks** |          |              |
 
 ---
 
 ## SUCCESS METRICS
 
 ### Technical Metrics
+
 - [ ] API response time < 200ms (95th percentile)
 - [ ] Test coverage > 70%
 - [ ] Zero critical security vulnerabilities
@@ -1622,6 +1787,7 @@ SENTRY_DSN=your-sentry-dsn
 - [ ] API uptime > 99.9%
 
 ### Business Metrics
+
 - [ ] All 36 database tables implemented
 - [ ] 150+ API endpoints
 - [ ] Support 4 loại kho
@@ -1636,17 +1802,20 @@ SENTRY_DSN=your-sentry-dsn
 ## RESOURCES
 
 ### Learning Resources
+
 - Prisma Docs: https://www.prisma.io/docs
 - Express Best Practices: https://expressjs.com/en/advanced/best-practice-performance.html
 - Node.js Production Guide: https://nodejs.org/en/docs/guides/
 
 ### Tools
+
 - Database Design: dbdiagram.io
 - API Testing: Postman, Insomnia
 - Load Testing: Artillery, k6
 - Monitoring: New Relic, DataDog, Sentry
 
 ### Community
+
 - Stack Overflow
 - Node.js Discord
 - Prisma Discord
@@ -1658,21 +1827,25 @@ SENTRY_DSN=your-sentry-dsn
 ### Critical Implementation Points
 
 1. **Inventory Management**
+
    - ALWAYS use database transactions
    - Lock rows during updates (SELECT ... FOR UPDATE)
    - Handle concurrency carefully
 
 2. **Sales Orders**
+
    - Validate credit limit before order creation
    - Reserve inventory immediately
    - Use transactions for multi-step operations
 
 3. **Production Orders**
+
    - Always check material availability
    - Link stock transactions properly
    - Calculate wastage accurately
 
 4. **Debt Management**
+
    - Update customer debt atomically
    - Use decimal types for currency (avoid float)
    - Reconciliation must balance

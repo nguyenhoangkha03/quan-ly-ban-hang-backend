@@ -13,6 +13,8 @@ import uploadService from '@services/upload.service';
 // Import routes
 import authRoutes from '@routes/auth.routes';
 import userRoutes from '@routes/user.routes';
+import roleRoutes from '@routes/role.routes';
+import permissionRoutes from '@routes/permission.routes';
 
 dotenv.config();
 
@@ -82,6 +84,8 @@ app.get('/api', (_req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -107,6 +111,8 @@ app.listen(PORT, async () => {
 ║   📚 API Docs: http://localhost:${PORT}/api-docs         ║
 ║   🔐 Auth API: http://localhost:${PORT}/api/auth         ║
 ║   👥 User API: http://localhost:${PORT}/api/users        ║
+║   🔑 Role API: http://localhost:${PORT}/api/roles        ║
+║   ⚙️  Permission API: http://localhost:${PORT}/api/permissions ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
