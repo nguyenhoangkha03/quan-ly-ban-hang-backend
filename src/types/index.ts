@@ -26,11 +26,17 @@ export enum ErrorCode {
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
+  message?: string;
   meta?: {
     page?: number;
     limit?: number;
     total?: number;
     totalPage?: number;
+  };
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
   };
   timestamp: string;
 }

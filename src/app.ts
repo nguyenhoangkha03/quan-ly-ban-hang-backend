@@ -3,13 +3,16 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { sanitizeInput } from '@middlewares/validate';
 import RedisService from '@services/redis.service';
+import uploadService from '@services/upload.service';
 
 // Import routes
 import authRoutes from '@routes/auth.routes';
+import userRoutes from '@routes/user.routes';
 
 dotenv.config();
 
@@ -28,6 +31,16 @@ const initializeRedis = async () => {
   }
 };
 
+// Initialize upload directories
+const initializeUploads = async () => {
+  try {
+    await uploadService.ensureUploadDirs();
+    console.log('✅ Upload directories initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize upload directories:', error);
+  }
+};
+
 // Middleware
 app.use(helmet());
 app.use(
@@ -43,6 +56,9 @@ app.use(morgan('dev'));
 // Security middleware
 app.use(globalRateLimiter); // Rate limiting
 app.use(sanitizeInput); // XSS protection
+
+// Serve static files (uploads)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -65,6 +81,7 @@ app.get('/api', (_req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -77,6 +94,9 @@ app.listen(PORT, async () => {
   // Initialize Redis connection
   await initializeRedis();
 
+  // Initialize upload directories
+  await initializeUploads();
+
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -86,6 +106,7 @@ app.listen(PORT, async () => {
 ║   🌍 Environment: ${process.env.NODE_ENV || 'development'}                      ║
 ║   📚 API Docs: http://localhost:${PORT}/api-docs         ║
 ║   🔐 Auth API: http://localhost:${PORT}/api/auth         ║
+║   👥 User API: http://localhost:${PORT}/api/users        ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);

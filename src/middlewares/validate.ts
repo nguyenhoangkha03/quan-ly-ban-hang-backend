@@ -3,6 +3,7 @@ import { ZodSchema, ZodError } from 'zod';
 import { ValidationError } from '@utils/errors';
 import { asyncHandler } from './errorHandler';
 
+// Simple validate for body/query/params (default: body)
 export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' = 'body') => {
   return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
     try {
@@ -14,11 +15,47 @@ export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' 
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const details = (error as any).errors.map((err: any) => ({
-          field: err.path.join('.'),
-          message: err.message,
-          code: err.code,
-        }));
+        const zodError = error as any;
+        const details =
+          zodError.errors?.map((err: any) => ({
+            field: err.path?.join('.') || 'unknown',
+            message: err.message,
+            code: err.code,
+          })) || [];
+
+        throw new ValidationError('Validation failed', details);
+      }
+      throw error;
+    }
+  });
+};
+
+// Validate with nested structure (body, query, params) - for user module
+export const validateNested = (schema: ZodSchema) => {
+  return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+    try {
+      // Parse the entire request with nested structure
+      const validated: any = await schema.parseAsync({
+        body: req.body,
+        query: req.query,
+        params: req.params,
+      });
+
+      // Update request with validated data
+      if (validated.body !== undefined) Object.assign(req.body, validated.body);
+      if (validated.query !== undefined) Object.assign(req.query, validated.query);
+      if (validated.params !== undefined) Object.assign(req.params, validated.params);
+
+      next();
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const zodError = error as any;
+        const details =
+          zodError.errors?.map((err: any) => ({
+            field: err.path?.join('.') || 'unknown',
+            message: err.message,
+            code: err.code,
+          })) || [];
 
         throw new ValidationError('Validation failed', details);
       }
