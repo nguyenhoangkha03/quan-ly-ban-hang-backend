@@ -64,3 +64,5 @@ dump.rdb
 .pm2/
 
 /src/generated/prisma
+
+*.md

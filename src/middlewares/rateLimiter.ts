@@ -1,7 +1,8 @@
-import rateLimit from 'express-rate-limit';
-import { RateLimitError } from '../utils/errors';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { RateLimitError } from '@utils/errors';
 import { Request, Response } from 'express';
 import RedisService from '@services/redis.service';
+import { AuthRequest } from '@custom-types/index';
 
 const redisClient = RedisService.getInstance();
 
@@ -76,7 +77,8 @@ export const userRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
-    return req.user?.id?.toString() || req.ip || 'unknown';
+    if (req.user?.id) return req.user.id.toString();
+    return ipKeyGenerator(req);
   },
   handler: (_req: Request, _res: Response) => {
     throw new RateLimitError('API rate limit exceeded for this user');
@@ -90,7 +92,8 @@ export const uploadRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
-    return req.user?.id?.toString() || req.ip || 'unknown';
+    if (req.user?.id) return req.user.id.toString();
+    return ipKeyGenerator(req);
   },
   handler: (_req: Request, _res: Response) => {
     throw new RateLimitError('File upload limit exceeded');
@@ -109,7 +112,7 @@ export const createRateLimiter = (options: {
     message: options.message || 'Rate limit exceeded',
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: options.keyGenerator || ((req) => req.ip || 'unknown'),
+    keyGenerator: options.keyGenerator || ((req: Request) => ipKeyGenerator(req as any)),
     handler: (_req: Request, _res: Response) => {
       throw new RateLimitError(options.message || 'Rate limit exceeded');
     },
@@ -124,8 +127,10 @@ export const createRedisRateLimiter = (options: {
 }) => {
   const store = new RedisStore(options.windowMs, options.prefix);
 
-  return async (req: Request, res: Response, next: Function) => {
-    const key = options.keyGenerator ? options.keyGenerator(req) : req.ip || 'unknown';
+  return async (req: AuthRequest, res: Response, next: Function) => {
+    const key = options.keyGenerator
+      ? options.keyGenerator(req)
+      : req.user?.id?.toString() || ipKeyGenerator(req as any);
 
     try {
       const { totalHits, resetTime } = await store.increment(key);

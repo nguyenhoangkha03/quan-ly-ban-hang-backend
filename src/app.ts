@@ -3,11 +3,30 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
+import { globalRateLimiter } from '@middlewares/rateLimiter';
+import { sanitizeInput } from '@middlewares/validate';
+import RedisService from '@services/redis.service';
+
+// Import routes
+import authRoutes from '@routes/auth.routes';
 
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Redis
+const initializeRedis = async () => {
+  try {
+    const redis = RedisService.getInstance();
+    await redis.initialize();
+    console.log('✅ Redis connected successfully');
+  } catch (error) {
+    console.error('❌ Redis connection failed:', error);
+    console.log('⚠️  Server will continue without Redis (cache disabled)');
+  }
+};
 
 // Middleware
 app.use(helmet());
@@ -20,6 +39,10 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+// Security middleware
+app.use(globalRateLimiter); // Rate limiting
+app.use(sanitizeInput); // XSS protection
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -40,33 +63,20 @@ app.get('/api', (_req, res) => {
   });
 });
 
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: {
-      code: 'NOT_FOUND',
-      message: 'Endpoint not found',
-      path: req.path,
-      method: req.method,
-    },
-  });
-});
+// API Routes
+app.use('/api/auth', authRoutes);
 
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.log('Error: ', err);
+// 404 handler
+app.use(notFoundHandler);
 
-  res.status(err.status || 500).json({
-    success: false,
-    error: {
-      code: err.code || 'INTERNAL_SERVER_ERROR',
-      message: err.message || 'Something went wrong',
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-    },
-  });
-});
+// Global error handler
+app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  // Initialize Redis connection
+  await initializeRedis();
+
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -75,6 +85,7 @@ app.listen(PORT, () => {
 ║   📡 Server running on: http://localhost:${PORT}          ║
 ║   🌍 Environment: ${process.env.NODE_ENV || 'development'}                      ║
 ║   📚 API Docs: http://localhost:${PORT}/api-docs         ║
+║   🔐 Auth API: http://localhost:${PORT}/api/auth         ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
