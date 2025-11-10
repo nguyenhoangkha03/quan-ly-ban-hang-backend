@@ -1,0 +1,435 @@
+import { PrismaClient, Prisma } from '@prisma/client';
+import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
+import RedisService from './redis.service';
+import { logActivity } from '@utils/logger';
+import type {
+  CreateCategoryInput,
+  UpdateCategoryInput,
+  QueryCategoriesInput,
+} from '@validators/category.validator';
+
+const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
+
+const CATEGORY_CACHE_TTL = 3600;
+const CATEGORY_LIST_CACHE_TTL = 600;
+
+class CategoryService {
+  async getAllCategories(query: QueryCategoriesInput) {
+    const {
+      page = '1',
+      limit = '20',
+      search,
+      parentId,
+      status,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const cacheKey = `category:list:${JSON.stringify(query)}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const where: Prisma.CategoryWhereInput = {
+      ...(search && {
+        OR: [
+          { categoryName: { contains: search } },
+          { categoryCode: { contains: search } },
+          { description: { contains: search } },
+        ],
+      }),
+      ...(parentId && { parentId: parseInt(parentId) }),
+      ...(status && { status }),
+    };
+
+    const [categories, total] = await Promise.all([
+      prisma.category.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { [sortBy]: sortOrder },
+        select: {
+          id: true,
+          categoryCode: true,
+          categoryName: true,
+          slug: true,
+          parentId: true,
+          description: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          parent: {
+            select: {
+              id: true,
+              categoryCode: true,
+              categoryName: true,
+            },
+          },
+          _count: {
+            select: {
+              children: true,
+              products: true,
+            },
+          },
+        },
+      }),
+      prisma.category.count({ where }),
+    ]);
+
+    const result = {
+      data: categories,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    };
+
+    await redis.set(cacheKey, result, CATEGORY_LIST_CACHE_TTL);
+
+    return result;
+  }
+
+  async getCategoryTree() {
+    const cacheKey = 'category:tree';
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const categories = await prisma.category.findMany({
+      where: { status: 'active' },
+      select: {
+        id: true,
+        categoryCode: true,
+        categoryName: true,
+        slug: true,
+        parentId: true,
+        description: true,
+        _count: {
+          select: {
+            products: true,
+          },
+        },
+      },
+      orderBy: { categoryName: 'asc' },
+    });
+
+    const tree = this.buildTree(categories, null);
+
+    await redis.set(cacheKey, tree, CATEGORY_CACHE_TTL);
+
+    return tree;
+  }
+
+  private buildTree(categories: any[], parentId: number | null): any[] {
+    return categories
+      .filter((cat) => cat.parentId === parentId)
+      .map((cat) => ({
+        ...cat,
+        children: this.buildTree(categories, cat.id),
+      }));
+  }
+
+  async getCategoryById(id: number) {
+    const cacheKey = `category:${id}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const category = await prisma.category.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        categoryCode: true,
+        categoryName: true,
+        slug: true,
+        parentId: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        parent: {
+          select: {
+            id: true,
+            categoryCode: true,
+            categoryName: true,
+            slug: true,
+          },
+        },
+        children: {
+          select: {
+            id: true,
+            categoryCode: true,
+            categoryName: true,
+            slug: true,
+            status: true,
+            _count: {
+              select: {
+                products: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            children: true,
+            products: true,
+          },
+        },
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundError('Category not found');
+    }
+
+    await redis.set(cacheKey, category, CATEGORY_CACHE_TTL);
+
+    return category;
+  }
+
+  async createCategory(data: CreateCategoryInput, createdBy: number) {
+    const codeExists = await this.checkCategoryCodeExists(data.categoryCode);
+    if (codeExists) {
+      throw new ConflictError('Category code already exists');
+    }
+
+    const slugExists = await this.checkSlugExists(data.slug);
+    if (slugExists) {
+      throw new ConflictError('Slug already exists');
+    }
+
+    if (data.parentId) {
+      const parentExists = await prisma.category.findUnique({
+        where: { id: data.parentId },
+      });
+      if (!parentExists) {
+        throw new NotFoundError('Parent category not found');
+      }
+    }
+
+    const category = await prisma.category.create({
+      data: {
+        categoryCode: data.categoryCode,
+        categoryName: data.categoryName,
+        slug: data.slug,
+        parentId: data.parentId || null,
+        description: data.description || null,
+        status: data.status || 'active',
+      },
+      select: {
+        id: true,
+        categoryCode: true,
+        categoryName: true,
+        slug: true,
+        parentId: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        parent: {
+          select: {
+            id: true,
+            categoryCode: true,
+            categoryName: true,
+          },
+        },
+      },
+    });
+
+    logActivity('create', createdBy, 'categories', {
+      recordId: category.id,
+      newValue: category,
+    });
+
+    await this.invalidateCache();
+
+    return category;
+  }
+
+  async updateCategory(id: number, data: UpdateCategoryInput, updatedBy: number) {
+    const existingCategory = await prisma.category.findUnique({
+      where: { id },
+    });
+
+    if (!existingCategory) {
+      throw new NotFoundError('Category not found');
+    }
+
+    if (data.categoryCode && data.categoryCode !== existingCategory.categoryCode) {
+      const codeExists = await this.checkCategoryCodeExists(data.categoryCode, id);
+      if (codeExists) {
+        throw new ConflictError('Category code already exists');
+      }
+    }
+
+    if (data.slug && data.slug !== existingCategory.slug) {
+      const slugExists = await this.checkSlugExists(data.slug, id);
+      if (slugExists) {
+        throw new ConflictError('Slug already exists');
+      }
+    }
+
+    if (data.parentId !== undefined) {
+      if (data.parentId === id) {
+        throw new ValidationError('Category cannot be its own parent');
+      }
+
+      if (data.parentId !== null) {
+        const parentExists = await prisma.category.findUnique({
+          where: { id: data.parentId },
+        });
+        if (!parentExists) {
+          throw new NotFoundError('Parent category not found');
+        }
+
+        const isCircular = await this.checkCircularReference(id, data.parentId);
+        if (isCircular) {
+          throw new ValidationError('Circular reference detected. Cannot set parent.');
+        }
+      }
+    }
+
+    const updatedCategory = await prisma.category.update({
+      where: { id },
+      data: {
+        ...(data.categoryCode && { categoryCode: data.categoryCode }),
+        ...(data.categoryName && { categoryName: data.categoryName }),
+        ...(data.slug && { slug: data.slug }),
+        ...(data.parentId !== undefined && { parentId: data.parentId }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.status && { status: data.status }),
+      },
+      select: {
+        id: true,
+        categoryCode: true,
+        categoryName: true,
+        slug: true,
+        parentId: true,
+        description: true,
+        status: true,
+        updatedAt: true,
+        parent: {
+          select: {
+            id: true,
+            categoryCode: true,
+            categoryName: true,
+          },
+        },
+      },
+    });
+
+    logActivity('update', updatedBy, 'categories', {
+      recordId: id,
+      oldValue: existingCategory,
+      newValue: updatedCategory,
+    });
+
+    await redis.del(`category:${id}`);
+    await this.invalidateCache();
+
+    return updatedCategory;
+  }
+
+  async deleteCategory(id: number, deletedBy: number) {
+    const category = await prisma.category.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            children: true,
+            products: true,
+          },
+        },
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundError('Category not found');
+    }
+
+    if (category._count.children > 0) {
+      throw new ValidationError('Cannot delete category with subcategories');
+    }
+
+    if (category._count.products > 0) {
+      throw new ValidationError('Cannot delete category with products');
+    }
+
+    await prisma.category.update({
+      where: { id },
+      data: {
+        status: 'inactive',
+      },
+    });
+
+    logActivity('delete', deletedBy, 'categories', {
+      recordId: id,
+      oldValue: category,
+    });
+
+    await redis.del(`category:${id}`);
+    await this.invalidateCache();
+
+    return { message: 'Category deleted successfully' };
+  }
+
+  async checkCategoryCodeExists(code: string, excludeId?: number): Promise<boolean> {
+    const category = await prisma.category.findFirst({
+      where: {
+        categoryCode: code,
+        ...(excludeId && { id: { not: excludeId } }),
+      },
+    });
+
+    return !!category;
+  }
+
+  async checkSlugExists(slug: string, excludeId?: number): Promise<boolean> {
+    const category = await prisma.category.findFirst({
+      where: {
+        slug,
+        ...(excludeId && { id: { not: excludeId } }),
+      },
+    });
+
+    return !!category;
+  }
+
+  private async checkCircularReference(categoryId: number, newParentId: number): Promise<boolean> {
+    let currentParentId: number | null = newParentId;
+
+    while (currentParentId !== null) {
+      if (currentParentId === categoryId) {
+        return true;
+      }
+
+      const parent: { parentId: number | null } | null = await prisma.category.findUnique({
+        where: { id: currentParentId },
+        select: { parentId: true },
+      });
+
+      currentParentId = parent?.parentId || null;
+    }
+
+    return false;
+  }
+
+  private async invalidateCache() {
+    const keys = await redis.keys('category:list:*');
+    if (keys.length > 0) {
+      await redis.del(keys);
+    }
+    await redis.del('category:tree');
+  }
+}
+
+export default new CategoryService();
