@@ -101,7 +101,9 @@ async function main() {
 
     // Warehouse Management
     { key: 'view_warehouses', name: 'Xem danh sách kho', module: 'warehouse' },
-    { key: 'manage_warehouses', name: 'Quản lý kho', module: 'warehouse' },
+    { key: 'create_warehouse', name: 'Tạo kho mới', module: 'warehouse' },
+    { key: 'update_warehouse', name: 'Cập nhật kho', module: 'warehouse' },
+    { key: 'delete_warehouse', name: 'Xóa kho', module: 'warehouse' },
     { key: 'view_inventory', name: 'Xem tồn kho', module: 'warehouse' },
     { key: 'manage_inventory', name: 'Quản lý tồn kho', module: 'warehouse' },
     { key: 'create_stock_transaction', name: 'Tạo phiếu kho', module: 'warehouse' },

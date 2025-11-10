@@ -15,6 +15,7 @@ import authRoutes from '@routes/auth.routes';
 import userRoutes from '@routes/user.routes';
 import roleRoutes from '@routes/role.routes';
 import permissionRoutes from '@routes/permission.routes';
+import warehouseRoutes from '@routes/warehouse.routes';
 
 dotenv.config();
 
@@ -86,6 +87,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/warehouses', warehouseRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -113,6 +115,7 @@ app.listen(PORT, async () => {
 ║   👥 User API: http://localhost:${PORT}/api/users        ║
 ║   🔑 Role API: http://localhost:${PORT}/api/roles        ║
 ║   ⚙️  Permission API: http://localhost:${PORT}/api/permissions ║
+║   🏢 Warehouse API: http://localhost:${PORT}/api/warehouses ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
