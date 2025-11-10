@@ -21,6 +21,7 @@ import supplierRoutes from '@routes/supplier.routes';
 import productRoutes from '@routes/product.routes';
 import inventoryRoutes from '@routes/inventory.routes';
 import stockTransactionRoutes from '@routes/stock-transaction.routes';
+import stockTransferRoutes from '@routes/stock-transfer.routes';
 
 dotenv.config();
 
@@ -98,6 +99,7 @@ app.use('/api/suppliers', supplierRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/stock-transactions', stockTransactionRoutes);
+app.use('/api/stock-transfers', stockTransferRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -131,6 +133,7 @@ app.listen(PORT, async () => {
 ║   📦 Product API: http://localhost:${PORT}/api/products   ║
 ║   📊 Inventory API: http://localhost:${PORT}/api/inventory ║
 ║   🔄 Stock Transaction API: http://localhost:${PORT}/api/stock-transactions ║
+║   🚚 Stock Transfer API: http://localhost:${PORT}/api/stock-transfers ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
