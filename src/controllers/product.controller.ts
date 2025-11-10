@@ -1,0 +1,186 @@
+import { Response } from 'express';
+import { AuthRequest } from '@custom-types/index';
+import productService from '@services/product.service';
+import { ApiResponse } from '@custom-types/index';
+
+class ProductController {
+  // GET /api/products
+  async getAll(req: AuthRequest, res: Response) {
+    const { page, limit, search, productType, categoryId, supplierId, status, sortBy, sortOrder } =
+      req.query as any;
+
+    const result = await productService.getAll({
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+      search,
+      productType,
+      categoryId: categoryId ? parseInt(categoryId) : undefined,
+      supplierId: supplierId ? parseInt(supplierId) : undefined,
+      status,
+      sortBy,
+      sortOrder,
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: result.products,
+      meta: result.pagination,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/:id
+  async getById(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+
+    const product = await productService.getById(parseInt(id));
+
+    const response: ApiResponse = {
+      success: true,
+      data: product,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // POST /api/products
+  async create(req: AuthRequest, res: Response) {
+    const userId = req.user!.id;
+    const data = req.body;
+
+    const product = await productService.create(data, userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: product,
+      message: 'Product created successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(201).json(response);
+  }
+
+  // PUT /api/products/:id
+  async update(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const data = req.body;
+
+    const product = await productService.update(parseInt(id), data, userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: product,
+      message: 'Product updated successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // DELETE /api/products/:id
+  async delete(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    const userId = req.user!.id;
+
+    const result = await productService.delete(parseInt(id), userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/low-stock
+  async getLowStock(req: AuthRequest, res: Response) {
+    const { warehouseId } = req.query;
+
+    const products = await productService.getLowStock(
+      warehouseId ? parseInt(warehouseId as string) : undefined
+    );
+
+    const response: ApiResponse = {
+      success: true,
+      data: products,
+      meta: {
+        total: products.length,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/expiring-soon
+  async getExpiringSoon(req: AuthRequest, res: Response) {
+    const { days } = req.query;
+
+    const products = await productService.getExpiringSoon(days ? parseInt(days as string) : 7);
+
+    const response: ApiResponse = {
+      success: true,
+      data: products,
+      meta: {
+        total: products.length,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // POST /api/products/:id/images
+  async uploadImages(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    const userId = req.user!.id;
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'No images provided',
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    const imageMetadata = req.body.images ? JSON.parse(req.body.images) : files.map(() => ({}));
+
+    const images = await productService.uploadImages(parseInt(id), files, imageMetadata, userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: images,
+      message: 'Images uploaded successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    return res.status(200).json(response);
+  }
+
+  // DELETE /api/products/:id/images/:imageId
+  async deleteImage(req: AuthRequest, res: Response) {
+    const { id, imageId } = req.params;
+    const userId = req.user!.id;
+
+    const result = await productService.deleteImage(parseInt(id), parseInt(imageId), userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+}
+
+export default new ProductController();

@@ -18,6 +18,7 @@ import permissionRoutes from '@routes/permission.routes';
 import warehouseRoutes from '@routes/warehouse.routes';
 import categoryRoutes from '@routes/category.routes';
 import supplierRoutes from '@routes/supplier.routes';
+import productRoutes from '@routes/product.routes';
 
 dotenv.config();
 
@@ -92,6 +93,7 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/suppliers', supplierRoutes);
+app.use('/api/products', productRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -122,6 +124,7 @@ app.listen(PORT, async () => {
 ║   🏢 Warehouse API: http://localhost:${PORT}/api/warehouses ║
 ║   📂 Category API: http://localhost:${PORT}/api/categories ║
 ║   🏭 Supplier API: http://localhost:${PORT}/api/suppliers ║
+║   📦 Product API: http://localhost:${PORT}/api/products   ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
