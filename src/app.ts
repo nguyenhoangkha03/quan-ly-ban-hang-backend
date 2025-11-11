@@ -29,6 +29,7 @@ import salesOrderRoutes from '@routes/sales-order.routes';
 import deliveryRoutes from '@routes/delivery.routes';
 import paymentReceiptRoutes from '@routes/payment-receipt.routes';
 import paymentVoucherRoutes from '@routes/payment-voucher.routes';
+import debtReconciliationRoutes from '@routes/debt-reconciliation.routes';
 
 dotenv.config();
 
@@ -114,6 +115,7 @@ app.use('/api/sales-orders', salesOrderRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/payment-receipts', paymentReceiptRoutes);
 app.use('/api/payment-vouchers', paymentVoucherRoutes);
+app.use('/api/debt-reconciliation', debtReconciliationRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -155,6 +157,7 @@ app.listen(PORT, async () => {
 ║   🚚 Deliveries API: http://localhost:${PORT}/api/deliveries ║
 ║   💰 Payment Receipts API: http://localhost:${PORT}/api/payment-receipts ║
 ║   💸 Payment Vouchers API: http://localhost:${PORT}/api/payment-vouchers ║
+║   📊 Debt Reconciliation API: http://localhost:${PORT}/api/debt-reconciliation ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
