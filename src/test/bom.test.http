@@ -1,0 +1,231 @@
+### BOM API Testing
+### Base URL
+@baseUrl = http://localhost:3000/api
+@token = YOUR_ACCESS_TOKEN_HERE
+
+### =====================================================
+### 1. Get All BOMs
+### =====================================================
+GET {{baseUrl}}/bom
+Authorization: Bearer {{token}}
+
+### With filters
+GET {{baseUrl}}/bom?status=active&page=1&limit=10
+Authorization: Bearer {{token}}
+
+### Search by keyword
+GET {{baseUrl}}/bom?search=NUOC-CHANH
+Authorization: Bearer {{token}}
+
+### =====================================================
+### 2. Get BOM by ID
+### =====================================================
+GET {{baseUrl}}/bom/1
+Authorization: Bearer {{token}}
+
+### =====================================================
+### 3. Create New BOM
+### =====================================================
+POST {{baseUrl}}/bom
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "bomCode": "BOM-NUOC-CHANH-V1",
+  "finishedProductId": 50,
+  "version": "1.0",
+  "outputQuantity": 100,
+  "efficiencyRate": 95,
+  "productionTime": 120,
+  "notes": "Công thức sản xuất nước chanh đường 500ml",
+  "materials": [
+    {
+      "materialId": 10,
+      "quantity": 5,
+      "unit": "kg",
+      "materialType": "raw_material",
+      "notes": "Đường trắng tinh khiết"
+    },
+    {
+      "materialId": 20,
+      "quantity": 10,
+      "unit": "kg",
+      "materialType": "raw_material",
+      "notes": "Chanh tươi"
+    },
+    {
+      "materialId": 30,
+      "quantity": 100,
+      "unit": "cái",
+      "materialType": "packaging",
+      "notes": "Chai nhựa PET 500ml"
+    },
+    {
+      "materialId": 31,
+      "quantity": 100,
+      "unit": "cái",
+      "materialType": "packaging",
+      "notes": "Nắp chai nhựa"
+    },
+    {
+      "materialId": 32,
+      "quantity": 100,
+      "unit": "cái",
+      "materialType": "packaging",
+      "notes": "Nhãn sản phẩm"
+    }
+  ]
+}
+
+### =====================================================
+### 4. Update BOM (Draft only)
+### =====================================================
+PUT {{baseUrl}}/bom/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "version": "1.1",
+  "outputQuantity": 120,
+  "efficiencyRate": 98,
+  "productionTime": 110,
+  "notes": "Cải tiến công thức, tăng hiệu suất",
+  "materials": [
+    {
+      "materialId": 10,
+      "quantity": 5.5,
+      "unit": "kg",
+      "materialType": "raw_material",
+      "notes": "Tăng lượng đường"
+    },
+    {
+      "materialId": 20,
+      "quantity": 9,
+      "unit": "kg",
+      "materialType": "raw_material",
+      "notes": "Giảm lượng chanh"
+    },
+    {
+      "materialId": 30,
+      "quantity": 100,
+      "unit": "cái",
+      "materialType": "packaging"
+    }
+  ]
+}
+
+### =====================================================
+### 5. Approve BOM
+### =====================================================
+PUT {{baseUrl}}/bom/1/approve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "notes": "Công thức đã được kiểm tra và phê duyệt bởi quản lý sản xuất"
+}
+
+### =====================================================
+### 6. Calculate Material Requirements
+### =====================================================
+POST {{baseUrl}}/bom/calculate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "bomId": 1,
+  "productionQuantity": 1000
+}
+
+### Calculate for 5000 units
+POST {{baseUrl}}/bom/calculate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "bomId": 1,
+  "productionQuantity": 5000
+}
+
+### =====================================================
+### 7. Get BOMs by Finished Product
+### =====================================================
+GET {{baseUrl}}/bom/product/50
+Authorization: Bearer {{token}}
+
+### =====================================================
+### 8. Set BOM to Inactive
+### =====================================================
+PUT {{baseUrl}}/bom/1/inactive
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "Công thức cũ, đã có phiên bản mới"
+}
+
+### =====================================================
+### 9. Delete BOM (Draft only)
+### =====================================================
+DELETE {{baseUrl}}/bom/1
+Authorization: Bearer {{token}}
+
+### =====================================================
+### 10. Error Cases
+### =====================================================
+
+### Create with invalid material type
+POST {{baseUrl}}/bom
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "bomCode": "BOM-ERROR-001",
+  "finishedProductId": 50,
+  "outputQuantity": 100,
+  "materials": [
+    {
+      "materialId": 999,
+      "quantity": 5,
+      "unit": "kg",
+      "materialType": "raw_material"
+    }
+  ]
+}
+
+### Create with duplicate BOM code
+POST {{baseUrl}}/bom
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "bomCode": "BOM-NUOC-CHANH-V1",
+  "finishedProductId": 50,
+  "outputQuantity": 100,
+  "materials": []
+}
+
+### Update approved BOM (should fail)
+PUT {{baseUrl}}/bom/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "outputQuantity": 150
+}
+
+### =====================================================
+### 11. Advanced Queries
+### =====================================================
+
+### Get active BOMs sorted by creation date
+GET {{baseUrl}}/bom?status=active&sortBy=createdAt&sortOrder=desc
+Authorization: Bearer {{token}}
+
+### Get BOMs for specific product
+GET {{baseUrl}}/bom?finishedProductId=50
+Authorization: Bearer {{token}}
+
+### Paginated results
+GET {{baseUrl}}/bom?page=2&limit=5
+Authorization: Bearer {{token}}

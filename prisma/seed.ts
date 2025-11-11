@@ -118,10 +118,15 @@ async function main() {
     // Production Management
     { key: 'view_bom', name: 'Xem công thức sản xuất', module: 'production' },
     { key: 'create_bom', name: 'Tạo công thức sản xuất', module: 'production' },
+    { key: 'update_bom', name: 'Cập nhật công thức sản xuất', module: 'production' },
+    { key: 'delete_bom', name: 'Xóa công thức sản xuất', module: 'production' },
     { key: 'approve_bom', name: 'Phê duyệt công thức', module: 'production' },
+    { key: 'view_production', name: 'Xem thông tin sản xuất', module: 'production' },
+    { key: 'manage_production', name: 'Quản lý sản xuất', module: 'production' },
     { key: 'view_production_orders', name: 'Xem lệnh sản xuất', module: 'production' },
     { key: 'create_production_order', name: 'Tạo lệnh sản xuất', module: 'production' },
     { key: 'approve_production_order', name: 'Phê duyệt lệnh sản xuất', module: 'production' },
+    { key: 'cancel_production_orders', name: 'Hủy lệnh sản xuất', module: 'production' },
 
     // Sales Management
     { key: 'view_customers', name: 'Xem khách hàng', module: 'sales' },
