@@ -26,6 +26,7 @@ import bomRoutes from '@routes/bom.routes';
 import productionOrderRoutes from '@routes/production-order.routes';
 import customerRoutes from '@routes/customer.routes';
 import salesOrderRoutes from '@routes/sales-order.routes';
+import deliveryRoutes from '@routes/delivery.routes';
 
 dotenv.config();
 
@@ -108,6 +109,7 @@ app.use('/api/bom', bomRoutes);
 app.use('/api/production-orders', productionOrderRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/sales-orders', salesOrderRoutes);
+app.use('/api/deliveries', deliveryRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -146,6 +148,7 @@ app.listen(PORT, async () => {
 ║   🏭 Production Orders API: http://localhost:${PORT}/api/production-orders ║
 ║   👤 Customer API: http://localhost:${PORT}/api/customers ║
 ║   🛒 Sales Orders API: http://localhost:${PORT}/api/sales-orders ║
+║   🚚 Deliveries API: http://localhost:${PORT}/api/deliveries ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
