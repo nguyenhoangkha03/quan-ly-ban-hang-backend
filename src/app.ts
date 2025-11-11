@@ -28,6 +28,7 @@ import customerRoutes from '@routes/customer.routes';
 import salesOrderRoutes from '@routes/sales-order.routes';
 import deliveryRoutes from '@routes/delivery.routes';
 import paymentReceiptRoutes from '@routes/payment-receipt.routes';
+import paymentVoucherRoutes from '@routes/payment-voucher.routes';
 
 dotenv.config();
 
@@ -112,6 +113,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/sales-orders', salesOrderRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/payment-receipts', paymentReceiptRoutes);
+app.use('/api/payment-vouchers', paymentVoucherRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -152,6 +154,7 @@ app.listen(PORT, async () => {
 ║   🛒 Sales Orders API: http://localhost:${PORT}/api/sales-orders ║
 ║   🚚 Deliveries API: http://localhost:${PORT}/api/deliveries ║
 ║   💰 Payment Receipts API: http://localhost:${PORT}/api/payment-receipts ║
+║   💸 Payment Vouchers API: http://localhost:${PORT}/api/payment-vouchers ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
