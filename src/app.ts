@@ -23,6 +23,7 @@ import inventoryRoutes from '@routes/inventory.routes';
 import stockTransactionRoutes from '@routes/stock-transaction.routes';
 import stockTransferRoutes from '@routes/stock-transfer.routes';
 import bomRoutes from '@routes/bom.routes';
+import productionOrderRoutes from '@routes/production-order.routes';
 
 dotenv.config();
 
@@ -102,6 +103,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/stock-transactions', stockTransactionRoutes);
 app.use('/api/stock-transfers', stockTransferRoutes);
 app.use('/api/bom', bomRoutes);
+app.use('/api/production-orders', productionOrderRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -137,6 +139,7 @@ app.listen(PORT, async () => {
 ║   🔄 Stock Transaction API: http://localhost:${PORT}/api/stock-transactions ║
 ║   🚚 Stock Transfer API: http://localhost:${PORT}/api/stock-transfers ║
 ║   📋 BOM API: http://localhost:${PORT}/api/bom           ║
+║   🏭 Production Orders API: http://localhost:${PORT}/api/production-orders ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
