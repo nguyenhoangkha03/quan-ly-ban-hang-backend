@@ -1,0 +1,705 @@
+import { PrismaClient, Prisma } from '@prisma/client';
+import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
+import { logActivity } from '@utils/logger';
+import attendanceService from '@services/attendance.service';
+import {
+  CalculateSalaryInput,
+  UpdateSalaryInput,
+  PaySalaryInput,
+  SalaryQueryInput,
+} from '@validators/salary.validator';
+
+const prisma = new PrismaClient();
+
+// Salary calculation constants
+const STANDARD_WORK_HOURS_PER_MONTH = 208; // 26 days * 8 hours
+const OVERTIME_RATE = 1.5; // 150% of hourly rate
+const COMMISSION_RATE = 0.05; // 5% of sales revenue
+const SOCIAL_INSURANCE_RATE = 0.08; // BHXH 8%
+const HEALTH_INSURANCE_RATE = 0.015; // BHYT 1.5%
+const UNEMPLOYMENT_INSURANCE_RATE = 0.01; // BHTN 1%
+const TOTAL_INSURANCE_RATE = SOCIAL_INSURANCE_RATE + HEALTH_INSURANCE_RATE + UNEMPLOYMENT_INSURANCE_RATE; // 10.5%
+
+class SalaryService {
+  // Calculate tax based on progressive tax brackets (Vietnam 2024)
+  private calculatePersonalIncomeTax(taxableIncome: number): number {
+    if (taxableIncome <= 0) return 0;
+
+    let tax = 0;
+    const brackets = [
+      { limit: 5000000, rate: 0.05 },
+      { limit: 10000000, rate: 0.1 },
+      { limit: 18000000, rate: 0.15 },
+      { limit: 32000000, rate: 0.2 },
+      { limit: 52000000, rate: 0.25 },
+      { limit: 80000000, rate: 0.3 },
+      { limit: Infinity, rate: 0.35 },
+    ];
+
+    let remaining = taxableIncome;
+    let previousLimit = 0;
+
+    for (const bracket of brackets) {
+      const taxableAtThisBracket = Math.min(remaining, bracket.limit - previousLimit);
+      if (taxableAtThisBracket <= 0) break;
+
+      tax += taxableAtThisBracket * bracket.rate;
+      remaining -= taxableAtThisBracket;
+      previousLimit = bracket.limit;
+
+      if (remaining <= 0) break;
+    }
+
+    return Math.round(tax);
+  }
+
+  // Get user's sales revenue for the month
+  private async getUserSalesRevenue(userId: number, month: string): Promise<number> {
+    const year = parseInt(month.substring(0, 4));
+    const monthNum = parseInt(month.substring(4, 6));
+
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0);
+
+    // Get sales orders created by this user
+    const orders = await prisma.salesOrder.findMany({
+      where: {
+        createdBy: userId,
+        orderDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+        orderStatus: {
+          in: ['completed'],
+        },
+      },
+      select: {
+        totalAmount: true,
+      },
+    });
+
+    const totalRevenue = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+    return totalRevenue;
+  }
+
+  // Get all salary records with filters
+  async getAll(params: SalaryQueryInput) {
+    const {
+      page = 1,
+      limit = 20,
+      userId,
+      month,
+      status,
+      fromMonth,
+      toMonth,
+      sortBy = 'month',
+      sortOrder = 'desc',
+    } = params;
+
+    const offset = (page - 1) * limit;
+
+    const where: Prisma.SalaryWhereInput = {
+      ...(userId && { userId }),
+      ...(month && { month }),
+      ...(status && { status }),
+      ...(fromMonth &&
+        toMonth && {
+          month: {
+            gte: fromMonth,
+            lte: toMonth,
+          },
+        }),
+    };
+
+    const [records, total] = await Promise.all([
+      prisma.salary.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+              email: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+            },
+          },
+          approver: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+            },
+          },
+          payer: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+            },
+          },
+          voucher: {
+            select: {
+              id: true,
+              voucherCode: true,
+              amount: true,
+            },
+          },
+        },
+        skip: offset,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+      }),
+      prisma.salary.count({ where }),
+    ]);
+
+    // Calculate total salary for each record
+    const recordsWithTotal = records.map((record) => ({
+      ...record,
+      totalSalary:
+        Number(record.basicSalary) +
+        Number(record.allowance) +
+        Number(record.overtimePay) +
+        Number(record.bonus) +
+        Number(record.commission) -
+        Number(record.deduction) -
+        Number(record.advance),
+    }));
+
+    return {
+      data: recordsWithTotal,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // Get salary by ID
+  async getById(id: number) {
+    const salary = await prisma.salary.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            employeeCode: true,
+            email: true,
+          },
+        },
+        creator: true,
+        approver: true,
+        payer: true,
+        voucher: true,
+      },
+    });
+
+    if (!salary) {
+      throw new NotFoundError('Salary record');
+    }
+
+    const totalSalary =
+      Number(salary.basicSalary) +
+      Number(salary.allowance) +
+      Number(salary.overtimePay) +
+      Number(salary.bonus) +
+      Number(salary.commission) -
+      Number(salary.deduction) -
+      Number(salary.advance);
+
+    return {
+      ...salary,
+      totalSalary,
+    };
+  }
+
+  // Get salary by user and month
+  async getByUserAndMonth(userId: number, month: string) {
+    const salary = await prisma.salary.findUnique({
+      where: {
+        userId_month: {
+          userId,
+          month,
+        },
+      },
+      include: {
+        user: true,
+        creator: true,
+        approver: true,
+        payer: true,
+        voucher: true,
+      },
+    });
+
+    if (!salary) {
+      throw new NotFoundError(`Salary record for user ${userId} in month ${month}`);
+    }
+
+    const totalSalary =
+      Number(salary.basicSalary) +
+      Number(salary.allowance) +
+      Number(salary.overtimePay) +
+      Number(salary.bonus) +
+      Number(salary.commission) -
+      Number(salary.deduction) -
+      Number(salary.advance);
+
+    return {
+      ...salary,
+      totalSalary,
+    };
+  }
+
+  // Calculate salary for a user in a month
+  async calculate(data: CalculateSalaryInput, creatorId: number) {
+    const { userId, month, basicSalary, allowance = 0, bonus = 0, advance = 0, notes } = data;
+
+    // Check if salary already exists
+    const existing = await prisma.salary.findUnique({
+      where: {
+        userId_month: {
+          userId,
+          month,
+        },
+      },
+    });
+
+    if (existing) {
+      throw new ConflictError('Salary for this user and month already exists');
+    }
+
+    // Get user info (no basicSalary field in User model, will use from params or default)
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, fullName: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
+    const actualBasicSalary = basicSalary ?? 10000000; // Default 10M if not provided
+
+    // 1. Calculate overtime pay from attendance
+    const attendanceReport = await attendanceService.getMonthlyReport(month, userId);
+    const userAttendance = attendanceReport.users.find((u: any) => u.user.id === userId);
+    const overtimeHours = userAttendance?.summary.totalOvertimeHours ?? 0;
+    const overtimePay = (actualBasicSalary / STANDARD_WORK_HOURS_PER_MONTH) * overtimeHours * OVERTIME_RATE;
+
+    // 2. Calculate commission from sales revenue
+    const salesRevenue = await this.getUserSalesRevenue(userId, month);
+    const commission = salesRevenue * COMMISSION_RATE;
+
+    // 3. Calculate gross income
+    const grossIncome = actualBasicSalary + allowance + overtimePay + bonus + commission;
+
+    // 4. Calculate deductions (Insurance + Tax)
+    const insuranceDeduction = actualBasicSalary * TOTAL_INSURANCE_RATE;
+
+    // Tax = (Gross - Insurance - 11M personal deduction - 4.4M dependents) * progressive rate
+    const PERSONAL_DEDUCTION = 11000000; // 11M VND
+    const DEPENDENT_DEDUCTION = 4400000; // 4.4M VND per dependent (assume 0 for now)
+    const taxableIncome = grossIncome - insuranceDeduction - PERSONAL_DEDUCTION - DEPENDENT_DEDUCTION;
+    const tax = this.calculatePersonalIncomeTax(taxableIncome);
+
+    const totalDeduction = insuranceDeduction + tax;
+
+    // 5. Calculate net salary
+    const netSalary = grossIncome - totalDeduction - advance;
+
+    // Create salary record
+    const salary = await prisma.salary.create({
+      data: {
+        userId,
+        month,
+        basicSalary: actualBasicSalary,
+        allowance,
+        overtimePay,
+        bonus,
+        commission,
+        deduction: totalDeduction,
+        advance,
+        notes,
+        createdBy: creatorId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            employeeCode: true,
+            email: true,
+          },
+        },
+        creator: true,
+      },
+    });
+
+    // Log activity
+    logActivity('calculate_salary', creatorId, 'salary', {
+      id: salary.id,
+      userId,
+      month,
+      netSalary,
+    });
+
+    return {
+      ...salary,
+      totalSalary: netSalary,
+      breakdown: {
+        grossIncome,
+        insuranceDeduction,
+        tax,
+        netSalary,
+      },
+    };
+  }
+
+  // Recalculate existing salary
+  async recalculate(id: number, adminId: number) {
+    const existing = await prisma.salary.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundError('Salary record');
+    }
+
+    if (existing.status === 'paid') {
+      throw new ValidationError('Cannot recalculate paid salary');
+    }
+
+    const { userId, month, basicSalary, allowance, bonus, advance } = existing;
+
+    // 1. Recalculate overtime pay
+    const attendanceReport = await attendanceService.getMonthlyReport(month, userId);
+    const userAttendance = attendanceReport.users.find((u: any) => u.user.id === userId);
+    const overtimeHours = userAttendance?.summary.totalOvertimeHours ?? 0;
+    const overtimePay = (Number(basicSalary) / STANDARD_WORK_HOURS_PER_MONTH) * overtimeHours * OVERTIME_RATE;
+
+    // 2. Recalculate commission
+    const salesRevenue = await this.getUserSalesRevenue(userId, month);
+    const commission = salesRevenue * COMMISSION_RATE;
+
+    // 3. Recalculate deductions
+    const grossIncome = Number(basicSalary) + Number(allowance) + overtimePay + Number(bonus) + commission;
+    const insuranceDeduction = Number(basicSalary) * TOTAL_INSURANCE_RATE;
+    const PERSONAL_DEDUCTION = 11000000;
+    const DEPENDENT_DEDUCTION = 4400000;
+    const taxableIncome = grossIncome - insuranceDeduction - PERSONAL_DEDUCTION - DEPENDENT_DEDUCTION;
+    const tax = this.calculatePersonalIncomeTax(taxableIncome);
+    const totalDeduction = insuranceDeduction + tax;
+
+    const netSalary = grossIncome - totalDeduction - Number(advance);
+
+    // Update salary
+    const updated = await prisma.salary.update({
+      where: { id },
+      data: {
+        overtimePay,
+        commission,
+        deduction: totalDeduction,
+      },
+      include: {
+        user: true,
+        creator: true,
+      },
+    });
+
+    // Log activity
+    logActivity('recalculate_salary', adminId, 'salary', {
+      id,
+      netSalary,
+    });
+
+    return {
+      ...updated,
+      totalSalary: netSalary,
+      breakdown: {
+        grossIncome,
+        insuranceDeduction,
+        tax,
+        netSalary,
+      },
+    };
+  }
+
+  // Update salary (admin only, before approval)
+  async update(id: number, data: UpdateSalaryInput, adminId: number) {
+    const existing = await prisma.salary.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundError('Salary record');
+    }
+
+    if (existing.status !== 'pending') {
+      throw new ValidationError('Can only update pending salary records');
+    }
+
+    const updated = await prisma.salary.update({
+      where: { id },
+      data: {
+        ...(data.basicSalary !== undefined && { basicSalary: data.basicSalary }),
+        ...(data.allowance !== undefined && { allowance: data.allowance }),
+        ...(data.overtimePay !== undefined && { overtimePay: data.overtimePay }),
+        ...(data.bonus !== undefined && { bonus: data.bonus }),
+        ...(data.commission !== undefined && { commission: data.commission }),
+        ...(data.deduction !== undefined && { deduction: data.deduction }),
+        ...(data.advance !== undefined && { advance: data.advance }),
+        ...(data.notes && { notes: data.notes }),
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    // Log activity
+    logActivity('update', adminId, 'salary', {
+      id,
+      changes: Object.keys(data),
+    });
+
+    const totalSalary =
+      Number(updated.basicSalary) +
+      Number(updated.allowance) +
+      Number(updated.overtimePay) +
+      Number(updated.bonus) +
+      Number(updated.commission) -
+      Number(updated.deduction) -
+      Number(updated.advance);
+
+    return {
+      ...updated,
+      totalSalary,
+    };
+  }
+
+  // Approve salary
+  async approve(id: number, approverId: number, notes?: string) {
+    const salary = await prisma.salary.findUnique({
+      where: { id },
+    });
+
+    if (!salary) {
+      throw new NotFoundError('Salary record');
+    }
+
+    if (salary.status !== 'pending') {
+      throw new ValidationError('Only pending salaries can be approved');
+    }
+
+    const updated = await prisma.salary.update({
+      where: { id },
+      data: {
+        status: 'approved',
+        approvedBy: approverId,
+        approvedAt: new Date(),
+        ...(notes && { notes }),
+      },
+      include: {
+        user: true,
+        approver: true,
+      },
+    });
+
+    // Log activity
+    logActivity('approve', approverId, 'salary', {
+      id,
+      userId: salary.userId,
+      month: salary.month,
+    });
+
+    return updated;
+  }
+
+  // Pay salary (create payment voucher)
+  async pay(id: number, data: PaySalaryInput, payerId: number) {
+    const salary = await prisma.salary.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!salary) {
+      throw new NotFoundError('Salary record');
+    }
+
+    if (salary.status !== 'approved') {
+      throw new ValidationError('Only approved salaries can be paid');
+    }
+
+    if (salary.isPosted) {
+      throw new ConflictError('Salary already paid');
+    }
+
+    const totalSalary =
+      Number(salary.basicSalary) +
+      Number(salary.allowance) +
+      Number(salary.overtimePay) +
+      Number(salary.bonus) +
+      Number(salary.commission) -
+      Number(salary.deduction) -
+      Number(salary.advance);
+
+    // Create payment voucher using transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Generate voucher code
+      const date = new Date();
+      const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
+      const count = await tx.paymentVoucher.count({
+        where: {
+          createdAt: {
+            gte: new Date(date.setHours(0, 0, 0, 0)),
+            lt: new Date(date.setHours(23, 59, 59, 999)),
+          },
+        },
+      });
+      const voucherCode = `PC-${dateStr}-${(count + 1).toString().padStart(3, '0')}`;
+
+      // Create payment voucher
+      const voucher = await tx.paymentVoucher.create({
+        data: {
+          voucherCode,
+          paymentDate: new Date(data.paymentDate),
+          voucherType: 'salary',
+          amount: totalSalary,
+          paymentMethod: data.paymentMethod,
+          notes: `Trả lương tháng ${salary.month} cho ${salary.user.fullName}. ${data.notes || ''}`,
+          isPosted: true,
+          createdBy: payerId,
+        },
+      });
+
+      // Update salary record
+      const updatedSalary = await tx.salary.update({
+        where: { id },
+        data: {
+          status: 'paid',
+          isPosted: true,
+          paymentDate: new Date(data.paymentDate),
+          paidBy: payerId,
+          voucherId: voucher.id,
+        },
+        include: {
+          user: true,
+          payer: true,
+          voucher: true,
+        },
+      });
+
+      return { salary: updatedSalary, voucher };
+    });
+
+    // Log activity
+    logActivity('pay_salary', payerId, 'salary', {
+      id,
+      voucherId: result.voucher.id,
+      amount: totalSalary,
+    });
+
+    return result;
+  }
+
+  // Delete salary (only pending)
+  async delete(id: number, adminId: number) {
+    const existing = await prisma.salary.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundError('Salary record');
+    }
+
+    if (existing.status !== 'pending') {
+      throw new ValidationError('Can only delete pending salary records');
+    }
+
+    await prisma.salary.delete({
+      where: { id },
+    });
+
+    // Log activity
+    logActivity('delete', adminId, 'salary', {
+      id,
+      userId: existing.userId,
+      month: existing.month,
+    });
+
+    return { message: 'Salary record deleted' };
+  }
+
+  // Get salary summary for a period
+  async getSummary(fromMonth: string, toMonth: string) {
+    const salaries = await prisma.salary.findMany({
+      where: {
+        month: {
+          gte: fromMonth,
+          lte: toMonth,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            employeeCode: true,
+          },
+        },
+      },
+    });
+
+    const summary = {
+      totalRecords: salaries.length,
+      totalBasicSalary: 0,
+      totalAllowance: 0,
+      totalOvertimePay: 0,
+      totalBonus: 0,
+      totalCommission: 0,
+      totalDeduction: 0,
+      totalAdvance: 0,
+      totalNetSalary: 0,
+      byStatus: {
+        pending: 0,
+        approved: 0,
+        paid: 0,
+      },
+    };
+
+    salaries.forEach((salary) => {
+      summary.totalBasicSalary += Number(salary.basicSalary);
+      summary.totalAllowance += Number(salary.allowance);
+      summary.totalOvertimePay += Number(salary.overtimePay);
+      summary.totalBonus += Number(salary.bonus);
+      summary.totalCommission += Number(salary.commission);
+      summary.totalDeduction += Number(salary.deduction);
+      summary.totalAdvance += Number(salary.advance);
+
+      const netSalary =
+        Number(salary.basicSalary) +
+        Number(salary.allowance) +
+        Number(salary.overtimePay) +
+        Number(salary.bonus) +
+        Number(salary.commission) -
+        Number(salary.deduction) -
+        Number(salary.advance);
+
+      summary.totalNetSalary += netSalary;
+      summary.byStatus[salary.status]++;
+    });
+
+    return summary;
+  }
+}
+
+export default new SalaryService();
