@@ -37,7 +37,7 @@ import salaryRoutes from '@routes/salary.routes';
 import notificationRoutes from '@routes/notification.routes';
 
 // Import notification scheduler
-import notificationScheduler from '@services/notification.scheduler';
+import notificationScheduler from 'schedulers/notification.scheduler';
 
 dotenv.config();
 
@@ -185,6 +185,3 @@ app.listen(PORT, async () => {
 });
 
 export default app;
-
-
-
