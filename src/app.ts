@@ -35,6 +35,7 @@ import promotionRoutes from '@routes/promotion.routes';
 import attendanceRoutes from '@routes/attendance.routes';
 import salaryRoutes from '@routes/salary.routes';
 import notificationRoutes from '@routes/notification.routes';
+import reportRoutes from '@routes/report.routes';
 
 // Import notification scheduler
 import notificationScheduler from 'schedulers/notification.scheduler';
@@ -129,6 +130,7 @@ app.use('/api/promotions', promotionRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/salary', salaryRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', reportRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -178,7 +180,12 @@ app.listen(PORT, async () => {
 ║   💰 Payment Receipts API: http://localhost:${PORT}/api/payment-receipts ║
 ║   💸 Payment Vouchers API: http://localhost:${PORT}/api/payment-vouchers ║
 ║   📊 Debt Reconciliation API: http://localhost:${PORT}/api/debt-reconciliation ║
+║   💰 Cash Fund API: http://localhost:${PORT}/api/cash-fund  ║
+║   🎁 Promotions API: http://localhost:${PORT}/api/promotions ║
+║   ⏰ Attendance API: http://localhost:${PORT}/api/attendance ║
+║   💵 Salary API: http://localhost:${PORT}/api/salary        ║
 ║   🔔 Notifications API: http://localhost:${PORT}/api/notifications ║
+║   📈 Reports API: http://localhost:${PORT}/api/reports      ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
