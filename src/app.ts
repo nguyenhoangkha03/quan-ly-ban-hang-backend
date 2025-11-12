@@ -34,6 +34,10 @@ import cashFundRoutes from '@routes/cash-fund.routes';
 import promotionRoutes from '@routes/promotion.routes';
 import attendanceRoutes from '@routes/attendance.routes';
 import salaryRoutes from '@routes/salary.routes';
+import notificationRoutes from '@routes/notification.routes';
+
+// Import notification scheduler
+import notificationScheduler from '@services/notification.scheduler';
 
 dotenv.config();
 
@@ -124,6 +128,7 @@ app.use('/api/cash-fund', cashFundRoutes);
 app.use('/api/promotions', promotionRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/salary', salaryRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -138,6 +143,13 @@ app.listen(PORT, async () => {
 
   // Initialize upload directories
   await initializeUploads();
+
+  // Initialize notification scheduler
+  if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === 'true') {
+    notificationScheduler.init();
+  } else {
+    console.log('⚠️  Notification scheduler disabled (set ENABLE_SCHEDULER=true to enable)');
+  }
 
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
@@ -166,6 +178,7 @@ app.listen(PORT, async () => {
 ║   💰 Payment Receipts API: http://localhost:${PORT}/api/payment-receipts ║
 ║   💸 Payment Vouchers API: http://localhost:${PORT}/api/payment-vouchers ║
 ║   📊 Debt Reconciliation API: http://localhost:${PORT}/api/debt-reconciliation ║
+║   🔔 Notifications API: http://localhost:${PORT}/api/notifications ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);

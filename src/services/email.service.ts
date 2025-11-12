@@ -351,6 +351,111 @@ Sales & Production System Team
     `;
   }
 
+  // Send notification email
+  async sendNotificationEmail(
+    to: string,
+    data: { name: string; title: string; message: string }
+  ): Promise<boolean> {
+    const html = this.getNotificationEmailTemplate(data.name, data.title, data.message);
+    const text = `
+Hello ${data.name},
+
+${data.title}
+
+${data.message}
+
+Best regards,
+Sales & Production System Team
+    `;
+
+    return await this.sendEmail({
+      to,
+      subject: data.title,
+      html,
+      text,
+    });
+  }
+
+  // Notification email template
+  private getNotificationEmailTemplate(name: string, title: string, message: string): string {
+    // Determine icon and color based on title keywords
+    let icon = '🔔';
+    let headerColor = '#667eea';
+    let borderColor = '#667eea';
+
+    if (title.toLowerCase().includes('cảnh báo') || title.toLowerCase().includes('warning')) {
+      icon = '⚠️';
+      headerColor = '#ffc107';
+      borderColor = '#ffc107';
+    } else if (title.toLowerCase().includes('lỗi') || title.toLowerCase().includes('error')) {
+      icon = '❌';
+      headerColor = '#dc3545';
+      borderColor = '#dc3545';
+    } else if (title.toLowerCase().includes('thành công') || title.toLowerCase().includes('success')) {
+      icon = '✅';
+      headerColor = '#28a745';
+      borderColor = '#28a745';
+    } else if (title.toLowerCase().includes('đơn hàng') || title.toLowerCase().includes('order')) {
+      icon = '📦';
+      headerColor = '#17a2b8';
+      borderColor = '#17a2b8';
+    } else if (title.toLowerCase().includes('công nợ') || title.toLowerCase().includes('debt')) {
+      icon = '💰';
+      headerColor = '#fd7e14';
+      borderColor = '#fd7e14';
+    }
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: ${headerColor}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">${icon} ${title}</h1>
+  </div>
+  
+  <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">Xin chào <strong>${name}</strong>,</p>
+    
+    <div style="background: white; border-left: 4px solid ${borderColor}; padding: 20px; border-radius: 5px; margin: 20px 0;">
+      <p style="font-size: 14px; margin: 0; white-space: pre-line;">
+        ${message}
+      </p>
+    </div>
+    
+    <p style="font-size: 13px; color: #666; margin-top: 20px;">
+      Vui lòng đăng nhập vào hệ thống để xem chi tiết.
+    </p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/notifications" 
+         style="background: ${headerColor}; 
+                color: white; 
+                padding: 12px 30px; 
+                text-decoration: none; 
+                border-radius: 5px; 
+                font-weight: bold; 
+                display: inline-block;">
+        Xem Thông Báo
+      </a>
+    </div>
+    
+    <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+    
+    <p style="font-size: 12px; color: #999; text-align: center;">
+      Trân trọng,<br>
+      <strong>Sales & Production System Team</strong>
+    </p>
+  </div>
+</body>
+</html>
+    `;
+  }
+
   // Check if email service is configured
   isEmailServiceConfigured(): boolean {
     return this.isConfigured;
