@@ -31,6 +31,7 @@ import paymentReceiptRoutes from '@routes/payment-receipt.routes';
 import paymentVoucherRoutes from '@routes/payment-voucher.routes';
 import debtReconciliationRoutes from '@routes/debt-reconciliation.routes';
 import cashFundRoutes from '@routes/cash-fund.routes';
+import promotionRoutes from '@routes/promotion.routes';
 
 dotenv.config();
 
@@ -118,6 +119,7 @@ app.use('/api/payment-receipts', paymentReceiptRoutes);
 app.use('/api/payment-vouchers', paymentVoucherRoutes);
 app.use('/api/debt-reconciliation', debtReconciliationRoutes);
 app.use('/api/cash-fund', cashFundRoutes);
+app.use('/api/promotions', promotionRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -166,3 +168,4 @@ app.listen(PORT, async () => {
 });
 
 export default app;
+
