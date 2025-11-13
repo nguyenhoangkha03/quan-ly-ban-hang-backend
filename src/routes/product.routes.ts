@@ -17,21 +17,123 @@ const router = Router();
 // All routes require authentication
 router.use(authentication);
 
-// GET /api/products/low-stock - Get low stock products
+/**
+ * @swagger
+ * /api/products/low-stock:
+ *   get:
+ *     summary: Get low stock products
+ *     tags: [Products]
+ *     description: Retrieve products with stock levels below minimum threshold
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Low stock products retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       sku:
+ *                         type: string
+ *                       productName:
+ *                         type: string
+ *                       currentStock:
+ *                         type: number
+ *                       minStockLevel:
+ *                         type: number
+ *                       warehouse:
+ *                         type: object
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ *       403:
+ *         $ref: '#/components/responses/AuthorizationError'
+ */
 router.get(
   '/low-stock',
   authorize('view_inventory', 'view_products'),
   asyncHandler(productController.getLowStock.bind(productController))
 );
 
-// GET /api/products/expiring-soon - Get products expiring soon
+/**
+ * @swagger
+ * /api/products/expiring-soon:
+ *   get:
+ *     summary: Get products expiring soon
+ *     tags: [Products]
+ *     description: Retrieve products that are approaching expiry date
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Number of days to look ahead
+ *     responses:
+ *       200:
+ *         description: Expiring products retrieved successfully
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ */
 router.get(
   '/expiring-soon',
   authorize('view_inventory', 'view_products'),
   asyncHandler(productController.getExpiringSoon.bind(productController))
 );
 
-// GET /api/products - Get all products with filters
+/**
+ * @swagger
+ * /api/products:
+ *   get:
+ *     summary: Get all products
+ *     tags: [Products]
+ *     description: Retrieve a paginated list of products with optional filters
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/LimitParam'
+ *       - $ref: '#/components/parameters/SearchParam'
+ *       - $ref: '#/components/parameters/SortByParam'
+ *       - $ref: '#/components/parameters/SortOrderParam'
+ *       - in: query
+ *         name: productType
+ *         schema:
+ *           type: string
+ *           enum: [raw_material, packaging, finished_product, goods]
+ *         description: Filter by product type
+ *       - in: query
+ *         name: categoryId
+ *         schema:
+ *           type: integer
+ *         description: Filter by category ID
+ *       - in: query
+ *         name: supplierId
+ *         schema:
+ *           type: integer
+ *         description: Filter by supplier ID
+ *       - $ref: '#/components/parameters/StatusParam'
+ *     responses:
+ *       200:
+ *         $ref: '#/components/responses/SuccessWithPagination'
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ */
 router.get(
   '/',
   authorize('view_products'),
@@ -39,7 +141,69 @@ router.get(
   asyncHandler(productController.getAll.bind(productController))
 );
 
-// GET /api/products/:id - Get product by ID
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   get:
+ *     summary: Get product by ID
+ *     tags: [Products]
+ *     description: Retrieve detailed information about a specific product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Product ID
+ *     responses:
+ *       200:
+ *         description: Product retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     sku:
+ *                       type: string
+ *                     productName:
+ *                       type: string
+ *                     productType:
+ *                       type: string
+ *                       enum: [raw_material, packaging, finished_product, goods]
+ *                     category:
+ *                       type: object
+ *                     supplier:
+ *                       type: object
+ *                     unit:
+ *                       type: string
+ *                     purchasePrice:
+ *                       type: number
+ *                     sellingPriceRetail:
+ *                       type: number
+ *                     sellingPriceWholesale:
+ *                       type: number
+ *                     sellingPriceVip:
+ *                       type: number
+ *                     images:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.get(
   '/:id',
   authorize('view_products'),
@@ -47,7 +211,82 @@ router.get(
   asyncHandler(productController.getById.bind(productController))
 );
 
-// POST /api/products - Create new product
+/**
+ * @swagger
+ * /api/products:
+ *   post:
+ *     summary: Create new product
+ *     tags: [Products]
+ *     description: Create a new product in the system
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - productName
+ *               - productType
+ *               - unit
+ *             properties:
+ *               sku:
+ *                 type: string
+ *                 description: Product SKU (auto-generated if not provided)
+ *               productName:
+ *                 type: string
+ *                 example: Đường trắng tinh khiết
+ *               productType:
+ *                 type: string
+ *                 enum: [raw_material, packaging, finished_product, goods]
+ *                 example: raw_material
+ *               packagingType:
+ *                 type: string
+ *                 enum: [bottle, box, bag, label, other]
+ *                 description: Only for packaging type products
+ *               categoryId:
+ *                 type: integer
+ *               supplierId:
+ *                 type: integer
+ *               unit:
+ *                 type: string
+ *                 example: kg
+ *               barcode:
+ *                 type: string
+ *               weight:
+ *                 type: number
+ *               dimensions:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               purchasePrice:
+ *                 type: number
+ *               sellingPriceRetail:
+ *                 type: number
+ *               sellingPriceWholesale:
+ *                 type: number
+ *               sellingPriceVip:
+ *                 type: number
+ *               taxRate:
+ *                 type: number
+ *                 default: 0
+ *               minStockLevel:
+ *                 type: number
+ *                 default: 0
+ *               expiryDate:
+ *                 type: string
+ *                 format: date
+ *     responses:
+ *       201:
+ *         description: Product created successfully
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ *       403:
+ *         $ref: '#/components/responses/AuthorizationError'
+ */
 router.post(
   '/',
   authorize('create_products'),
@@ -55,7 +294,50 @@ router.post(
   asyncHandler(productController.create.bind(productController))
 );
 
-// PUT /api/products/:id - Update product
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   put:
+ *     summary: Update product
+ *     tags: [Products]
+ *     description: Update an existing product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               productName:
+ *                 type: string
+ *               productType:
+ *                 type: string
+ *                 enum: [raw_material, packaging, finished_product, goods]
+ *               categoryId:
+ *                 type: integer
+ *               supplierId:
+ *                 type: integer
+ *               purchasePrice:
+ *                 type: number
+ *               sellingPriceRetail:
+ *                 type: number
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive, discontinued]
+ *     responses:
+ *       200:
+ *         description: Product updated successfully
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.put(
   '/:id',
   authorize('update_products'),
@@ -66,7 +348,27 @@ router.put(
   asyncHandler(productController.update.bind(productController))
 );
 
-// DELETE /api/products/:id - Delete product
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   delete:
+ *     summary: Delete product
+ *     tags: [Products]
+ *     description: Delete a product from the system
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Product deleted successfully
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.delete(
   '/:id',
   authorize('delete_products'),
@@ -74,7 +376,44 @@ router.delete(
   asyncHandler(productController.delete.bind(productController))
 );
 
-// POST /api/products/:id/images - Upload product images
+/**
+ * @swagger
+ * /api/products/{id}/images:
+ *   post:
+ *     summary: Upload product images
+ *     tags: [Products]
+ *     description: Upload one or more images for a product (max 5)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 maxItems: 5
+ *               altText:
+ *                 type: string
+ *               isPrimary:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Images uploaded successfully
+ *       400:
+ *         description: Invalid file type or size exceeded
+ */
 router.post(
   '/:id/images',
   authorize('update_products'),
@@ -83,7 +422,34 @@ router.post(
   asyncHandler(productController.uploadImages.bind(productController))
 );
 
-// DELETE /api/products/:id/images/:imageId - Delete product image
+/**
+ * @swagger
+ * /api/products/{id}/images/{imageId}:
+ *   delete:
+ *     summary: Delete product image
+ *     tags: [Products]
+ *     description: Delete a specific image from a product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Product ID
+ *       - in: path
+ *         name: imageId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Image ID
+ *     responses:
+ *       200:
+ *         description: Image deleted successfully
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.delete(
   '/:id/images/:imageId',
   authorize('update_products'),
@@ -91,3 +457,4 @@ router.delete(
 );
 
 export default router;
+

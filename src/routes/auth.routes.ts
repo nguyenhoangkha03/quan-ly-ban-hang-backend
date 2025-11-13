@@ -14,25 +14,224 @@ import {
 
 const router = Router();
 
-// POST /api/auth/login
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Login user
+ *     tags: [Authentication]
+ *     description: Authenticate user with email and password, returns JWT tokens
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: admin@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: Admin@123
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                         email:
+ *                           type: string
+ *                         fullName:
+ *                           type: string
+ *                         employeeCode:
+ *                           type: string
+ *                         role:
+ *                           type: object
+ *                         warehouse:
+ *                           type: object
+ *                     tokens:
+ *                       type: object
+ *                       properties:
+ *                         accessToken:
+ *                           type: string
+ *                         refreshToken:
+ *                           type: string
+ *                         expiresIn:
+ *                           type: integer
+ *                           example: 900
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ *       429:
+ *         description: Too many login attempts
+ */
 router.post(
   '/login',
-  loginRateLimiter, // 5 attempts per 15 minutes
+  loginRateLimiter,
   validate(loginSchema),
   asyncHandler(authController.login.bind(authController))
 );
 
-// POST /api/auth/logout
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout user
+ *     tags: [Authentication]
+ *     description: Invalidate the current access token
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: Logged out successfully
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ */
 router.post('/logout', authentication, asyncHandler(authController.logout.bind(authController)));
 
-// POST /api/auth/refresh-token
+/**
+ * @swagger
+ * /api/auth/refresh-token:
+ *   post:
+ *     summary: Refresh access token
+ *     tags: [Authentication]
+ *     description: Get a new access token using refresh token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     accessToken:
+ *                       type: string
+ *                     expiresIn:
+ *                       type: integer
+ *                       example: 900
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ */
 router.post(
   '/refresh-token',
   validate(refreshTokenSchema),
   asyncHandler(authController.refreshToken.bind(authController))
 );
 
-// PUT /api/auth/change-password
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   put:
+ *     summary: Change password
+ *     tags: [Authentication]
+ *     description: Change current user's password
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - oldPassword
+ *               - newPassword
+ *               - confirmPassword
+ *             properties:
+ *               oldPassword:
+ *                 type: string
+ *                 format: password
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *               confirmPassword:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: Password changed successfully. Please login again
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ */
 router.put(
   '/change-password',
   authentication,
@@ -40,26 +239,182 @@ router.put(
   asyncHandler(authController.changePassword.bind(authController))
 );
 
-// POST /api/auth/forgot-password
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset
+ *     tags: [Authentication]
+ *     description: Send password reset email to user
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: user@example.com
+ *     responses:
+ *       200:
+ *         description: Password reset email sent (if email exists)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: If the email exists, a password reset link has been sent
+ *                     resetToken:
+ *                       type: string
+ *                       description: Only returned in development mode
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       429:
+ *         description: Too many password reset requests
+ */
 router.post(
   '/forgot-password',
   createRateLimiter({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 3, // 3 requests per hour
+    windowMs: 60 * 60 * 1000,
+    max: 3,
     message: 'Too many password reset requests',
   }),
   validate(forgotPasswordSchema),
   asyncHandler(authController.forgotPassword.bind(authController))
 );
 
-// POST /api/auth/reset-password
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password with token
+ *     tags: [Authentication]
+ *     description: Reset password using the token received via email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - newPassword
+ *               - confirmPassword
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: a1b2c3d4e5f6...
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *                 minLength: 8
+ *               confirmPassword:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: Password reset successfully. Please login with your new password
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         description: Invalid or expired token
+ */
 router.post(
   '/reset-password',
   validate(resetPasswordSchema),
   asyncHandler(authController.resetPassword.bind(authController))
 );
 
-// GET /api/auth/me
+/**
+ * @swagger
+ * /api/auth/me:
+ *   get:
+ *     summary: Get current user
+ *     tags: [Authentication]
+ *     description: Get the authenticated user's profile information
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     employeeCode:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     fullName:
+ *                       type: string
+ *                     phone:
+ *                       type: string
+ *                     address:
+ *                       type: string
+ *                     gender:
+ *                       type: string
+ *                       enum: [male, female, other]
+ *                     dateOfBirth:
+ *                       type: string
+ *                       format: date
+ *                     avatarUrl:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                       enum: [active, inactive, locked]
+ *                     role:
+ *                       type: object
+ *                     warehouse:
+ *                       type: object
+ *                     lastLogin:
+ *                       type: string
+ *                       format: date-time
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         $ref: '#/components/responses/AuthenticationError'
+ */
 router.get('/me', authentication, asyncHandler(authController.getMe.bind(authController)));
 
 export default router;
+

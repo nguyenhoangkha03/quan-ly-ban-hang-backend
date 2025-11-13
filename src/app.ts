@@ -9,6 +9,7 @@ import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { sanitizeInput } from '@middlewares/validate';
 import RedisService from '@services/redis.service';
 import uploadService from '@services/upload.service';
+import { setupSwagger } from '@config/swagger';
 
 // Import routes
 import authRoutes from '@routes/auth.routes';
@@ -85,6 +86,9 @@ app.use(sanitizeInput); // XSS protection
 
 // Serve static files (uploads)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Setup Swagger documentation
+setupSwagger(app);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
