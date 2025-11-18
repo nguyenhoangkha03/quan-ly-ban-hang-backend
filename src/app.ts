@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
@@ -41,6 +42,7 @@ import salaryRoutes from '@routes/salary.routes';
 import notificationRoutes from '@routes/notification.routes';
 import reportRoutes from '@routes/report.routes';
 import performanceRoutes from '@routes/performance.routes';
+import securityRoutes from '@routes/security.routes';
 
 // Import notification scheduler
 import notificationScheduler from 'schedulers/notification.scheduler';
@@ -73,11 +75,41 @@ const initializeUploads = async () => {
 };
 
 // Middleware
-app.use(helmet());
+// Enhanced Security Headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+      },
+    },
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: {
+      action: 'deny', // X-Frame-Options: DENY
+    },
+    noSniff: true, // X-Content-Type-Options: nosniff
+    xssFilter: true, // X-XSS-Protection: 1; mode=block
+    referrerPolicy: {
+      policy: 'strict-origin-when-cross-origin',
+    },
+  })
+);
+
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN?.split(',') || '*',
     credentials: process.env.CORS_CREDENTIALS === 'true',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-XSRF-Token'],
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    maxAge: 600, // 10 minutes
   })
 );
 
@@ -85,6 +117,7 @@ app.use(
 app.use(compressionMiddleware); // Response compression (gzip)
 app.use(performanceMonitor); // Performance monitoring
 
+app.use(cookieParser()); // Parse cookies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -145,6 +178,7 @@ app.use('/api/salary', salaryRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/performance', performanceRoutes);
+app.use('/api/security', securityRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
