@@ -7,9 +7,12 @@ import path from 'path';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { sanitizeInput } from '@middlewares/validate';
+import compressionMiddleware from '@middlewares/compression';
+import { performanceMonitor } from '@utils/performance.monitor';
 import RedisService from '@services/redis.service';
 import uploadService from '@services/upload.service';
 import { setupSwagger } from '@config/swagger';
+import { connectDatabase } from '@config/prisma';
 
 // Import routes
 import authRoutes from '@routes/auth.routes';
@@ -37,6 +40,7 @@ import attendanceRoutes from '@routes/attendance.routes';
 import salaryRoutes from '@routes/salary.routes';
 import notificationRoutes from '@routes/notification.routes';
 import reportRoutes from '@routes/report.routes';
+import performanceRoutes from '@routes/performance.routes';
 
 // Import notification scheduler
 import notificationScheduler from 'schedulers/notification.scheduler';
@@ -76,6 +80,11 @@ app.use(
     credentials: process.env.CORS_CREDENTIALS === 'true',
   })
 );
+
+// Performance optimizations
+app.use(compressionMiddleware); // Response compression (gzip)
+app.use(performanceMonitor); // Performance monitoring
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -135,6 +144,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/salary', salaryRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/performance', performanceRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -144,6 +154,9 @@ app.use(errorHandler);
 
 // Start server
 app.listen(PORT, async () => {
+  // Initialize database connection
+  await connectDatabase();
+
   // Initialize Redis connection
   await initializeRedis();
 
@@ -190,6 +203,7 @@ app.listen(PORT, async () => {
 ║   💵 Salary API: http://localhost:${PORT}/api/salary        ║
 ║   🔔 Notifications API: http://localhost:${PORT}/api/notifications ║
 ║   📈 Reports API: http://localhost:${PORT}/api/reports      ║
+║   ⚡ Performance API: http://localhost:${PORT}/api/performance ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
