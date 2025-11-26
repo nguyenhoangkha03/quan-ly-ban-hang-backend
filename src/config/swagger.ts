@@ -46,7 +46,7 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: 'http://localhost:3000',
+        url: 'http://localhost:5000',
         description: 'Development server',
       },
       {
@@ -525,10 +525,14 @@ const swaggerSpec = swaggerJsdoc(options);
 
 export const setupSwagger = (app: Application): void => {
   // Swagger UI
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'Sales & Production API Docs',
-  }));
+  app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'Sales & Production API Docs',
+    })
+  );
 
   // Swagger JSON
   app.get('/api-docs.json', (_req, res) => {
@@ -537,7 +541,7 @@ export const setupSwagger = (app: Application): void => {
   });
 
   console.log('✅ Swagger documentation setup complete');
-  console.log('📚 API Docs available at: http://localhost:3000/api-docs');
+  console.log('📚 API Docs available at: http://localhost:5000/api-docs');
 };
 
 export default swaggerSpec;

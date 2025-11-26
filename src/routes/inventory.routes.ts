@@ -27,6 +27,13 @@ router.get(
   asyncHandler(inventoryController.getAlerts.bind(inventoryController))
 );
 
+// GET /api/inventory/low-stock-alerts - Get low stock alerts (alias for /alerts)
+router.get(
+  '/low-stock-alerts',
+  authorize('view_inventory'),
+  asyncHandler(inventoryController.getAlerts.bind(inventoryController))
+);
+
 // GET /api/inventory/value-report - Get inventory value report
 router.get(
   '/value-report',

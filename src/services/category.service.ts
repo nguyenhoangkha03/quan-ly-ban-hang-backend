@@ -364,11 +364,9 @@ class CategoryService {
       throw new ValidationError('Cannot delete category with products');
     }
 
-    await prisma.category.update({
+    // Hard delete - xóa thật khỏi database
+    await prisma.category.delete({
       where: { id },
-      data: {
-        status: 'inactive',
-      },
     });
 
     logActivity('delete', deletedBy, 'categories', {

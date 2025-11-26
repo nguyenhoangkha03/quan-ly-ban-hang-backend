@@ -47,11 +47,11 @@ class RedisStore {
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: 'Too many requests from this IP, please try again later',
+  message: 'Quá nhiều yêu cầu từ IP này, vui lòng thử lại sau',
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req: Request, _res: Response) => {
-    throw new RateLimitError('Too many requests, please slow down');
+    throw new RateLimitError('Quá nhiều yêu cầu, vui lòng chậm lại');
   },
   skip: (req) => {
     return req.path === '/health' || req.path === '/api/health';
@@ -61,19 +61,19 @@ export const globalRateLimiter = rateLimit({
 export const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
-  message: 'Too many login attempts, please try again later',
+  message: 'Quá nhiều lần đăng nhập, vui lòng thử lại sau',
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   handler: (_req: Request, _res: Response) => {
-    throw new RateLimitError('Too many login attempts, account temporarily locked');
+    throw new RateLimitError('Quá nhiều lần đăng nhập, tài khoản tạm thời bị khóa');
   },
 });
 
 export const userRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 1000,
-  message: 'API rate limit exceeded',
+  message: 'Đã vượt quá giới hạn tốc độ API',
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
@@ -81,14 +81,14 @@ export const userRateLimiter = rateLimit({
     return ipKeyGenerator(req);
   },
   handler: (_req: Request, _res: Response) => {
-    throw new RateLimitError('API rate limit exceeded for this user');
+    throw new RateLimitError('Quá nhiều yêu cầu API từ người dùng này');
   },
 });
 
 export const uploadRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
-  message: 'Too many file uploads',
+  message: 'Quá nhiều lần tải lên file',
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => {
@@ -96,7 +96,7 @@ export const uploadRateLimiter = rateLimit({
     return ipKeyGenerator(req);
   },
   handler: (_req: Request, _res: Response) => {
-    throw new RateLimitError('File upload limit exceeded');
+    throw new RateLimitError('Quá nhiều lần tải lên file');
   },
 });
 
@@ -109,12 +109,12 @@ export const createRateLimiter = (options: {
   return rateLimit({
     windowMs: options.windowMs,
     max: options.max,
-    message: options.message || 'Rate limit exceeded',
+    message: options.message || 'Quá nhiều yêu cầu',
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator || ((req: Request) => ipKeyGenerator(req as any)),
     handler: (_req: Request, _res: Response) => {
-      throw new RateLimitError(options.message || 'Rate limit exceeded');
+      throw new RateLimitError(options.message || 'Quá nhiều yêu cầu');
     },
   });
 };
@@ -143,7 +143,7 @@ export const createRedisRateLimiter = (options: {
       }
 
       if (totalHits > options.max) {
-        throw new RateLimitError('Rate limit exceeded');
+        throw new RateLimitError('Quá nhiều yêu cầu');
       }
 
       next();

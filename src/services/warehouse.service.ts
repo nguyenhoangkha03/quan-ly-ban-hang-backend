@@ -32,11 +32,19 @@ class WarehouseService {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    const cacheKey = `warehouse:list:${JSON.stringify(query)}`;
+    // Create a consistent cache key
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `warehouse:list:${queryString}`;
+
+    console.log(`📦 Cache key: ${cacheKey}`);
+
     const cached = await redis.get(cacheKey);
     if (cached) {
+      console.log(`✅ Cache HIT: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Cache MISS: ${cacheKey}, querying database...`);
 
     const where: Prisma.WarehouseWhereInput = {
       ...(search && {
@@ -342,11 +350,9 @@ class WarehouseService {
       throw new ValidationError('Cannot delete warehouse with existing transactions');
     }
 
-    await prisma.warehouse.update({
+    // Hard delete instead of soft delete
+    await prisma.warehouse.delete({
       where: { id },
-      data: {
-        status: 'inactive',
-      },
     });
 
     logActivity('delete', deletedBy, 'warehouses', {
@@ -441,9 +447,24 @@ class WarehouseService {
   }
 
   private async invalidateListCache() {
-    const keys = await redis.keys('warehouse:list:*');
-    if (keys.length > 0) {
-      await redis.del(keys);
+    try {
+      // Get all warehouse list cache keys
+      const pattern = 'warehouse:list:*';
+      console.log(`🔍 Looking for keys matching pattern: ${pattern}`);
+
+      const keys = await redis.keys(pattern);
+      console.log(`📋 Found ${keys.length} keys:`, keys);
+
+      if (keys.length === 0) {
+        console.log('⚠️  No warehouse list cache keys found');
+        return;
+      }
+
+      // Delete all found keys
+      const deletedCount = await redis.del(keys);
+      console.log(`✅ Successfully deleted ${deletedCount} warehouse list cache keys`);
+    } catch (error) {
+      console.error('❌ Error invalidating warehouse list cache:', error);
     }
   }
 }

@@ -50,7 +50,7 @@ import notificationScheduler from 'schedulers/notification.scheduler';
 dotenv.config();
 
 const app: Application = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Initialize Redis
 const initializeRedis = async () => {
@@ -75,7 +75,20 @@ const initializeUploads = async () => {
 };
 
 // Middleware
-// Enhanced Security Headers
+// Serve static files (uploads) BEFORE security headers so CORS works
+app.use(
+  '/uploads',
+  (_req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none'); // <— BẮT BUỘC
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    next();
+  },
+  express.static(path.join(__dirname, '../uploads'))
+);
+
+// Enhanced Security Headers (applied AFTER static files)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -83,7 +96,7 @@ app.use(
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         scriptSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
+        imgSrc: ["'self'", 'data:', 'https:', 'http://localhost:5000'],
       },
     },
     hsts: {
@@ -94,6 +107,7 @@ app.use(
     frameguard: {
       action: 'deny', // X-Frame-Options: DENY
     },
+    crossOriginResourcePolicy: false, // Disable CORP for CORS to work
     noSniff: true, // X-Content-Type-Options: nosniff
     xssFilter: true, // X-XSS-Protection: 1; mode=block
     referrerPolicy: {
@@ -125,9 +139,6 @@ app.use(morgan('dev'));
 // Security middleware
 app.use(globalRateLimiter); // Rate limiting
 app.use(sanitizeInput); // XSS protection
-
-// Serve static files (uploads)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Setup Swagger documentation
 setupSwagger(app);

@@ -14,9 +14,9 @@ const PERMISSION_CACHE_TTL = 3600;
 const getUserPermissions = async (roleId: number): Promise<string[]> => {
   const cacheKey = `permissions:role:${roleId}`;
 
-  const cached = await redisClient.get(cacheKey);
+  const cached = await redisClient.get<string[]>(cacheKey);
   if (cached) {
-    return JSON.parse(cached);
+    return cached;
   }
 
   const rolePermissions = await prisma.role.findMany({
@@ -38,7 +38,7 @@ const getUserPermissions = async (roleId: number): Promise<string[]> => {
     role.rolePermissions.map((rolePermission) => rolePermission.permission.permissionKey)
   );
 
-  await redisClient.set(cacheKey, JSON.stringify(permissions), PERMISSION_CACHE_TTL);
+  await redisClient.set(cacheKey, permissions, PERMISSION_CACHE_TTL);
 
   return permissions;
 };

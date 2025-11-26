@@ -1,6 +1,6 @@
 ### BOM API Testing
 ### Base URL
-@baseUrl = http://localhost:3000/api
+@baseUrl = http://localhost:5000/api
 @token = YOUR_ACCESS_TOKEN_HERE
 
 ### =====================================================

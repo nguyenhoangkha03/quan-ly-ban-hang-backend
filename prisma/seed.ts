@@ -106,8 +106,10 @@ async function main() {
     { key: 'delete_warehouse', name: 'Xóa kho', module: 'warehouse' },
     { key: 'view_inventory', name: 'Xem tồn kho', module: 'warehouse' },
     { key: 'manage_inventory', name: 'Quản lý tồn kho', module: 'warehouse' },
+    { key: 'view_stock_transactions', name: 'Xem giao dịch kho', module: 'warehouse' },
     { key: 'create_stock_transaction', name: 'Tạo phiếu kho', module: 'warehouse' },
     { key: 'approve_stock_transaction', name: 'Phê duyệt phiếu kho', module: 'warehouse' },
+    { key: 'cancel_stock_transactions', name: 'Hủy phiếu kho', module: 'warehouse' },
 
     // Product Management
     { key: 'view_products', name: 'Xem sản phẩm', module: 'products' },
@@ -247,25 +249,187 @@ async function main() {
   const adminRole = roles.find((r) => r.roleKey === 'admin');
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
-  const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@company.com' },
-    update: {},
-    create: {
-      employeeCode: 'NV-0001',
-      email: 'admin@company.com',
-      passwordHash: hashedPassword,
-      fullName: 'Quản trị viên hệ thống',
-      phone: '0123456789',
-      gender: 'male',
-      roleId: adminRole!.id,
-      status: 'active',
+  let adminUser = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: 'admin@company.com' },
+        { employeeCode: 'NV-0001' },
+      ],
     },
   });
 
-  console.log(`✅ Created admin user: ${adminUser.email} (password: admin123)\n`);
+  if (!adminUser) {
+    adminUser = await prisma.user.create({
+      data: {
+        employeeCode: 'NV-0001',
+        email: 'admin@company.com',
+        passwordHash: hashedPassword,
+        fullName: 'Quản trị viên hệ thống',
+        phone: '0123456789',
+        gender: 'male',
+        roleId: adminRole!.id,
+        status: 'active',
+      },
+    });
+    console.log(`✅ Created admin user: ${adminUser.email} (password: admin123)\n`);
+  } else {
+    console.log(`✅ Admin user already exists: ${adminUser.email} / ${adminUser.employeeCode}\n`);
+  }
 
   // =====================================================
-  // 5. ASSIGN ALL PERMISSIONS TO ADMIN
+  // 5. SEED ADDITIONAL USERS
+  // =====================================================
+  console.log('📝 Seeding additional users...');
+
+  const warehouseManagerRole = roles.find((r) => r.roleKey === 'warehouse_manager');
+  const warehouseStaffRole = roles.find((r) => r.roleKey === 'warehouse_staff');
+  const salesStaffRole = roles.find((r) => r.roleKey === 'sales_staff');
+  const accountantRole = roles.find((r) => r.roleKey === 'accountant');
+  const productionManagerRole = roles.find((r) => r.roleKey === 'production_manager');
+
+  const defaultPassword = await bcrypt.hash('123456', 10);
+
+  const additionalUsers = await Promise.all([
+    // Warehouse Managers
+    prisma.user.upsert({
+      where: { email: 'manager1@company.com' },
+      update: {},
+      create: {
+        employeeCode: 'NV-0002',
+        email: 'manager1@company.com',
+        passwordHash: defaultPassword,
+        fullName: 'Nguyễn Văn Quản',
+        phone: '0901234567',
+        gender: 'male',
+        roleId: warehouseManagerRole!.id,
+        warehouseId: warehouses[0].id, // KNL-001
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+    prisma.user.upsert({
+      where: { email: 'manager2@company.com' },
+      update: {},
+      create: {
+        employeeCode: 'NV-0003',
+        email: 'manager2@company.com',
+        passwordHash: defaultPassword,
+        fullName: 'Trần Thị Lan',
+        phone: '0902345678',
+        gender: 'female',
+        roleId: warehouseManagerRole!.id,
+        warehouseId: warehouses[2].id, // KTP-001
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+
+    // Warehouse Staff
+    prisma.user.upsert({
+      where: { email: 'staff1@company.com' },
+      update: {},
+      create: {
+        employeeCode: 'NV-0004',
+        email: 'staff1@company.com',
+        passwordHash: defaultPassword,
+        fullName: 'Lê Văn Tài',
+        phone: '0903456789',
+        gender: 'male',
+        roleId: warehouseStaffRole!.id,
+        warehouseId: warehouses[1].id, // KBB-001
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+    prisma.user.upsert({
+      where: { email: 'staff2@company.com' },
+      update: {},
+      create: {
+        employeeCode: 'NV-0005',
+        email: 'staff2@company.com',
+        passwordHash: defaultPassword,
+        fullName: 'Phạm Thị Hoa',
+        phone: '0904567890',
+        gender: 'female',
+        roleId: warehouseStaffRole!.id,
+        warehouseId: warehouses[3].id, // KHH-001
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+
+    // Sales Staff
+    prisma.user.upsert({
+      where: { email: 'sales@company.com' },
+      update: {},
+      create: {
+        employeeCode: 'NV-0006',
+        email: 'sales@company.com',
+        passwordHash: defaultPassword,
+        fullName: 'Hoàng Văn Đạt',
+        phone: '0905678901',
+        gender: 'male',
+        roleId: salesStaffRole!.id,
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+
+    // Accountant
+    prisma.user.upsert({
+      where: { email: 'accountant@company.com' },
+      update: {},
+      create: {
+        employeeCode: 'NV-0007',
+        email: 'accountant@company.com',
+        passwordHash: defaultPassword,
+        fullName: 'Vũ Thị Mai',
+        phone: '0906789012',
+        gender: 'female',
+        roleId: accountantRole!.id,
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+
+    // Production Manager
+    prisma.user.upsert({
+      where: { email: 'production@company.com' },
+      update: {},
+      create: {
+        employeeCode: 'NV-0008',
+        email: 'production@company.com',
+        passwordHash: defaultPassword,
+        fullName: 'Đỗ Văn Cường',
+        phone: '0907890123',
+        gender: 'male',
+        roleId: productionManagerRole!.id,
+        status: 'active',
+        createdBy: adminUser.id,
+      },
+    }),
+  ]);
+
+  console.log(`✅ Created ${additionalUsers.length} additional users (password: 123456)\n`);
+
+  // Update warehouse managers
+  console.log('📝 Updating warehouse managers...');
+
+  await Promise.all([
+    prisma.warehouse.update({
+      where: { id: warehouses[0].id },
+      data: { managerId: additionalUsers[0].id }, // Nguyễn Văn Quản
+    }),
+    prisma.warehouse.update({
+      where: { id: warehouses[2].id },
+      data: { managerId: additionalUsers[1].id }, // Trần Thị Lan
+    }),
+  ]);
+
+  console.log('✅ Updated warehouse managers\n');
+
+  // =====================================================
+  // 6. ASSIGN ALL PERMISSIONS TO ADMIN
   // =====================================================
   console.log('📝 Assigning permissions to admin role...');
 
@@ -291,7 +455,7 @@ async function main() {
   console.log(`✅ Assigned ${rolePermissions.length} permissions to admin role\n`);
 
   // =====================================================
-  // 6. SEED CATEGORIES
+  // 7. SEED CATEGORIES
   // =====================================================
   console.log('📝 Seeding categories...');
 
@@ -331,7 +495,7 @@ async function main() {
   console.log(`✅ Created ${categories.length} categories\n`);
 
   // =====================================================
-  // 7. SEED SUPPLIERS
+  // 8. SEED SUPPLIERS
   // =====================================================
   console.log('📝 Seeding suppliers...');
 
@@ -373,9 +537,18 @@ async function main() {
   console.log(`✅ Created ${suppliers.length} suppliers\n`);
 
   console.log('✅ Database seed completed successfully! 🎉\n');
-  console.log('📌 Admin credentials:');
+  console.log('📌 Login Credentials:\n');
+  console.log('👤 Admin:');
   console.log('   Email: admin@company.com');
   console.log('   Password: admin123\n');
+  console.log('👥 Other Users (password: 123456):');
+  console.log('   - manager1@company.com (Nguyễn Văn Quản - Warehouse Manager)');
+  console.log('   - manager2@company.com (Trần Thị Lan - Warehouse Manager)');
+  console.log('   - staff1@company.com (Lê Văn Tài - Warehouse Staff)');
+  console.log('   - staff2@company.com (Phạm Thị Hoa - Warehouse Staff)');
+  console.log('   - sales@company.com (Hoàng Văn Đạt - Sales Staff)');
+  console.log('   - accountant@company.com (Vũ Thị Mai - Accountant)');
+  console.log('   - production@company.com (Đỗ Văn Cường - Production Manager)\n');
 }
 
 main()

@@ -289,7 +289,7 @@ router.get(
  */
 router.post(
   '/',
-  authorize('create_products'),
+  authorize('create_product'),
   validate(createProductSchema, 'body'),
   asyncHandler(productController.create.bind(productController))
 );
@@ -340,7 +340,7 @@ router.post(
  */
 router.put(
   '/:id',
-  authorize('update_products'),
+  authorize('update_product'),
   validateMultiple({
     params: productIdSchema,
     body: updateProductSchema,
@@ -371,7 +371,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  authorize('delete_products'),
+  authorize('delete_product'),
   validate(productIdSchema, 'params'),
   asyncHandler(productController.delete.bind(productController))
 );
@@ -416,7 +416,7 @@ router.delete(
  */
 router.post(
   '/:id/images',
-  authorize('update_products'),
+  authorize('update_product'),
   validate(productIdSchema, 'params'),
   uploadService.getUploadMiddleware().array('images', 5),
   asyncHandler(productController.uploadImages.bind(productController))
@@ -452,9 +452,159 @@ router.post(
  */
 router.delete(
   '/:id/images/:imageId',
-  authorize('update_products'),
+  authorize('update_product'),
   asyncHandler(productController.deleteImage.bind(productController))
 );
 
-export default router;
+/**
+ * @swagger
+ * /api/products/{id}/images/{imageId}/primary:
+ *   patch:
+ *     summary: Set primary product image
+ *     tags: [Products]
+ *     description: Set a specific image as the primary image for a product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Product ID
+ *       - in: path
+ *         name: imageId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Image ID to set as primary
+ *     responses:
+ *       200:
+ *         description: Primary image set successfully
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.patch(
+  '/:id/images/:imageId/primary',
+  authorize('update_product'),
+  asyncHandler(productController.setPrimaryImage.bind(productController))
+);
 
+/**
+ * @swagger
+ * /api/products/{id}/videos:
+ *   post:
+ *     summary: Upload product videos
+ *     tags: [Products]
+ *     description: Upload one or more videos for a product (max 5 videos, 500MB each)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Product ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               videos:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *               videoType:
+ *                 type: string
+ *                 enum: [demo, tutorial, review, unboxing, promotion, other]
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Videos uploaded successfully
+ *       400:
+ *         description: Invalid file type or size exceeded
+ */
+router.post(
+  '/:id/videos',
+  authorize('update_product'),
+  validate(productIdSchema, 'params'),
+  uploadService.getUploadMiddleware().array('videos', 5),
+  asyncHandler(productController.uploadVideos.bind(productController))
+);
+
+/**
+ * @swagger
+ * /api/products/{id}/videos/{videoId}:
+ *   delete:
+ *     summary: Delete product video
+ *     tags: [Products]
+ *     description: Delete a specific video from a product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Product ID
+ *       - in: path
+ *         name: videoId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Video ID
+ *     responses:
+ *       200:
+ *         description: Video deleted successfully
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.delete(
+  '/:id/videos/:videoId',
+  authorize('update_product'),
+  asyncHandler(productController.deleteVideo.bind(productController))
+);
+
+/**
+ * @swagger
+ * /api/products/{id}/videos/{videoId}/primary:
+ *   patch:
+ *     summary: Set primary product video
+ *     tags: [Products]
+ *     description: Set a specific video as the primary video for a product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Product ID
+ *       - in: path
+ *         name: videoId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Video ID to set as primary
+ *     responses:
+ *       200:
+ *         description: Primary video set successfully
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.patch(
+  '/:id/videos/:videoId/primary',
+  authorize('update_product'),
+  asyncHandler(productController.setPrimaryVideo.bind(productController))
+);
+
+export default router;

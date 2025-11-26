@@ -3,6 +3,11 @@ import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import RedisService, { CachePrefix } from './redis.service';
 import { logActivity } from '@utils/logger';
 import uploadService from './upload.service';
+import {
+  ProductQueryInput,
+  CreateProductInput,
+  UpdateProductInput,
+} from '@validators/product.validator';
 import path from 'path';
 
 const prisma = new PrismaClient();
@@ -40,17 +45,7 @@ class ProductService {
       .replace(/^-+|-+$/g, '');
   }
 
-  async getAll(params: {
-    page: number;
-    limit: number;
-    search?: string;
-    productType?: string;
-    categoryId?: number;
-    supplierId?: number;
-    status?: string;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
+  async getAll(params: ProductQueryInput) {
     const {
       page = 1,
       limit = 20,
@@ -205,30 +200,7 @@ class ProductService {
     return product;
   }
 
-  async create(
-    data: {
-      sku?: string;
-      productName: string;
-      productType: string;
-      packagingType?: string;
-      categoryId?: number;
-      supplierId?: number;
-      unit?: string;
-      barcode?: string;
-      weight?: number;
-      dimensions?: string;
-      description?: string;
-      purchasePrice?: number;
-      sellingPriceRetail?: number;
-      sellingPriceWholesale?: number;
-      sellingPriceVip?: number;
-      taxRate?: number;
-      minStockLevel?: number;
-      expiryDate?: string | Date;
-      status?: string;
-    },
-    userId: number
-  ) {
+  async create(data: CreateProductInput, userId: number) {
     if (data.categoryId) {
       const category = await prisma.category.findUnique({
         where: { id: data.categoryId },
@@ -314,7 +286,7 @@ class ProductService {
     return product;
   }
 
-  async update(id: number, data: Partial<Prisma.ProductUncheckedUpdateInput>, userId: number) {
+  async update(id: number, data: UpdateProductInput, userId: number) {
     const existingProduct = await prisma.product.findUnique({
       where: { id },
     });
@@ -639,6 +611,277 @@ class ProductService {
     await this.invalidateCache(productId);
 
     return { message: 'Image deleted successfully' };
+  }
+
+  /**
+   * Set primary image for product
+   */
+  async setPrimaryImage(productId: number, imageId: number, userId: number) {
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundError('Product');
+    }
+
+    const image = await prisma.productImage.findFirst({
+      where: {
+        id: imageId,
+        productId,
+      },
+    });
+
+    if (!image) {
+      throw new NotFoundError('Image');
+    }
+
+    // Reset all images to non-primary
+    await prisma.productImage.updateMany({
+      where: { productId },
+      data: { isPrimary: false },
+    });
+
+    // Set the selected image as primary
+    const updatedImage = await prisma.productImage.update({
+      where: { id: imageId },
+      data: { isPrimary: true },
+    });
+
+    logActivity('update', userId, 'products', {
+      recordId: productId,
+      action: 'set_primary_image',
+      newValue: { imageId },
+    });
+
+    await this.invalidateCache(productId);
+
+    return updatedImage;
+  }
+
+  // ===== VIDEO METHODS =====
+
+  async uploadVideos(
+    productId: number,
+    files: Express.Multer.File[],
+    videoMetadata: Array<{
+      videoType?: string;
+      title?: string;
+      description?: string;
+      isPrimary?: boolean;
+      displayOrder?: number;
+    }>,
+    userId: number
+  ) {
+    // Validate product exists
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { videos: true },
+    });
+
+    if (!product) {
+      throw new NotFoundError('Product');
+    }
+
+    // Validate files
+    if (!files || files.length === 0) {
+      throw new ValidationError('At least one video file is required');
+    }
+
+    if (files.length > 5) {
+      throw new ValidationError('Maximum 5 videos allowed per request');
+    }
+
+    // Validate total videos won't exceed limit
+    if (product.videos.length + files.length > 5) {
+      throw new ValidationError('Maximum 5 videos allowed per product');
+    }
+
+    // Validate each file
+    const validVideoMimes = [
+      'video/mp4',
+      'video/quicktime',
+      'video/x-msvideo',
+      'video/x-matroska',
+      'video/webm',
+    ];
+    const maxFileSize = 500 * 1024 * 1024; // 500MB
+
+    for (const file of files) {
+      if (!validVideoMimes.includes(file.mimetype)) {
+        throw new ValidationError(
+          `Invalid video format: ${file.mimetype}. Supported: MP4, MOV, AVI, MKV, WebM`
+        );
+      }
+
+      if (file.size > maxFileSize) {
+        throw new ValidationError(
+          `Video file too large. Maximum size: 500MB, Got: ${(file.size / 1024 / 1024).toFixed(
+            2
+          )}MB`
+        );
+      }
+    }
+
+    // Validate metadata
+    for (let i = 0; i < videoMetadata.length; i++) {
+      const meta = videoMetadata[i];
+
+      if (
+        meta.videoType &&
+        !['demo', 'tutorial', 'review', 'unboxing', 'promotion', 'other'].includes(meta.videoType)
+      ) {
+        throw new ValidationError(`Invalid video type: ${meta.videoType}`);
+      }
+
+      if (meta.title && meta.title.length > 255) {
+        throw new ValidationError(`Video title too long (max 255 characters)`);
+      }
+
+      if (meta.description && meta.description.length > 500) {
+        throw new ValidationError(`Video description too long (max 500 characters)`);
+      }
+
+      if (meta.displayOrder !== undefined && meta.displayOrder < 0) {
+        throw new ValidationError(`Display order cannot be negative`);
+      }
+    }
+
+    const uploadedVideos = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const metadata = videoMetadata[i] || {};
+
+      // For now, just save the file path - video processing (duration, thumbnail) can be added later
+      const videoPath = `/uploads/products/${file.filename}`;
+
+      const video = await prisma.productVideo.create({
+        data: {
+          productId,
+          videoUrl: videoPath,
+          videoType: (metadata.videoType as any) || 'demo',
+          title: metadata.title,
+          description: metadata.description,
+          isPrimary: metadata.isPrimary || false,
+          displayOrder: metadata.displayOrder || i,
+          uploadedBy: userId,
+          fileSize: BigInt(file.size),
+          // TODO: Extract duration and generate thumbnail using ffmpeg
+          duration: null,
+          thumbnail: null,
+        },
+      });
+
+      uploadedVideos.push(video);
+    }
+
+    logActivity('create', userId, 'product_videos', {
+      recordId: productId,
+      action: 'upload_videos',
+      newValue: uploadedVideos,
+    });
+
+    await this.invalidateCache(productId);
+
+    return uploadedVideos;
+  }
+
+  async deleteVideo(productId: number, videoId: number, userId: number) {
+    // Validate product exists
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundError('Product');
+    }
+
+    // Validate video exists and belongs to product
+    const video = await prisma.productVideo.findFirst({
+      where: {
+        id: videoId,
+        productId,
+      },
+    });
+
+    if (!video) {
+      throw new NotFoundError('Video not found for this product');
+    }
+
+    // Delete video file from storage
+    try {
+      const filePath = path.join(__dirname, '../..', video.videoUrl);
+      await uploadService.deleteFile(filePath);
+    } catch (error) {
+      console.error('Error deleting video file:', error);
+      // Continue even if file deletion fails
+    }
+
+    // Delete from database
+    await prisma.productVideo.delete({
+      where: { id: videoId },
+    });
+
+    logActivity('delete', userId, 'product_videos', {
+      recordId: productId,
+      action: 'delete_video',
+      oldValue: video,
+    });
+
+    await this.invalidateCache(productId);
+
+    return { message: 'Video deleted successfully' };
+  }
+
+  async setPrimaryVideo(productId: number, videoId: number, userId: number) {
+    // Validate product exists
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundError('Product');
+    }
+
+    // Validate video exists and belongs to product
+    const video = await prisma.productVideo.findFirst({
+      where: {
+        id: videoId,
+        productId,
+      },
+    });
+
+    if (!video) {
+      throw new NotFoundError('Video not found for this product');
+    }
+
+    // Validate video is not already primary
+    if (video.isPrimary) {
+      throw new ValidationError('This video is already set as primary');
+    }
+
+    // Reset all videos to non-primary
+    await prisma.productVideo.updateMany({
+      where: { productId },
+      data: { isPrimary: false },
+    });
+
+    // Set the selected video as primary
+    const updatedVideo = await prisma.productVideo.update({
+      where: { id: videoId },
+      data: { isPrimary: true },
+    });
+
+    logActivity('update', userId, 'products', {
+      recordId: productId,
+      action: 'set_primary_video',
+      newValue: { videoId },
+    });
+
+    await this.invalidateCache(productId);
+
+    return updatedVideo;
   }
 
   private async invalidateCache(productId?: number) {

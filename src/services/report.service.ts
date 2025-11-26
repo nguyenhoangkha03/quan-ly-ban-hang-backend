@@ -150,6 +150,213 @@ class ReportService {
     return dashboard;
   }
 
+  // GET /api/reports/dashboard/metrics - Dashboard metrics only
+  async getDashboardMetrics() {
+    const cacheKey = `${CachePrefix.DASHBOARD}metrics`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+
+    const [
+      revenueToday,
+      revenueThisMonth,
+      revenueLastMonth,
+      ordersToday,
+      ordersThisMonth,
+      totalInventoryValue,
+      lowStockCount,
+      totalReceivables,
+    ] = await Promise.all([
+      this.getRevenueByPeriod(startOfToday, endOfToday),
+      this.getRevenueByPeriod(startOfMonth, endOfToday),
+      this.getRevenueByPeriod(lastMonthStart, lastMonthEnd),
+      this.getOrderCountByPeriod(startOfToday, endOfToday),
+      this.getOrderCountByPeriod(startOfMonth, endOfToday),
+      this.getTotalInventoryValue(),
+      this.getLowStockCount(),
+      this.getTotalReceivables(),
+    ]);
+
+    const metrics = {
+      revenue: {
+        today: revenueToday,
+        thisMonth: revenueThisMonth,
+        lastMonth: revenueLastMonth,
+        growth:
+          revenueLastMonth > 0
+            ? ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100
+            : 0,
+      },
+      orders: {
+        today: ordersToday,
+        thisMonth: ordersThisMonth,
+      },
+      inventory: {
+        totalValue: totalInventoryValue,
+        lowStock: lowStockCount,
+      },
+      debt: {
+        totalReceivables,
+      },
+    };
+
+    await redis.set(cacheKey, metrics, DASHBOARD_CACHE_TTL);
+    return metrics;
+  }
+
+  // GET /api/reports/dashboard/revenue?period=month
+  async getDashboardRevenue(period: string = 'month') {
+    const cacheKey = `${CachePrefix.DASHBOARD}revenue:${period}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const today = new Date();
+    let fromDate: Date;
+    let toDate = new Date();
+
+    switch (period) {
+      case 'today':
+        fromDate = new Date(today.setHours(0, 0, 0, 0));
+        toDate = new Date(today.setHours(23, 59, 59, 999));
+        break;
+      case 'week':
+        fromDate = new Date(today);
+        fromDate.setDate(today.getDate() - today.getDay());
+        fromDate.setHours(0, 0, 0, 0);
+        break;
+      case 'year':
+        fromDate = new Date(today.getFullYear(), 0, 1);
+        break;
+      case 'month':
+      default:
+        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+    }
+
+    const orders = await prisma.salesOrder.findMany({
+      where: {
+        orderStatus: 'completed',
+        completedAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      select: {
+        completedAt: true,
+        totalAmount: true,
+      },
+      orderBy: { completedAt: 'asc' },
+    });
+
+    // Group by day for charting
+    const grouped = orders.reduce((acc, order) => {
+      const date = new Date(order.completedAt!);
+      const key = date.toISOString().split('T')[0];
+
+      if (!acc[key]) {
+        acc[key] = {
+          date: key,
+          revenue: 0,
+        };
+      }
+
+      acc[key].revenue += Number(order.totalAmount);
+      return acc;
+    }, {} as Record<string, { date: string; revenue: number }>);
+
+    const result = {
+      period,
+      data: Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date)),
+      total: orders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+    };
+
+    await redis.set(cacheKey, result, DASHBOARD_CACHE_TTL);
+    return result;
+  }
+
+  // GET /api/reports/dashboard/sales-channels
+  async getDashboardSalesChannels() {
+    const cacheKey = `${CachePrefix.DASHBOARD}sales-channels`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const result = await this.getRevenueByChannel(startOfMonth.toISOString(), new Date().toISOString());
+
+    await redis.set(cacheKey, result, DASHBOARD_CACHE_TTL);
+    return result;
+  }
+
+  // GET /api/reports/dashboard/inventory-by-type
+  async getDashboardInventoryByType() {
+    const cacheKey = `${CachePrefix.DASHBOARD}inventory-by-type`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const result = await this.getInventoryByType();
+
+    await redis.set(cacheKey, result, DASHBOARD_CACHE_TTL);
+    return result;
+  }
+
+  // GET /api/reports/dashboard/recent-orders?limit=10
+  async getDashboardRecentOrders(limit: number = 10) {
+    const orders = await prisma.salesOrder.findMany({
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        orderCode: true,
+        orderDate: true,
+        totalAmount: true,
+        orderStatus: true,
+        paymentStatus: true,
+        customer: {
+          select: {
+            id: true,
+            customerName: true,
+            customerCode: true,
+          },
+        },
+      },
+    });
+
+    return orders;
+  }
+
+  // GET /api/reports/dashboard/top-products?limit=10
+  async getDashboardTopProducts(limit: number = 10) {
+    const cacheKey = `${CachePrefix.DASHBOARD}top-products:${limit}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const result = await this.getTopSellingProducts(
+      limit,
+      startOfMonth.toISOString(),
+      new Date().toISOString()
+    );
+
+    await redis.set(cacheKey, result, DASHBOARD_CACHE_TTL);
+    return result;
+  }
+
   // =====================================================
   // REVENUE ANALYTICS
   // =====================================================

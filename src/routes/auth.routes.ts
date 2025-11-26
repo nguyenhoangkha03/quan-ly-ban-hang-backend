@@ -10,6 +10,8 @@ import {
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  verifyOTPSchema,
+  resendOTPSchema,
 } from '@validators/auth.validator';
 
 const router = Router();
@@ -415,6 +417,121 @@ router.post(
  *         $ref: '#/components/responses/AuthenticationError'
  */
 router.get('/me', authentication, asyncHandler(authController.getMe.bind(authController)));
+
+/**
+ * @swagger
+ * /api/auth/verify-otp:
+ *   post:
+ *     summary: Verify OTP code and complete login
+ *     tags: [Authentication]
+ *     description: Verify the OTP code sent to email and complete the 2FA login process
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - code
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: admin@example.com
+ *               code:
+ *                 type: string
+ *                 example: "123456"
+ *                 description: 6-digit OTP code
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully, login completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                     tokens:
+ *                       type: object
+ *                       properties:
+ *                         accessToken:
+ *                           type: string
+ *                         refreshToken:
+ *                           type: string
+ *                         expiresIn:
+ *                           type: integer
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         description: Invalid or expired OTP code
+ */
+router.post(
+  '/verify-otp',
+  loginRateLimiter,
+  validate(verifyOTPSchema),
+  asyncHandler(authController.verifyOTP.bind(authController))
+);
+
+/**
+ * @swagger
+ * /api/auth/resend-otp:
+ *   post:
+ *     summary: Resend OTP code
+ *     tags: [Authentication]
+ *     description: Request a new OTP code to be sent via email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: admin@example.com
+ *     responses:
+ *       200:
+ *         description: New OTP code sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     expiresIn:
+ *                       type: integer
+ *                       example: 300
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       429:
+ *         description: Too many OTP requests
+ */
+router.post(
+  '/resend-otp',
+  createRateLimiter({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 3, // Max 3 requests per minute
+    message: 'Too many OTP requests. Please wait before requesting another code',
+  }),
+  validate(resendOTPSchema),
+  asyncHandler(authController.resendOTP.bind(authController))
+);
 
 export default router;
 

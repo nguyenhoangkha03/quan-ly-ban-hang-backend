@@ -151,19 +151,15 @@ class RedisService {
   public async flushPattern(pattern: string): Promise<number> {
     try {
       const client = this.getClient();
-      const keys: string[] = [];
 
-      for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-        if (typeof key === 'string') {
-          keys.push(key);
-        }
-      }
+      // Use KEYS command to get all matching keys
+      // Note: KEYS is blocking but acceptable for small datasets in development
+      // For production with large datasets, consider using SCAN
+      const keys = await client.keys(pattern);
 
       if (keys.length === 0) return 0;
 
-      const flatKeys = keys.flat();
-
-      return await client.del(flatKeys);
+      return await client.del(keys);
     } catch (error) {
       console.error(`Redis FLUSH_PATTERN error for pattern "${pattern}":`, error);
       throw error;
@@ -174,11 +170,11 @@ class RedisService {
   public async keys(pattern: string): Promise<string[]> {
     try {
       const client = this.getClient();
-      const keys: string[] = [];
 
-      for await (const key of client.scanIterator({ MATCH: pattern, COUNT: 100 })) {
-        keys.push(key as unknown as string);
-      }
+      // Use KEYS command directly
+      // Note: KEYS is blocking but acceptable for small datasets
+      // For production with millions of keys, use SCAN instead
+      const keys = await client.keys(pattern);
 
       return keys;
     } catch (error) {

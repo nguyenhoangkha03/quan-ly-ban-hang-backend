@@ -27,6 +27,48 @@ router.get(
   asyncHandler(reportController.getDashboard.bind(reportController))
 );
 
+// GET /api/reports/dashboard/metrics - Dashboard metrics only
+router.get(
+  '/dashboard/metrics',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardMetrics.bind(reportController))
+);
+
+// GET /api/reports/dashboard/revenue - Dashboard revenue with period filter
+router.get(
+  '/dashboard/revenue',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardRevenue.bind(reportController))
+);
+
+// GET /api/reports/dashboard/sales-channels - Revenue by sales channel
+router.get(
+  '/dashboard/sales-channels',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardSalesChannels.bind(reportController))
+);
+
+// GET /api/reports/dashboard/inventory-by-type - Inventory grouped by type
+router.get(
+  '/dashboard/inventory-by-type',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardInventoryByType.bind(reportController))
+);
+
+// GET /api/reports/dashboard/recent-orders - Recent orders
+router.get(
+  '/dashboard/recent-orders',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardRecentOrders.bind(reportController))
+);
+
+// GET /api/reports/dashboard/top-products - Top selling products
+router.get(
+  '/dashboard/top-products',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardTopProducts.bind(reportController))
+);
+
 // =====================================================
 // REVENUE REPORTS
 // =====================================================

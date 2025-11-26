@@ -181,6 +181,86 @@ class ProductController {
 
     res.status(200).json(response);
   }
+
+  // PATCH /api/products/:id/images/:imageId/primary
+  async setPrimaryImage(req: AuthRequest, res: Response) {
+    const { id, imageId } = req.params;
+    const userId = req.user!.id;
+
+    const result = await productService.setPrimaryImage(parseInt(id), parseInt(imageId), userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Primary image set successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // ===== VIDEO METHODS =====
+
+  // POST /api/products/:id/videos
+  async uploadVideos(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    const files = req.files as Express.Multer.File[];
+    const userId = req.user!.id;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No video files provided',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const videoMetadata = req.body.videos ? JSON.parse(req.body.videos) : files.map(() => ({}));
+
+    const videos = await productService.uploadVideos(parseInt(id), files, videoMetadata, userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: videos,
+      message: 'Videos uploaded successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    return res.status(201).json(response);
+  }
+
+  // DELETE /api/products/:id/videos/:videoId
+  async deleteVideo(req: AuthRequest, res: Response) {
+    const { id, videoId } = req.params;
+    const userId = req.user!.id;
+
+    const result = await productService.deleteVideo(parseInt(id), parseInt(videoId), userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // PATCH /api/products/:id/videos/:videoId/primary
+  async setPrimaryVideo(req: AuthRequest, res: Response) {
+    const { id, videoId } = req.params;
+    const userId = req.user!.id;
+
+    const result = await productService.setPrimaryVideo(parseInt(id), parseInt(videoId), userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Primary video set successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
 }
 
 export default new ProductController();

@@ -83,6 +83,9 @@ model User {
     email        String     @unique @db.VarChar(100)
     passwordHash String     @map("password_hash") @db.VarChar(255)
     fullName     String     @map("full_name") @db.VarChar(200)
+    cccd         String?    @unique @db.VarChar(20)
+    issuedAt     DateTime?  @map("issued_at") @db.Date
+    issuedBy     String?    @map("issued_by") @db.VarChar(100)
     phone        String?    @db.VarChar(20)
     address      String?    @db.VarChar(255)
     gender       Gender?
@@ -152,6 +155,8 @@ model User {
     notifications               Notification[]
     notificationsSent           Notification[]       @relation("NotificationSender")
     inventoryUpdates            Inventory[]
+    verificationCodes           VerificationCode[]
+    productVideos               ProductVideo[]
 
     @@index([roleId, status])
     @@map("users")
@@ -191,6 +196,26 @@ model ActivityLog {
     @@index([tableName, recordId])
     @@index([createdAt])
     @@map("activity_logs")
+}
+
+model VerificationCode {
+    id        Int                  @id @default(autoincrement())
+    userId    Int                  @map("user_id")
+    email     String               @db.VarChar(100)
+    code      String               @db.VarChar(6)
+    type      VerificationCodeType @default(login_otp)
+    attempts  Int                  @default(0)
+    isUsed    Boolean              @default(false) @map("is_used")
+    expiresAt DateTime             @map("expires_at")
+    createdAt DateTime             @default(now()) @map("created_at")
+    usedAt    DateTime?            @map("used_at")
+    ipAddress String?              @map("ip_address") @db.VarChar(45)
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([email, type, isUsed])
+    @@index([code, expiresAt])
+    @@map("verification_codes")
 }
 
 // =====================================================
@@ -298,7 +323,7 @@ model Product {
     packagingType         PackagingType? @default(other) @map("packaging_type")
     categoryId            Int?           @map("category_id")
     supplierId            Int?           @map("supplier_id")
-    unit                  String?        @db.VarChar(50)
+    unit                  String         @db.VarChar(50)
     barcode               String?        @db.VarChar(100)
     weight                Decimal?       @db.Decimal(15, 2)
     dimensions            String?        @db.VarChar(100)
@@ -322,6 +347,7 @@ model Product {
     updater  User?     @relation("ProductUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
 
     images                   ProductImage[]
+    videos                   ProductVideo[]
     purchaseOrderDetails     PurchaseOrderDetail[]
     inventory                Inventory[]
     stockTransactionDetails  StockTransactionDetail[]
@@ -360,6 +386,29 @@ model ProductImage {
     @@index([productId])
     @@index([displayOrder])
     @@map("product_images")
+}
+
+model ProductVideo {
+    id           Int       @id @default(autoincrement())
+    productId    Int       @map("product_id")
+    videoUrl     String    @map("video_url") @db.VarChar(500)
+    videoType    VideoType @default(demo) @map("video_type")
+    title        String?   @db.VarChar(255)
+    description  String?   @db.VarChar(500)
+    thumbnail    String?   @db.VarChar(500)
+    duration     Int?
+    fileSize     BigInt?   @map("file_size")
+    isPrimary    Boolean   @default(false) @map("is_primary")
+    displayOrder Int       @default(0) @map("display_order")
+    uploadedBy   Int?      @map("uploaded_by")
+    createdAt    DateTime  @default(now()) @map("created_at")
+
+    product  Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+    uploader User?   @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+
+    @@index([productId])
+    @@index([displayOrder])
+    @@map("product_videos")
 }
 
 model Inventory {
@@ -1104,6 +1153,15 @@ enum ImageType {
     main
 }
 
+enum VideoType {
+    demo
+    tutorial
+    review
+    unboxing
+    promotion
+    other
+}
+
 enum TransactionType {
     import
     export
@@ -1308,4 +1366,10 @@ enum NotificationChannel {
     sms
     mobile_app
     all
+}
+
+enum VerificationCodeType {
+    login_otp
+    password_reset
+    email_verification
 }

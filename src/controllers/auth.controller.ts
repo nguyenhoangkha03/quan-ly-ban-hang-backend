@@ -111,6 +111,38 @@ class AuthController {
 
     res.status(200).json(response);
   }
+
+  // POST /api/auth/verify-otp
+  async verifyOTP(req: AuthRequest, res: Response) {
+    const { email, code } = req.body;
+    const ipAddress = req.ip || req.socket.remoteAddress;
+
+    const result = await authService.verifyOTPAndLogin(email, code, ipAddress);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // POST /api/auth/resend-otp
+  async resendOTP(req: AuthRequest, res: Response) {
+    const { email } = req.body;
+    const ipAddress = req.ip || req.socket.remoteAddress;
+
+    const result = await authService.resendOTPCode(email, ipAddress);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
 }
 
 export default new AuthController();

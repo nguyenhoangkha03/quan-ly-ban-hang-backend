@@ -10,7 +10,12 @@ export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' 
       const data = req[source];
       const validated = await schema.parseAsync(data);
 
-      req[source] = validated;
+      // Use Object.assign instead of direct assignment to avoid "Cannot set property" error
+      if (source === 'query' || source === 'params') {
+        Object.assign(req[source], validated);
+      } else {
+        req[source] = validated;
+      }
 
       next();
     } catch (error) {

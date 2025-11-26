@@ -14,6 +14,75 @@ class ReportController {
     });
   }
 
+  // GET /api/reports/dashboard/metrics - Dashboard metrics only
+  async getDashboardMetrics(_req: AuthRequest, res: Response) {
+    const metrics = await reportService.getDashboardMetrics();
+
+    res.status(200).json({
+      success: true,
+      data: metrics,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/dashboard/revenue?period=month - Dashboard revenue
+  async getDashboardRevenue(req: AuthRequest, res: Response) {
+    const { period = 'month' } = req.query;
+    const revenue = await reportService.getDashboardRevenue(period as string);
+
+    res.status(200).json({
+      success: true,
+      data: revenue,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/dashboard/sales-channels - Revenue by sales channel
+  async getDashboardSalesChannels(_req: AuthRequest, res: Response) {
+    const salesChannels = await reportService.getDashboardSalesChannels();
+
+    res.status(200).json({
+      success: true,
+      data: salesChannels,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/dashboard/inventory-by-type - Inventory grouped by type
+  async getDashboardInventoryByType(_req: AuthRequest, res: Response) {
+    const inventoryByType = await reportService.getDashboardInventoryByType();
+
+    res.status(200).json({
+      success: true,
+      data: inventoryByType,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/dashboard/recent-orders?limit=10 - Recent orders
+  async getDashboardRecentOrders(req: AuthRequest, res: Response) {
+    const { limit = '10' } = req.query;
+    const recentOrders = await reportService.getDashboardRecentOrders(parseInt(limit as string));
+
+    res.status(200).json({
+      success: true,
+      data: recentOrders,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/dashboard/top-products?limit=10 - Top selling products
+  async getDashboardTopProducts(req: AuthRequest, res: Response) {
+    const { limit = '10' } = req.query;
+    const topProducts = await reportService.getDashboardTopProducts(parseInt(limit as string));
+
+    res.status(200).json({
+      success: true,
+      data: topProducts,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // GET /api/reports/revenue - Revenue report
   async getRevenueReport(req: AuthRequest, res: Response) {
     const result = await reportService.getRevenueReport(req.query as any);
