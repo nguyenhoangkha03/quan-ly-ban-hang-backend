@@ -44,7 +44,13 @@ class CategoryService {
           { description: { contains: search } },
         ],
       }),
-      ...(parentId && { parentId: parseInt(parentId) }),
+      // Handle parentId filter:
+      // - If parentId is provided and is 'null' string → filter root categories (parentId: null)
+      // - If parentId is a number string → filter by that parent
+      // - If parentId is undefined → no filter (show all)
+      ...(parentId !== undefined && {
+        parentId: parentId === 'null' ? null : parseInt(parentId),
+      }),
       ...(status && { status }),
     };
 
@@ -189,7 +195,7 @@ class CategoryService {
     });
 
     if (!category) {
-      throw new NotFoundError('Category not found');
+      throw new NotFoundError('Danh mục không tồn tại');
     }
 
     await redis.set(cacheKey, category, CATEGORY_CACHE_TTL);
@@ -200,12 +206,12 @@ class CategoryService {
   async createCategory(data: CreateCategoryInput, createdBy: number) {
     const codeExists = await this.checkCategoryCodeExists(data.categoryCode);
     if (codeExists) {
-      throw new ConflictError('Category code already exists');
+      throw new ConflictError('Mã danh mục đã tồn tại');
     }
 
     const slugExists = await this.checkSlugExists(data.slug);
     if (slugExists) {
-      throw new ConflictError('Slug already exists');
+      throw new ConflictError('Slug đã tồn tại');
     }
 
     if (data.parentId) {
@@ -213,7 +219,7 @@ class CategoryService {
         where: { id: data.parentId },
       });
       if (!parentExists) {
-        throw new NotFoundError('Parent category not found');
+        throw new NotFoundError('Danh mục cha không tồn tại');
       }
     }
 
@@ -261,26 +267,26 @@ class CategoryService {
     });
 
     if (!existingCategory) {
-      throw new NotFoundError('Category not found');
+      throw new NotFoundError('Danh mục không tồn tại');
     }
 
     if (data.categoryCode && data.categoryCode !== existingCategory.categoryCode) {
       const codeExists = await this.checkCategoryCodeExists(data.categoryCode, id);
       if (codeExists) {
-        throw new ConflictError('Category code already exists');
+        throw new ConflictError('Mã danh mục đã tồn tại');
       }
     }
 
     if (data.slug && data.slug !== existingCategory.slug) {
       const slugExists = await this.checkSlugExists(data.slug, id);
       if (slugExists) {
-        throw new ConflictError('Slug already exists');
+        throw new ConflictError('Slug đã tồn tại');
       }
     }
 
     if (data.parentId !== undefined) {
       if (data.parentId === id) {
-        throw new ValidationError('Category cannot be its own parent');
+        throw new ValidationError('Danh mục không thể là danh mục cha của chính nó');
       }
 
       if (data.parentId !== null) {
@@ -288,12 +294,12 @@ class CategoryService {
           where: { id: data.parentId },
         });
         if (!parentExists) {
-          throw new NotFoundError('Parent category not found');
+          throw new NotFoundError('Danh mục cha không tồn tại');
         }
 
         const isCircular = await this.checkCircularReference(id, data.parentId);
         if (isCircular) {
-          throw new ValidationError('Circular reference detected. Cannot set parent.');
+          throw new ValidationError('Phát hiện tham chiếu vòng. Không thể đặt danh mục cha.');
         }
       }
     }
@@ -353,15 +359,15 @@ class CategoryService {
     });
 
     if (!category) {
-      throw new NotFoundError('Category not found');
+      throw new NotFoundError('Danh mục không tồn tại');
     }
 
     if (category._count.children > 0) {
-      throw new ValidationError('Cannot delete category with subcategories');
+      throw new ValidationError('Không thể xóa danh mục có danh mục con');
     }
 
     if (category._count.products > 0) {
-      throw new ValidationError('Cannot delete category with products');
+      throw new ValidationError('Không thể xóa danh mục có sản phẩm');
     }
 
     // Hard delete - xóa thật khỏi database
@@ -377,7 +383,7 @@ class CategoryService {
     await redis.del(`category:${id}`);
     await this.invalidateCache();
 
-    return { message: 'Category deleted successfully' };
+    return { message: 'Xóa danh mục thành công' };
   }
 
   async checkCategoryCodeExists(code: string, excludeId?: number): Promise<boolean> {

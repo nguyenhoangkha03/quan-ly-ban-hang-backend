@@ -161,7 +161,7 @@ class SupplierService {
     });
 
     if (!supplier) {
-      throw new NotFoundError('Supplier not found');
+      throw new NotFoundError('Nhà cung cấp không tồn tại');
     }
 
     await redis.set(cacheKey, supplier, SUPPLIER_CACHE_TTL);
@@ -172,13 +172,13 @@ class SupplierService {
   async createSupplier(data: CreateSupplierInput, createdBy: number) {
     const codeExists = await this.checkSupplierCodeExists(data.supplierCode);
     if (codeExists) {
-      throw new ConflictError('Supplier code already exists');
+      throw new ConflictError('Mã nhà cung cấp đã tồn tại');
     }
 
     if (data.taxCode) {
       const taxCodeExists = await this.checkTaxCodeExists(data.taxCode);
       if (taxCodeExists) {
-        throw new ConflictError('Tax code already exists');
+        throw new ConflictError('Mã số thuế đã tồn tại');
       }
     }
 
@@ -237,20 +237,20 @@ class SupplierService {
     });
 
     if (!existingSupplier) {
-      throw new NotFoundError('Supplier not found');
+      throw new NotFoundError('Nhà cung cấp không tồn tại');
     }
 
     if (data.supplierCode && data.supplierCode !== existingSupplier.supplierCode) {
       const codeExists = await this.checkSupplierCodeExists(data.supplierCode, id);
       if (codeExists) {
-        throw new ConflictError('Supplier code already exists');
+        throw new ConflictError('Mã nhà cung cấp đã tồn tại');
       }
     }
 
     if (data.taxCode && data.taxCode !== existingSupplier.taxCode) {
       const taxCodeExists = await this.checkTaxCodeExists(data.taxCode, id);
       if (taxCodeExists) {
-        throw new ConflictError('Tax code already exists');
+        throw new ConflictError('Mã số thuế đã tồn tại');
       }
     }
 
@@ -320,15 +320,15 @@ class SupplierService {
     });
 
     if (!supplier) {
-      throw new NotFoundError('Supplier not found');
+      throw new NotFoundError('Nhà cung cấp không tồn tại');
     }
 
     if (supplier._count.products > 0) {
-      throw new ValidationError('Cannot delete supplier with existing products');
+      throw new ValidationError('Không thể xóa nhà cung cấp có sản phẩm tồn tại');
     }
 
     if (supplier._count.purchaseOrders > 0) {
-      throw new ValidationError('Cannot delete supplier with existing purchase orders');
+      throw new ValidationError('Không thể xóa nhà cung cấp có đơn hàng tồn tại');
     }
 
     await prisma.supplier.update({
@@ -347,7 +347,7 @@ class SupplierService {
     await redis.del(`supplier:${id}`);
     await this.invalidateListCache();
 
-    return { message: 'Supplier deleted successfully' };
+    return { message: 'Xóa nhà cung cấp thành công' };
   }
 
   async getSupplierStatistics(id: number) {
@@ -356,7 +356,7 @@ class SupplierService {
     });
 
     if (!supplier) {
-      throw new NotFoundError('Supplier not found');
+      throw new NotFoundError('Nhà cung cấp không tồn tại');
     }
 
     const purchaseOrderStats = await prisma.purchaseOrder.aggregate({

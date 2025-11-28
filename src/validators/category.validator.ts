@@ -46,7 +46,16 @@ export const queryCategoriesSchema = z.object({
   page: z.string().regex(/^\d+$/).optional().default('1'),
   limit: z.string().regex(/^\d+$/).optional().default('20'),
   search: z.string().trim().optional(),
-  parentId: z.string().regex(/^\d+$/).optional(),
+  // parentId can be:
+  // - a number string (e.g., "123") - filter by parent ID
+  // - "null" string - filter root categories (where parentId is null)
+  // - undefined - no filter (get all)
+  parentId: z
+    .string()
+    .refine((val) => val === 'null' || /^\d+$/.test(val), {
+      message: 'parentId must be a number or "null"',
+    })
+    .optional(),
   status: z.enum(['active', 'inactive']).optional(),
   sortBy: z
     .enum(['createdAt', 'updatedAt', 'categoryName', 'categoryCode'])
