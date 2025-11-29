@@ -277,7 +277,8 @@ class ReportService {
     const result = {
       period,
       data: Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date)),
-      total: orders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+      total_revenue: orders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+      total_orders: orders.length,
     };
 
     await redis.set(cacheKey, result, DASHBOARD_CACHE_TTL);

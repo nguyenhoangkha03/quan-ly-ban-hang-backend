@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import paymentReceiptService from '@services/payment-receipt.service';
 
 class PaymentReceiptController {
@@ -45,10 +45,7 @@ class PaymentReceiptController {
   // GET /api/payment-receipts/summary - Get summary statistics
   async getSummary(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const summary = await paymentReceiptService.getSummary(
-      fromDate as string,
-      toDate as string
-    );
+    const summary = await paymentReceiptService.getSummary(fromDate as string, toDate as string);
 
     res.status(200).json({
       success: true,

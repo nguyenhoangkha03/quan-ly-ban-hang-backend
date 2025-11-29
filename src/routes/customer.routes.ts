@@ -2,7 +2,7 @@ import { Router } from 'express';
 import customerController from '@controllers/customer.controller';
 import { authentication } from '@middlewares/auth';
 import { authorize } from '@middlewares/authorize';
-import { validate } from '@middlewares/validate';
+import { validateNested } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
 import {
   createCustomerSchema,
@@ -28,7 +28,7 @@ router.get(
 router.get(
   '/',
   authorize('view_customers'),
-  validate(customerQuerySchema),
+  validateNested(customerQuerySchema),
   asyncHandler(customerController.getAll.bind(customerController))
 );
 
@@ -43,7 +43,7 @@ router.get(
 router.post(
   '/',
   authorize('create_customer'),
-  validate(createCustomerSchema),
+  validateNested(createCustomerSchema),
   asyncHandler(customerController.create.bind(customerController))
 );
 
@@ -51,7 +51,7 @@ router.post(
 router.put(
   '/:id',
   authorize('update_customer'),
-  validate(updateCustomerSchema),
+  validateNested(updateCustomerSchema),
   asyncHandler(customerController.update.bind(customerController))
 );
 
@@ -59,7 +59,7 @@ router.put(
 router.put(
   '/:id/credit-limit',
   authorize('update_customer_credit_limit'),
-  validate(updateCreditLimitSchema),
+  validateNested(updateCreditLimitSchema),
   asyncHandler(customerController.updateCreditLimit.bind(customerController))
 );
 
@@ -67,7 +67,7 @@ router.put(
 router.patch(
   '/:id/status',
   authorize('update_customer_status'),
-  validate(updateStatusSchema),
+  validateNested(updateStatusSchema),
   asyncHandler(customerController.updateStatus.bind(customerController))
 );
 

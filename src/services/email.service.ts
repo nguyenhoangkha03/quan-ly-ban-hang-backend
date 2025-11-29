@@ -1,6 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { logError, logInfo } from '@utils/logger';
-import { EmailOptions } from '@custom-types/index';
+import { EmailOptions } from '@custom-types/common.type';
 
 class EmailService {
   private transporter: Transporter | null = null;
@@ -391,7 +391,10 @@ Sales & Production System Team
       icon = '❌';
       headerColor = '#dc3545';
       borderColor = '#dc3545';
-    } else if (title.toLowerCase().includes('thành công') || title.toLowerCase().includes('success')) {
+    } else if (
+      title.toLowerCase().includes('thành công') ||
+      title.toLowerCase().includes('success')
+    ) {
       icon = '✅';
       headerColor = '#28a745';
       borderColor = '#28a745';

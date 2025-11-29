@@ -2,7 +2,7 @@ import { Router } from 'express';
 import salesOrderController from '@controllers/sales-order.controller';
 import { authentication } from '@middlewares/auth';
 import { authorize } from '@middlewares/authorize';
-import { validate } from '@middlewares/validate';
+import { validateNested } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
 import {
   createSalesOrderSchema,
@@ -22,7 +22,7 @@ router.use(authentication);
 router.get(
   '/',
   authorize('view_sales_orders'),
-  validate(salesOrderQuerySchema),
+  validateNested(salesOrderQuerySchema),
   asyncHandler(salesOrderController.getAll.bind(salesOrderController))
 );
 
@@ -37,7 +37,7 @@ router.get(
 router.post(
   '/',
   authorize('create_sales_order'),
-  validate(createSalesOrderSchema),
+  validateNested(createSalesOrderSchema),
   asyncHandler(salesOrderController.create.bind(salesOrderController))
 );
 
@@ -45,7 +45,7 @@ router.post(
 router.put(
   '/:id',
   authorize('update_sales_order'),
-  validate(updateSalesOrderSchema),
+  validateNested(updateSalesOrderSchema),
   asyncHandler(salesOrderController.update.bind(salesOrderController))
 );
 
@@ -53,7 +53,7 @@ router.put(
 router.put(
   '/:id/approve',
   authorize('approve_sales_order'),
-  validate(approveOrderSchema),
+  validateNested(approveOrderSchema),
   asyncHandler(salesOrderController.approve.bind(salesOrderController))
 );
 
@@ -68,7 +68,7 @@ router.put(
 router.put(
   '/:id/cancel',
   authorize('cancel_sales_order'),
-  validate(cancelOrderSchema),
+  validateNested(cancelOrderSchema),
   asyncHandler(salesOrderController.cancel.bind(salesOrderController))
 );
 
@@ -76,7 +76,7 @@ router.put(
 router.post(
   '/:id/payment',
   authorize('process_payment'),
-  validate(processPaymentSchema),
+  validateNested(processPaymentSchema),
   asyncHandler(salesOrderController.processPayment.bind(salesOrderController))
 );
 

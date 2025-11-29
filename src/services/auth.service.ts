@@ -3,7 +3,7 @@ import { hashPassword, comparePassword } from '@utils/password';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils/jwt';
 import { AuthenticationError, NotFoundError, ValidationError } from '@utils/errors';
 import RedisService, { CachePrefix } from './redis.service';
-import { JwtPayload } from '@custom-types/index';
+import { JwtPayload } from '@custom-types/common.type';
 import { logActivity } from '@utils/logger';
 import emailService from './email.service';
 
@@ -22,7 +22,7 @@ class AuthService {
       const lockTime = await redis.ttl(`${CachePrefix.RATE_LIMIT}login:${email}`);
       const minutesLeft = Math.ceil(lockTime / 60);
       throw new AuthenticationError(
-        `Account locked due to too many failed login attempts. Try again in ${minutesLeft} minutes`
+        `Tài khoản bị khóa do đăng nhập không thành công quá nhiều lần. Vui lòng thử lại sau ${minutesLeft} phút.`
       );
     }
 
@@ -57,7 +57,9 @@ class AuthService {
     }
 
     if (user.status === 'inactive') {
-      throw new AuthenticationError('Your account is inactive. Please contact administrator');
+      throw new AuthenticationError(
+        'Tài khoản của bạn đang không hoạt động. Vui lòng liên hệ quản trị viên'
+      );
     }
 
     const isPasswordValid = await comparePassword(password, user.passwordHash);
@@ -103,7 +105,7 @@ class AuthService {
 
     logActivity('logout', userId, 'auth');
 
-    return { message: 'Logged out successfully' };
+    return { message: 'Đăng xuất thành công' };
   }
 
   // Refresh access token
@@ -112,7 +114,7 @@ class AuthService {
 
     const storedToken = await redis.get(`${CachePrefix.SESSION}refresh:${decoded.id}`);
     if (!storedToken || storedToken !== refreshToken) {
-      throw new AuthenticationError('Invalid refresh token');
+      throw new AuthenticationError('Refresh token không hợp lệ');
     }
 
     const user = await prisma.user.findUnique({
@@ -128,11 +130,11 @@ class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Người dùng không tồn tại');
     }
 
     if (user.status !== 'active') {
-      throw new AuthenticationError('User account is not active');
+      throw new AuthenticationError('Tài khoản người dùng không hoạt động');
     }
 
     const payload: JwtPayload = {
@@ -158,17 +160,17 @@ class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Người dùng không tồn tại');
     }
 
     const isOldPasswordValid = await comparePassword(oldPassword, user.passwordHash);
     if (!isOldPasswordValid) {
-      throw new ValidationError('Current password is incorrect');
+      throw new ValidationError('Mật khẩu hiện tại không đúng');
     }
 
     const isSamePassword = await comparePassword(newPassword, user.passwordHash);
     if (isSamePassword) {
-      throw new ValidationError('New password must be different from current password');
+      throw new ValidationError('Mật khẩu mới phải khác mật khẩu hiện tại');
     }
 
     const hashedPassword = await hashPassword(newPassword);
@@ -188,7 +190,7 @@ class AuthService {
     // Send notification email
     await emailService.sendPasswordChangedEmail(user.email, user.fullName);
 
-    return { message: 'Password changed successfully. Please login again' };
+    return { message: 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại' };
   }
 
   // Forgot password - Send reset token
@@ -205,13 +207,13 @@ class AuthService {
 
     if (!user) {
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: 'Nếu email tồn tại, một liên kết đặt lại mật khẩu đã được gửi',
       };
     }
 
     if (user.status !== 'active') {
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: 'Nếu email tồn tại, một liên kết đặt lại mật khẩu đã được gửi',
       };
     }
 
@@ -234,7 +236,7 @@ class AuthService {
     });
 
     return {
-      message: 'If the email exists, a password reset link has been sent',
+      message: 'Nếu email tồn tại, một liên kết đặt lại mật khẩu đã được gửi',
       // For development only - return token if email not configured or in dev mode
       resetToken: process.env.NODE_ENV === 'development' || !emailSent ? resetToken : undefined,
     };
@@ -244,7 +246,7 @@ class AuthService {
   async resetPassword(token: string, newPassword: string) {
     const userIdStr = await redis.get(`${CachePrefix.SESSION}reset:${token}`);
     if (!userIdStr) {
-      throw new AuthenticationError('Invalid or expired reset token');
+      throw new AuthenticationError('Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn');
     }
 
     const userId = parseInt(userIdStr);
@@ -254,7 +256,7 @@ class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Người dùng không tồn tại');
     }
 
     const hashedPassword = await hashPassword(newPassword);
@@ -273,7 +275,7 @@ class AuthService {
       action: 'reset_password',
     });
 
-    return { message: 'Password reset successfully. Please login with your new password' };
+    return { message: 'Đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới' };
   }
 
   // Get current user details
@@ -303,7 +305,7 @@ class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Người dùng không tồn tại');
     }
 
     // Get user permissions
@@ -430,7 +432,7 @@ class AuthService {
     });
 
     if (!user) {
-      throw new AuthenticationError('Invalid verification code');
+      throw new AuthenticationError('Mã xác thực không hợp lệ');
     }
 
     // Find the OTP code
@@ -448,17 +450,17 @@ class AuthService {
     });
 
     if (!verificationCode) {
-      throw new AuthenticationError('Invalid verification code');
+      throw new AuthenticationError('Mã xác thực không hợp lệ');
     }
 
     // Check if code is expired
     if (new Date() > verificationCode.expiresAt) {
-      throw new AuthenticationError('Verification code has expired. Please request a new one');
+      throw new AuthenticationError('Mã xác thực đã hết hạn. Vui lòng yêu cầu mã mới');
     }
 
     // Check max attempts (5 attempts)
     if (verificationCode.attempts >= 5) {
-      throw new AuthenticationError('Too many incorrect attempts. Please request a new code');
+      throw new AuthenticationError('Quá nhiều lần nhập sai. Vui lòng yêu cầu mã mới');
     }
 
     // Mark code as used
@@ -537,7 +539,7 @@ class AuthService {
     });
 
     if (!user || user.status !== 'active') {
-      throw new AuthenticationError('Invalid request');
+      throw new AuthenticationError('Yêu cầu không hợp lệ');
     }
 
     const { code, expiresIn } = await this.createOTPCode(user.id, user.email, ipAddress);

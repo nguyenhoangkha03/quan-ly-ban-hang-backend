@@ -2,7 +2,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RateLimitError } from '@utils/errors';
 import { Request, Response } from 'express';
 import RedisService from '@services/redis.service';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 
 const redisClient = RedisService.getInstance();
 

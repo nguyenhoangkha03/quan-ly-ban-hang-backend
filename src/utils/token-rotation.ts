@@ -1,7 +1,7 @@
 import { generateRefreshToken } from './jwt';
 import RedisService, { CachePrefix } from '@services/redis.service';
 import { AuthenticationError } from './errors';
-import { JwtPayload } from '@custom-types/index';
+import { JwtPayload } from '@custom-types/common.type';
 
 /**
  * Refresh Token Rotation Utilities
@@ -82,7 +82,10 @@ export async function storeRefreshToken(
  * @param refreshToken - Refresh token to verify
  * @returns Family ID if valid, throws error if invalid or reused
  */
-export async function verifyRefreshTokenFamily(userId: number, refreshToken: string): Promise<string> {
+export async function verifyRefreshTokenFamily(
+  userId: number,
+  refreshToken: string
+): Promise<string> {
   // Get all token families for user
   const pattern = `${CachePrefix.SESSION}token-family:${userId}:*`;
   const familyKeys = await redis.keys(pattern);
@@ -109,7 +112,9 @@ export async function verifyRefreshTokenFamily(userId: number, refreshToken: str
         // Token reuse detected! This could be a theft attempt
         // Invalidate entire family
         await invalidateTokenFamily(userId, familyKey.split(':').pop()!);
-        throw new AuthenticationError('Token reuse detected. All sessions have been invalidated for security.');
+        throw new AuthenticationError(
+          'Token reuse detected. All sessions have been invalidated for security.'
+        );
       }
 
       // Return family ID

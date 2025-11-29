@@ -1,5 +1,5 @@
 import { NextFunction, Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import { asyncHandler } from './errorHandler';
 import { PrismaClient } from '@prisma/client';
 import { AuthenticationError, AuthorizationError } from '@utils/errors';

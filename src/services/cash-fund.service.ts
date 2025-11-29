@@ -1,29 +1,12 @@
+import {
+  CashFundCreateInput,
+  CashFundFilter,
+  CashFundLockInput,
+  CashFundUpdateInput,
+} from '@custom-types/index';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-
-interface CashFundCreateInput {
-  fundDate: Date;
-  openingBalance?: number;
-  notes?: string;
-}
-
-interface CashFundUpdateInput {
-  openingBalance?: number;
-  notes?: string;
-}
-
-interface CashFundLockInput {
-  approvedBy: number;
-  reconciledBy: number;
-  notes?: string;
-}
-
-interface CashFundFilter {
-  startDate?: Date;
-  endDate?: Date;
-  isLocked?: boolean;
-}
 
 export class CashFundService {
   async getDailyCashFund(date: Date) {
@@ -164,7 +147,7 @@ export class CashFundService {
     });
 
     if (existing) {
-      throw new Error('Cash fund for this date already exists');
+      throw new Error('Quỹ tiền mặt cho ngày này đã tồn tại');
     }
 
     const fund = await prisma.cashFund.create({
@@ -202,11 +185,11 @@ export class CashFundService {
     });
 
     if (!fund) {
-      throw new Error('Cash fund not found');
+      throw new Error('Quỹ tiền mặt không tồn tại');
     }
 
     if (fund.isLocked) {
-      throw new Error('Cannot update locked cash fund');
+      throw new Error('Không thể cập nhật quỹ tiền mặt đã khóa');
     }
 
     const updated = await prisma.cashFund.update({
@@ -242,11 +225,11 @@ export class CashFundService {
     });
 
     if (!fund) {
-      throw new Error('Cash fund not found');
+      throw new Error('Quỹ tiền mặt không tồn tại');
     }
 
     if (fund.isLocked) {
-      throw new Error('Cash fund is already locked');
+      throw new Error('Quỹ tiền mặt đã được khóa');
     }
 
     const dateStart = new Date(date);
@@ -341,11 +324,11 @@ export class CashFundService {
     });
 
     if (!fund) {
-      throw new Error('Cash fund not found');
+      throw new Error('Quỹ tiền mặt không tồn tại');
     }
 
     if (!fund.isLocked) {
-      throw new Error('Cash fund is not locked');
+      throw new Error('Quỹ tiền mặt chưa được khóa');
     }
 
     const nextDay = new Date(date);
@@ -356,7 +339,7 @@ export class CashFundService {
     });
 
     if (nextFund?.isLocked) {
-      throw new Error('Cannot unlock: next day is already locked');
+      throw new Error('Không thể mở khóa: ngày tiếp theo đã được khóa');
     }
 
     const unlocked = await prisma.cashFund.update({
@@ -429,7 +412,7 @@ export class CashFundService {
     });
 
     if (!fund) {
-      throw new Error('Cash fund not found');
+      throw new Error('Quỹ tiền mặt không tồn tại');
     }
 
     const dateStart = new Date(date);

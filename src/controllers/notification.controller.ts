@@ -1,18 +1,12 @@
 import { Response } from 'express';
-import { AuthRequest, ApiResponse, ApiErrorResponse, ErrorCode } from '@custom-types/index';
+import { AuthRequest, ApiResponse, ApiErrorResponse, ErrorCode } from '@custom-types/common.type';
 import notificationService from '@services/notification.service';
 
 class NotificationController {
   // GET /api/notifications
   async getAll(req: AuthRequest, res: Response) {
     const userId = req.user!.id;
-    const {
-      isRead,
-      notificationType,
-      priority,
-      page = '1',
-      limit = '20',
-    } = req.query;
+    const { isRead, notificationType, priority, page = '1', limit = '20' } = req.query;
 
     const result = await notificationService.getByUserId(userId, {
       isRead: isRead === 'true' ? true : isRead === 'false' ? false : undefined,

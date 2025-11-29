@@ -1,20 +1,13 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import inventoryService from '@services/inventory.service';
-import { ApiResponse } from '@custom-types/index';
+import { ApiResponse } from '@custom-types/common.type';
 
 class InventoryController {
   // GET /api/inventory - Get all inventory
   async getAll(req: AuthRequest, res: Response) {
-    const {
-      warehouseId,
-      productId,
-      productType,
-      categoryId,
-      lowStock,
-      sortBy,
-      sortOrder,
-    } = req.query as any;
+    const { warehouseId, productId, productType, categoryId, lowStock, sortBy, sortOrder } =
+      req.query as any;
 
     const inventory = await inventoryService.getAll({
       warehouseId: warehouseId ? parseInt(warehouseId) : undefined,

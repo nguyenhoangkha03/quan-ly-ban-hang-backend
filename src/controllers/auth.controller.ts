@@ -1,7 +1,7 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import authService from '@services/auth.service';
-import { ApiResponse } from '@custom-types/index';
+import { ApiResponse } from '@custom-types/common.type';
 
 class AuthController {
   // POST /api/auth/login

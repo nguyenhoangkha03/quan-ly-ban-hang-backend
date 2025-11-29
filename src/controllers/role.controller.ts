@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest, ApiResponse } from '@custom-types/index';
+import { AuthRequest, ApiResponse } from '@custom-types/common.type';
 import roleService from '@services/role.service';
 import type { AssignPermissionsInput } from '@validators/role.validator';
 

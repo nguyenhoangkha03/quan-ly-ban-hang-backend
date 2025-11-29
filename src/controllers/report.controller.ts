@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import reportService from '@services/report.service';
 
 class ReportController {
@@ -97,10 +97,7 @@ class ReportController {
   // GET /api/reports/revenue/by-channel - Revenue by sales channel
   async getRevenueByChannel(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const result = await reportService.getRevenueByChannel(
-      fromDate as string,
-      toDate as string
-    );
+    const result = await reportService.getRevenueByChannel(fromDate as string, toDate as string);
 
     res.status(200).json({
       success: true,
@@ -146,10 +143,7 @@ class ReportController {
   // GET /api/reports/inventory/turnover - Inventory turnover rate
   async getInventoryTurnover(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const result = await reportService.getInventoryTurnover(
-      fromDate as string,
-      toDate as string
-    );
+    const result = await reportService.getInventoryTurnover(fromDate as string, toDate as string);
 
     res.status(200).json({
       success: true,
@@ -193,10 +187,7 @@ class ReportController {
   // GET /api/reports/production - Production report
   async getProductionReport(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const result = await reportService.getProductionReport(
-      fromDate as string,
-      toDate as string
-    );
+    const result = await reportService.getProductionReport(fromDate as string, toDate as string);
 
     res.status(200).json({
       success: true,
@@ -220,10 +211,7 @@ class ReportController {
   // GET /api/reports/employee-performance - Employee performance
   async getEmployeePerformance(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const result = await reportService.getEmployeePerformance(
-      fromDate as string,
-      toDate as string
-    );
+    const result = await reportService.getEmployeePerformance(fromDate as string, toDate as string);
 
     res.status(200).json({
       success: true,
@@ -235,10 +223,7 @@ class ReportController {
   // GET /api/reports/financial - Financial summary
   async getFinancialSummary(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const result = await reportService.getFinancialSummary(
-      fromDate as string,
-      toDate as string
-    );
+    const result = await reportService.getFinancialSummary(fromDate as string, toDate as string);
 
     res.status(200).json({
       success: true,

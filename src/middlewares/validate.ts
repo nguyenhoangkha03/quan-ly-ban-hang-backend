@@ -3,7 +3,6 @@ import { ZodSchema, ZodError } from 'zod';
 import { ValidationError } from '@utils/errors';
 import { asyncHandler } from './errorHandler';
 
-// Simple validate for body/query/params (default: body)
 export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' = 'body') => {
   return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
     try {
@@ -20,14 +19,15 @@ export const validate = (schema: ZodSchema, source: 'body' | 'query' | 'params' 
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const zodError = error as any;
+        const zodError = error as ZodError;
         const details =
-          zodError.errors?.map((err: any) => ({
+          zodError.issues?.map((err: any) => ({
             field: err.path?.join('.') || 'unknown',
             message: err.message,
             code: err.code,
           })) || [];
 
+        console.error(`[VALIDATION ERROR] Source: ${source}`, JSON.stringify(details, null, 2));
         throw new ValidationError('Validation failed', details);
       }
       throw error;
@@ -54,14 +54,20 @@ export const validateNested = (schema: ZodSchema) => {
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const zodError = error as any;
+        const zodError = error as ZodError;
+        
+        // Log RAW zod errors with full details
+        console.error('[ZOD RAW ERRORS]', JSON.stringify(zodError.issues, null, 2));
+        
         const details =
-          zodError.errors?.map((err: any) => ({
+          zodError.issues?.map((err: any) => ({
             field: err.path?.join('.') || 'unknown',
             message: err.message,
             code: err.code,
           })) || [];
 
+        console.error('[VALIDATION ERROR - validateNested]', JSON.stringify(details, null, 2));
+        console.error('[REQUEST BODY]', JSON.stringify(req.body, null, 2));
         throw new ValidationError('Validation failed', details);
       }
       throw error;

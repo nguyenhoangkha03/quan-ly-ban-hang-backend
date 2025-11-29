@@ -4,9 +4,13 @@ export const createSalesOrderSchema = z.object({
   body: z.object({
     customerId: z.number().int().positive('Customer ID must be positive'),
     warehouseId: z.number().int().positive('Warehouse ID must be positive').optional(),
-    orderDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid order date'),
+    orderDate: z
+      .string()
+      .refine((val) => !isNaN(Date.parse(val)), 'Invalid order date')
+      .optional(),
     salesChannel: z.enum(['retail', 'wholesale', 'online', 'distributor']).optional(),
     paymentMethod: z.enum(['cash', 'transfer', 'installment', 'credit']),
+    paidAmount: z.number().min(0, 'Paid amount must be non-negative').optional(),
     deliveryAddress: z.string().max(255).optional(),
     discountAmount: z.number().min(0, 'Discount must be non-negative').optional(),
     shippingFee: z.number().min(0, 'Shipping fee must be non-negative').optional(),
@@ -18,6 +22,7 @@ export const createSalesOrderSchema = z.object({
           quantity: z.number().positive('Quantity must be positive'),
           unitPrice: z.number().positive('Unit price must be positive'),
           discountPercent: z.number().min(0).max(100, 'Discount percent must be 0-100').optional(),
+          taxRate: z.number().min(0).max(100, 'Tax rate must be 0-100').optional(),
           warehouseId: z.number().int().positive().optional(),
           notes: z.string().max(255).optional(),
         })

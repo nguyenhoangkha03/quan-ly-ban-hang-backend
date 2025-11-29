@@ -9,6 +9,7 @@ import {
   UpdateProductInput,
 } from '@validators/product.validator';
 import path from 'path';
+import { serializeBigInt } from '@utils/serializer';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
@@ -162,6 +163,9 @@ class ProductService {
         images: {
           orderBy: { displayOrder: 'asc' },
         },
+        videos: {
+          orderBy: { displayOrder: 'asc' },
+        },
         creator: {
           select: {
             id: true,
@@ -195,9 +199,15 @@ class ProductService {
       throw new NotFoundError('Product');
     }
 
-    await redis.set(cacheKey, product, PRODUCT_CACHE_TTL);
+    // Serialize BigInt in videos before caching/returning
+    const serializedProduct = {
+      ...product,
+      videos: product.videos?.map((video) => serializeBigInt(video)),
+    };
 
-    return product;
+    await redis.set(cacheKey, serializedProduct, PRODUCT_CACHE_TTL);
+
+    return serializedProduct;
   }
 
   async create(data: CreateProductInput, userId: number) {
@@ -372,6 +382,7 @@ class ProductService {
       where: { id },
       include: {
         images: true,
+        videos: true,
         inventory: true,
         purchaseOrderDetails: true,
         salesOrderDetails: true,
@@ -405,8 +416,14 @@ class ProductService {
       );
     }
 
+    // Delete all image files
     for (const image of product.images) {
       await uploadService.deleteFile(image.imageUrl);
+    }
+
+    // Delete all video files
+    for (const video of product.videos) {
+      await uploadService.deleteFile(video.videoUrl);
     }
 
     await prisma.product.delete({
@@ -572,6 +589,22 @@ class ProductService {
       .toFile(outputPath);
 
     await uploadService.deleteFile(file.path);
+
+    return `/uploads/products/${filename}`;
+  }
+
+  private async processProductVideo(file: Express.Multer.File, productId: number): Promise<string> {
+    const uploadDir = path.join(process.env.UPLOAD_DIR || './uploads', 'products');
+    const fs = require('fs/promises');
+
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const ext = path.extname(file.originalname);
+    const filename = `video-${productId}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const outputPath = path.join(uploadDir, filename);
+
+    // Move file from temp location (AVATAR_DIR) to products directory
+    await fs.rename(file.path, outputPath);
 
     return `/uploads/products/${filename}`;
   }
@@ -753,8 +786,8 @@ class ProductService {
       const file = files[i];
       const metadata = videoMetadata[i] || {};
 
-      // For now, just save the file path - video processing (duration, thumbnail) can be added later
-      const videoPath = `/uploads/products/${file.filename}`;
+      // Process video: move to products directory and rename
+      const videoPath = await this.processProductVideo(file, productId);
 
       const video = await prisma.productVideo.create({
         data: {
@@ -776,15 +809,18 @@ class ProductService {
       uploadedVideos.push(video);
     }
 
+    // Convert BigInt to String for JSON serialization
+    const serializedVideos = serializeBigInt(uploadedVideos);
+
     logActivity('create', userId, 'product_videos', {
       recordId: productId,
       action: 'upload_videos',
-      newValue: uploadedVideos,
+      newValue: serializedVideos,
     });
 
     await this.invalidateCache(productId);
 
-    return uploadedVideos;
+    return serializedVideos;
   }
 
   async deleteVideo(productId: number, videoId: number, userId: number) {
@@ -810,13 +846,7 @@ class ProductService {
     }
 
     // Delete video file from storage
-    try {
-      const filePath = path.join(__dirname, '../..', video.videoUrl);
-      await uploadService.deleteFile(filePath);
-    } catch (error) {
-      console.error('Error deleting video file:', error);
-      // Continue even if file deletion fails
-    }
+    await uploadService.deleteFile(video.videoUrl);
 
     // Delete from database
     await prisma.productVideo.delete({
@@ -881,7 +911,8 @@ class ProductService {
 
     await this.invalidateCache(productId);
 
-    return updatedVideo;
+    // Convert BigInt to String for JSON serialization
+    return serializeBigInt(updatedVideo);
   }
 
   private async invalidateCache(productId?: number) {

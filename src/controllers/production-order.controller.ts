@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import productionOrderService from '@services/production-order.service';
 
 class ProductionOrderController {
@@ -100,7 +100,8 @@ class ProductionOrderController {
         },
         totalWastage: result.totalWastage,
       },
-      message: 'Production completed successfully. Finished products have been imported to warehouse.',
+      message:
+        'Production completed successfully. Finished products have been imported to warehouse.',
       timestamp: new Date().toISOString(),
     });
   }

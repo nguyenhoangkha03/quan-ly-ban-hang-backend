@@ -1,5 +1,5 @@
 import { AuthenticationError } from '@utils/errors';
-import { JwtPayload } from '@custom-types/index';
+import { JwtPayload } from '@custom-types/common.type';
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET!;

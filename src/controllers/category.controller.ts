@@ -1,7 +1,7 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import categoryService from '@services/category.service';
-import { ApiResponse } from '@custom-types/index';
+import { ApiResponse } from '@custom-types/common.type';
 
 class CategoryController {
   // GET /api/categories

@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest, ApiResponse } from '@custom-types/index';
+import { AuthRequest, ApiResponse } from '@custom-types/common.type';
 import userService from '@services/user.service';
 import type {
   CreateUserInput,

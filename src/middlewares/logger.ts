@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import morgan from 'morgan';
 import logger, { logInfo, logActivity } from '@utils/logger';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

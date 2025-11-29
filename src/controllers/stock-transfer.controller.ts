@@ -1,7 +1,7 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import stockTransferService from '@services/stock-transfer.service';
-import { ApiResponse } from '@custom-types/index';
+import { ApiResponse } from '@custom-types/common.type';
 
 class StockTransferController {
   // GET /api/stock-transfers

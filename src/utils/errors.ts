@@ -1,4 +1,4 @@
-import { ErrorCode } from '@custom-types/index';
+import { ErrorCode } from '@custom-types/common.type';
 export class AppError extends Error {
   public statusCode: number;
   public code: ErrorCode;

@@ -37,7 +37,9 @@ class AttendanceService {
   private isLate(checkInTime: Date): boolean {
     const hours = checkInTime.getHours();
     const minutes = checkInTime.getMinutes();
-    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+    const timeString = `${hours.toString().padStart(2, '0')}:${minutes
+      .toString()
+      .padStart(2, '0')}:00`;
     return timeString > STANDARD_START_TIME;
   }
 
@@ -143,7 +145,7 @@ class AttendanceService {
     });
 
     if (!attendance) {
-      throw new NotFoundError('Attendance record');
+      throw new NotFoundError('Hồ sơ chấm công không tồn tại');
     }
 
     return attendance;
@@ -170,7 +172,7 @@ class AttendanceService {
     });
 
     if (existing && existing.checkInTime) {
-      throw new ConflictError('Already checked in today');
+      throw new ConflictError('Đã chấm công vào hôm nay');
     }
 
     const now = new Date();
@@ -233,15 +235,15 @@ class AttendanceService {
     });
 
     if (!existing) {
-      throw new NotFoundError('No check-in record found for today');
+      throw new NotFoundError('Không tìm thấy hồ sơ chấm công hôm nay');
     }
 
     if (existing.checkOutTime) {
-      throw new ConflictError('Already checked out today');
+      throw new ConflictError('Đã chấm công ra hôm nay');
     }
 
     if (!existing.checkInTime) {
-      throw new ValidationError('Must check-in before check-out');
+      throw new ValidationError('Phải chấm công vào trước khi chấm công ra');
     }
 
     const now = new Date();
@@ -295,7 +297,7 @@ class AttendanceService {
     });
 
     if (!existing) {
-      throw new NotFoundError('Attendance record');
+      throw new NotFoundError('Hồ sơ chấm công không tồn tại');
     }
 
     // If updating times, recalculate work hours and overtime
@@ -364,7 +366,7 @@ class AttendanceService {
     });
 
     if (existing) {
-      throw new ConflictError('Attendance record already exists for this date');
+      throw new ConflictError('Hồ sơ chấm công đã tồn tại cho ngày này');
     }
 
     const attendance = await prisma.attendance.create({
@@ -403,11 +405,11 @@ class AttendanceService {
     });
 
     if (!existing) {
-      throw new NotFoundError('Attendance record');
+      throw new NotFoundError('Hồ sơ chấm công không tồn tại');
     }
 
     if (existing.status !== 'leave') {
-      throw new ValidationError('Only leave requests can be approved');
+      throw new ValidationError('Chỉ các yêu cầu nghỉ phép mới có thể được phê duyệt');
     }
 
     const attendance = await prisma.attendance.update({
@@ -563,7 +565,7 @@ class AttendanceService {
     });
 
     if (!existing) {
-      throw new NotFoundError('Attendance record');
+      throw new NotFoundError('Hồ sơ chấm công không tồn tại');
     }
 
     await prisma.attendance.delete({
@@ -577,7 +579,7 @@ class AttendanceService {
       date: existing.date,
     });
 
-    return { message: 'Attendance record deleted' };
+    return { message: 'Hồ sơ chấm công đã bị xóa' };
   }
 
   // Get attendance statistics for a user in a period
@@ -673,14 +675,18 @@ class AttendanceService {
       const avgMinutes = Math.floor(totalCheckInMinutes / checkInCount);
       const hours = Math.floor(avgMinutes / 60);
       const mins = avgMinutes % 60;
-      stats.averageCheckInTime = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+      stats.averageCheckInTime = `${hours.toString().padStart(2, '0')}:${mins
+        .toString()
+        .padStart(2, '0')}`;
     }
 
     if (checkOutCount > 0) {
       const avgMinutes = Math.floor(totalCheckOutMinutes / checkOutCount);
       const hours = Math.floor(avgMinutes / 60);
       const mins = avgMinutes % 60;
-      stats.averageCheckOutTime = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+      stats.averageCheckOutTime = `${hours.toString().padStart(2, '0')}:${mins
+        .toString()
+        .padStart(2, '0')}`;
     }
 
     return stats;

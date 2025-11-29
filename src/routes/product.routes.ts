@@ -535,7 +535,7 @@ router.post(
   '/:id/videos',
   authorize('update_product'),
   validate(productIdSchema, 'params'),
-  uploadService.getUploadMiddleware().array('videos', 5),
+  uploadService.getVideoUploadMiddleware().array('videos', 5),
   asyncHandler(productController.uploadVideos.bind(productController))
 );
 

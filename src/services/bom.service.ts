@@ -169,7 +169,7 @@ class BomService {
     });
 
     if (!bom) {
-      throw new NotFoundError('BOM not found');
+      throw new NotFoundError('Không tìm thấy BOM');
     }
 
     await redis.set(cacheKey, bom, BOM_CACHE_TTL);
@@ -183,7 +183,7 @@ class BomService {
     });
 
     if (existingBom) {
-      throw new ConflictError('BOM code already exists');
+      throw new ConflictError('Mã BOM đã tồn tại');
     }
 
     const finishedProduct = await prisma.product.findUnique({
@@ -191,15 +191,15 @@ class BomService {
     });
 
     if (!finishedProduct) {
-      throw new NotFoundError('Finished product not found');
+      throw new NotFoundError('Không tìm thấy thành phẩm');
     }
 
     if (finishedProduct.productType !== ProductType.finished_product) {
-      throw new ValidationError('Product must be of type finished_product');
+      throw new ValidationError('Sản phẩm phải thuộc loại thành phẩm');
     }
 
     if (finishedProduct.status !== 'active') {
-      throw new ValidationError('Finished product must be active');
+      throw new ValidationError('Sản phẩm phải đang hoạt động');
     }
 
     const materialIds = data.materials.map((m) => m.materialId);
@@ -208,7 +208,7 @@ class BomService {
     });
 
     if (materials.length !== materialIds.length) {
-      throw new NotFoundError('One or more materials not found');
+      throw new NotFoundError('Không tìm thấy một hoặc nhiều nguyên liệu');
     }
 
     for (const materialInput of data.materials) {
@@ -220,7 +220,7 @@ class BomService {
         material.productType !== ProductType.raw_material
       ) {
         throw new ValidationError(
-          `Material "${material.productName}" must be of type raw_material`
+          `Nguyên liệu "${material.productName}" phải thuộc loại nguyên liệu thô`
         );
       }
 
@@ -228,11 +228,11 @@ class BomService {
         materialInput.materialType === 'packaging' &&
         material.productType !== ProductType.packaging
       ) {
-        throw new ValidationError(`Material "${material.productName}" must be of type packaging`);
+        throw new ValidationError(`Nguyên liệu "${material.productName}" phải thuộc loại bao bì`);
       }
 
       if (material.status !== 'active') {
-        throw new ValidationError(`Material "${material.productName}" must be active`);
+        throw new ValidationError(`Nguyên liệu "${material.productName}" phải đang hoạt động`);
       }
     }
 
@@ -282,11 +282,13 @@ class BomService {
     });
 
     if (!bom) {
-      throw new NotFoundError('BOM not found');
+      throw new NotFoundError('Không tìm thấy BOM');
     }
 
     if (bom.status === 'active') {
-      throw new ValidationError('Cannot update active BOM. Create a new version instead.');
+      throw new ValidationError(
+        'Không thể cập nhật BOM đang hoạt động. Vui lòng tạo phiên bản mới.'
+      );
     }
 
     if (data.bomCode && data.bomCode !== bom.bomCode) {
@@ -295,7 +297,7 @@ class BomService {
       });
 
       if (existingBom) {
-        throw new ConflictError('BOM code already exists');
+        throw new ConflictError('Mã BOM đã tồn tại');
       }
     }
 
@@ -305,11 +307,11 @@ class BomService {
       });
 
       if (!finishedProduct) {
-        throw new NotFoundError('Finished product not found');
+        throw new NotFoundError('Không tìm thấy thành phẩm');
       }
 
       if (finishedProduct.productType !== ProductType.finished_product) {
-        throw new ValidationError('Product must be of type finished_product');
+        throw new ValidationError('Sản phẩm phải thuộc loại thành phẩm');
       }
     }
 
@@ -320,7 +322,7 @@ class BomService {
       });
 
       if (materials.length !== materialIds.length) {
-        throw new NotFoundError('One or more materials not found');
+        throw new NotFoundError('Không tìm thấy một hoặc nhiều nguyên liệu');
       }
 
       for (const materialInput of data.materials) {
@@ -332,7 +334,7 @@ class BomService {
           material.productType !== ProductType.raw_material
         ) {
           throw new ValidationError(
-            `Material "${material.productName}" must be of type raw_material`
+            `Nguyên liệu "${material.productName}" phải thuộc loại nguyên liệu thô`
           );
         }
 
@@ -340,7 +342,7 @@ class BomService {
           materialInput.materialType === 'packaging' &&
           material.productType !== ProductType.packaging
         ) {
-          throw new ValidationError(`Material "${material.productName}" must be of type packaging`);
+          throw new ValidationError(`Nguyên liệu "${material.productName}" phải thuộc loại bao bì`);
         }
       }
     }
@@ -398,17 +400,19 @@ class BomService {
     });
 
     if (!bom) {
-      throw new NotFoundError('BOM not found');
+      throw new NotFoundError('Không tìm thấy BOM');
     }
 
     if (bom.productionOrders.length > 0) {
       throw new ValidationError(
-        'Cannot delete BOM that has production orders. Set status to inactive instead.'
+        'Không thể xóa BOM đã có đơn hàng sản xuất. Vui lòng đặt trạng thái thành không hoạt động.'
       );
     }
 
     if (bom.status === 'active') {
-      throw new ValidationError('Cannot delete active BOM. Set status to inactive instead.');
+      throw new ValidationError(
+        'Không thể xóa BOM đang hoạt động. Vui lòng đặt trạng thái thành không hoạt động.'
+      );
     }
 
     await prisma.bom.delete({
@@ -422,7 +426,7 @@ class BomService {
       bomCode: bom.bomCode,
     });
 
-    return { message: 'BOM deleted successfully' };
+    return { message: 'Xóa BOM thành công' };
   }
 
   async approve(id: number, userId: number, notes?: string) {
@@ -435,15 +439,15 @@ class BomService {
     });
 
     if (!bom) {
-      throw new NotFoundError('BOM not found');
+      throw new NotFoundError('Không tìm thấy BOM');
     }
 
     if (bom.status === 'active') {
-      throw new ValidationError('BOM is already approved');
+      throw new ValidationError('BOM đã được phê duyệt');
     }
 
     if (bom.materials.length === 0) {
-      throw new ValidationError('Cannot approve BOM without materials');
+      throw new ValidationError('Không thể phê duyệt BOM khi chưa có nguyên liệu');
     }
 
     const updatedBom = await prisma.bom.update({
@@ -513,7 +517,7 @@ class BomService {
     });
 
     if (!bom) {
-      throw new NotFoundError('BOM not found');
+      throw new NotFoundError('Không tìm thấy BOM');
     }
 
     const batchCount = productionQuantity / Number(bom.outputQuantity);
@@ -593,7 +597,7 @@ class BomService {
     });
 
     if (!bom) {
-      throw new NotFoundError('BOM not found');
+      throw new NotFoundError('Không tìm thấy BOM');
     }
 
     const updatedBom = await prisma.bom.update({

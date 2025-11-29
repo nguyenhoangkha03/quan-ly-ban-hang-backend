@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ApiErrorResponse, ErrorCode } from '@custom-types/index';
+import { ApiErrorResponse, ErrorCode } from '@custom-types/common.type';
 import { logError } from '@utils/logger';
 import { AppError } from '@utils/errors';
 import { Prisma } from '@prisma/client';

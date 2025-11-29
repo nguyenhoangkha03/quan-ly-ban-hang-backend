@@ -305,12 +305,24 @@ class SalesOrderService {
     });
 
     const totalAmount = subtotal + (data.shippingFee || 0) - (data.discountAmount || 0);
-
-    const newDebt = Number(customer.currentDebt) + totalAmount;
-    if (newDebt > Number(customer.creditLimit)) {
+    const paidAmount = data.paidAmount || 0;
+    
+    // Validate payment amount vs total
+    if (paidAmount > totalAmount) {
       throw new ValidationError(
-        `Order exceeds customer credit limit. Current debt: ${customer.currentDebt}, Credit limit: ${customer.creditLimit}, Order amount: ${totalAmount}`
+        `Paid amount (${paidAmount}) cannot exceed total amount (${totalAmount})`
       );
+    }
+
+    // For credit/installment payment, check remaining debt
+    if ((data.paymentMethod === 'credit' || data.paymentMethod === 'installment') && paidAmount < totalAmount) {
+      const debtFromThisOrder = totalAmount - paidAmount;
+      const newDebt = Number(customer.currentDebt) + debtFromThisOrder;
+      if (newDebt > Number(customer.creditLimit)) {
+        throw new ValidationError(
+          `Order exceeds customer credit limit. Current debt: ${customer.currentDebt}, New debt from order: ${debtFromThisOrder}, Credit limit: ${customer.creditLimit}`
+        );
+      }
     }
 
     const orderCode = await this.generateOrderCode();
@@ -321,15 +333,15 @@ class SalesOrderService {
           orderCode,
           customerId: data.customerId,
           warehouseId: data.warehouseId,
-          orderDate: new Date(data.orderDate),
+          orderDate: data.orderDate ? new Date(data.orderDate) : new Date(),
           salesChannel: data.salesChannel || 'retail',
           totalAmount,
           discountAmount: data.discountAmount || 0,
           shippingFee: data.shippingFee || 0,
           taxAmount: 0,
-          paidAmount: 0,
+          paidAmount,
           paymentMethod: data.paymentMethod,
-          paymentStatus: 'unpaid',
+          paymentStatus: paidAmount >= totalAmount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'),
           orderStatus: 'pending',
           deliveryAddress: data.deliveryAddress,
           notes: data.notes,

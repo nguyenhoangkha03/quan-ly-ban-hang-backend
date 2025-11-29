@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 import paymentVoucherService from '@services/payment-voucher.service';
 
 class PaymentVoucherController {
@@ -45,10 +45,7 @@ class PaymentVoucherController {
   // GET /api/payment-vouchers/summary - Get summary statistics
   async getSummary(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const summary = await paymentVoucherService.getSummary(
-      fromDate as string,
-      toDate as string
-    );
+    const summary = await paymentVoucherService.getSummary(fromDate as string, toDate as string);
 
     res.status(200).json({
       success: true,

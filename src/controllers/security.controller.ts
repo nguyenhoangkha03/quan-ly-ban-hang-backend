@@ -3,7 +3,7 @@ import { getCsrfToken } from '@middlewares/csrf';
 import { generateEncryptionKey } from '@utils/encryption';
 import { getPasswordHistoryCount } from '@utils/password-history';
 import { getActiveTokenFamiliesCount, invalidateAllTokenFamilies } from '@utils/token-rotation';
-import { AuthRequest } from '@custom-types/index';
+import { AuthRequest } from '@custom-types/common.type';
 
 /**
  * Security Controller

@@ -9,8 +9,12 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const PRODUCT_DIR = path.join(UPLOAD_DIR, 'products');
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '5242880');
+const MAX_VIDEO_SIZE = parseInt(process.env.MAX_VIDEO_SIZE || '524288000'); // 500MB
 const ALLOWED_FILE_TYPES = (
   process.env.ALLOWED_FILE_TYPES || 'image/jpeg,image/png,image/jpg,image/webp'
+).split(',');
+const ALLOWED_VIDEO_TYPES = (
+  process.env.ALLOWED_VIDEO_TYPES || 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm'
 ).split(',');
 
 const AVATAR_SIZE = 200;
@@ -54,6 +58,18 @@ class UploadService {
     }
   }
 
+  videoFileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCallback) {
+    if (ALLOWED_VIDEO_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new ValidationError(
+          `Invalid video file type. Allowed types: ${ALLOWED_VIDEO_TYPES.join(', ')}`
+        ) as any
+      );
+    }
+  }
+
   getUploadMiddleware() {
     return multer({
       storage: this.getMulterStorage(),
@@ -61,6 +77,16 @@ class UploadService {
         fileSize: MAX_FILE_SIZE,
       },
       fileFilter: this.fileFilter,
+    });
+  }
+
+  getVideoUploadMiddleware() {
+    return multer({
+      storage: this.getMulterStorage(),
+      limits: {
+        fileSize: MAX_VIDEO_SIZE,
+      },
+      fileFilter: this.videoFileFilter,
     });
   }
 
