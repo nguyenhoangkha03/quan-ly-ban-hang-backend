@@ -1,16 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from './logger';
 
-/**
- * Performance Monitoring Middleware
- *
- * Tracks request performance metrics:
- * - Response time
- * - Slow requests (> threshold)
- * - Memory usage
- * - Request metadata
- */
-
 export interface PerformanceMetrics {
   requestId: string;
   method: string;
@@ -197,7 +187,8 @@ export function getMetricsSummary() {
   return {
     totalRequests,
     slowRequestsCount: slowRequests.length,
-    slowRequestsPercentage: totalRequests > 0 ? Math.round((slowRequests.length / totalRequests) * 100) : 0,
+    slowRequestsPercentage:
+      totalRequests > 0 ? Math.round((slowRequests.length / totalRequests) * 100) : 0,
     avgResponseTime,
     slowestEndpoints,
     memoryUsage: TRACK_MEMORY ? getMemoryUsage() : null,

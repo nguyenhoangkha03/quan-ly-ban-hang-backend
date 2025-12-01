@@ -9,6 +9,7 @@ import {
   updateWarehouseSchema,
   queryWarehousesSchema,
 } from '@validators/warehouse.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -48,6 +49,7 @@ router.post(
   '/',
   authorize('create_warehouse'),
   validate(createWarehouseSchema),
+  logActivityMiddleware('create', 'warehouse'),
   asyncHandler(warehouseController.createWarehouse.bind(warehouseController))
 );
 
@@ -73,6 +75,7 @@ router.put(
 router.delete(
   '/:id',
   authorize('delete_warehouse'),
+  logActivityMiddleware('delele', 'warehouse'),
   asyncHandler(warehouseController.deleteWarehouse.bind(warehouseController))
 );
 

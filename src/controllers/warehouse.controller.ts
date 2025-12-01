@@ -41,7 +41,7 @@ class WarehouseController {
     const response: ApiResponse = {
       success: true,
       data: warehouse,
-      message: 'Warehouse created successfully',
+      message: 'Tạo kho thành công',
       timestamp: new Date().toISOString(),
     };
 

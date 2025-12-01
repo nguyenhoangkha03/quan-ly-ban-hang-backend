@@ -190,7 +190,7 @@ class WarehouseService {
   async createWarehouse(data: CreateWarehouseInput, createdBy: number) {
     const codeExists = await this.checkWarehouseCodeExists(data.warehouseCode);
     if (codeExists) {
-      throw new ConflictError('Warehouse code already exists');
+      throw new ConflictError('Mã kho đã tồn tại');
     }
 
     if (data.managerId) {
@@ -198,7 +198,7 @@ class WarehouseService {
         where: { id: data.managerId },
       });
       if (!managerExists) {
-        throw new NotFoundError('Manager not found');
+        throw new NotFoundError('Không tìm thấy người quản lý');
       }
     }
 
@@ -338,18 +338,17 @@ class WarehouseService {
     });
 
     if (!warehouse) {
-      throw new NotFoundError('Warehouse not found');
+      throw new NotFoundError('Không tìm thấy kho');
     }
 
     if (warehouse._count.inventory > 0) {
-      throw new ValidationError('Cannot delete warehouse with existing inventory');
+      throw new ValidationError('Không thể xóa kho có hàng tồn kho hiện có');
     }
 
     if (warehouse._count.stockTransactions > 0) {
-      throw new ValidationError('Cannot delete warehouse with existing transactions');
+      throw new ValidationError('Không thể xóa kho có giao dịch hiện có');
     }
 
-    // Hard delete instead of soft delete
     await prisma.warehouse.delete({
       where: { id },
     });
@@ -360,9 +359,10 @@ class WarehouseService {
     });
 
     await redis.del(`warehouse:${id}`);
+
     await this.invalidateListCache();
 
-    return { message: 'Warehouse deleted successfully' };
+    return { message: 'Đã xóa kho thành công' };
   }
 
   async getWarehouseStatistics(id: number) {
@@ -447,23 +447,21 @@ class WarehouseService {
 
   private async invalidateListCache() {
     try {
-      // Get all warehouse list cache keys
       const pattern = 'warehouse:list:*';
-      console.log(`🔍 Looking for keys matching pattern: ${pattern}`);
+      console.log(`🔍 Tìm kiếm key match với: ${pattern}`);
 
       const keys = await redis.keys(pattern);
-      console.log(`📋 Found ${keys.length} keys:`, keys);
+      console.log(`📋 Tìm thấy ${keys.length} keys:`, keys);
 
       if (keys.length === 0) {
-        console.log('⚠️  No warehouse list cache keys found');
+        console.log('⚠️  Không có key danh sách kho cache nào');
         return;
       }
 
-      // Delete all found keys
       const deletedCount = await redis.del(keys);
-      console.log(`✅ Successfully deleted ${deletedCount} warehouse list cache keys`);
+      console.log(`✅ Xóa key thành công ${deletedCount} danh sách kho cache keys`);
     } catch (error) {
-      console.error('❌ Error invalidating warehouse list cache:', error);
+      console.error('❌ Lỗi khi vô hiệu hóa danh sách kho cache:', error);
     }
   }
 

@@ -47,7 +47,7 @@ export class ConflictError extends AppError {
 }
 
 export class RateLimitError extends AppError {
-  constructor(message: string = 'Too many requests') {
+  constructor(message: string = 'Quá nhiều yêu cầu') {
     super(message, 429, ErrorCode.RATE_LIMIT_ERROR);
   }
 }

@@ -44,6 +44,7 @@ class RedisStore {
     await redisClient.del(redisKey);
   }
 }
+
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,

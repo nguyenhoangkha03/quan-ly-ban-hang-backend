@@ -55,10 +55,10 @@ export const validateNested = (schema: ZodSchema) => {
     } catch (error) {
       if (error instanceof ZodError) {
         const zodError = error as ZodError;
-        
+
         // Log RAW zod errors with full details
         console.error('[ZOD RAW ERRORS]', JSON.stringify(zodError.issues, null, 2));
-        
+
         const details =
           zodError.issues?.map((err: any) => ({
             field: err.path?.join('.') || 'unknown',

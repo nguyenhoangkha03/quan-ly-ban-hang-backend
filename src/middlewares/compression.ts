@@ -1,48 +1,36 @@
 import compression from 'compression';
 import { Request, Response } from 'express';
 
-/**
- * Compression Middleware Configuration
- *
- * Compresses response bodies for all requests using gzip/deflate
- * Improves performance by reducing response size
- *
- * Features:
- * - Automatic compression for responses > 1KB
- * - Skip compression for already compressed content types
- * - Configurable compression level
- */
-
-// Compression filter - determine if response should be compressed
+// Bộ lọc nén - xác định xem phản hồi có nên được nén hay không
 const shouldCompress = (req: Request, res: Response): boolean => {
-  // Don't compress if client explicitly says no
+  // Không nén nếu client nói rõ là không
   if (req.headers['x-no-compression']) {
     return false;
   }
 
-  // Use compression default filter
+  // Sử dụng bộ lọc mặc định nén
   return compression.filter(req, res);
 };
 
-// Export configured compression middleware
+// Xuất middleware nén được cấu hình
 export const compressionMiddleware = compression({
-  // Compression level: 0 (no compression) to 9 (maximum compression)
-  // Level 6 is a good balance between speed and compression ratio
+  // Mức độ nén: 0 (không nén) đến 9 (nén tối đa)
+  // Mức 6 là sự cân bằng tốt giữa tốc độ và tỷ số nén
   level: 6,
 
-  // Only compress responses larger than 1KB
+  // Chỉ nén các phản hồi lớn hơn 1KB
   threshold: 1024,
 
-  // Custom filter
+  // Bộ lọc tùy chỉnh
   filter: shouldCompress,
 
-  // Chunk size for compression (default 16KB)
+  // Kích thước khối để nén (mặc định là 16KB)
   chunkSize: 16 * 1024,
 
-  // Memory level: 1-9 (higher = more memory, better compression)
+  // Mức bộ nhớ: 1-9 (cao hơn = nhiều bộ nhớ hơn, nén tốt hơn)
   memLevel: 8,
 
-  // Strategy: Z_DEFAULT_STRATEGY, Z_FILTERED, Z_HUFFMAN_ONLY, Z_RLE, Z_FIXED
+  // Chiến lược: Z_DEFAULT_STRATEGY, Z_FILTERED, Z_HUFFMAN_ONLY, Z_RLE, Z_FIXED
   strategy: 0, // Z_DEFAULT_STRATEGY
 });
 

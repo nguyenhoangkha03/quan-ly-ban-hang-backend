@@ -5,11 +5,14 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import path from 'path';
+
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { sanitizeInput } from '@middlewares/validate';
 import compressionMiddleware from '@middlewares/compression';
-import { performanceMonitor } from '@utils/performance.monitor';
+import { requestTimer } from '@middlewares/logger';
+
+// import { performanceMonitor } from '@utils/performance.monitor';
 import RedisService from '@services/redis.service';
 import uploadService from '@services/upload.service';
 import { setupSwagger } from '@config/swagger';
@@ -52,19 +55,19 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
-// Initialize Redis
+// Khởi tạo Redis
 const initializeRedis = async () => {
   try {
     const redis = RedisService.getInstance();
     await redis.initialize();
-    console.log('✅ Redis connected successfully');
+    console.log('✅ Redis đã kết nối thành công');
   } catch (error) {
-    console.error('❌ Redis connection failed:', error);
-    console.log('⚠️  Server will continue without Redis (cache disabled)');
+    console.error('❌ Redis kết nối thất bại:', error);
+    console.log('⚠️  Server sẽ tiếp tục mà không có Redis (vô hiệu hóa cache)');
   }
 };
 
-// Initialize upload directories
+// Khởi tạo thư mục tải lên
 const initializeUploads = async () => {
   try {
     await uploadService.ensureUploadDirs();
@@ -75,20 +78,20 @@ const initializeUploads = async () => {
 };
 
 // Middleware
-// Serve static files (uploads) BEFORE security headers so CORS works
+// Phục vụ các tệp tĩnh (upload) TRƯỚC các tiêu đề bảo mật để CORS hoạt động
 app.use(
   '/uploads',
   (_req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none'); // <— BẮT BUỘC
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     next();
   },
   express.static(path.join(__dirname, '../uploads'))
 );
 
-// Enhanced Security Headers (applied AFTER static files)
+// Bảo mật nâng cao Headers (áp dụng SAU static files)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -100,14 +103,14 @@ app.use(
       },
     },
     hsts: {
-      maxAge: 31536000, // 1 year
+      maxAge: 31536000, // 1 năm
       includeSubDomains: true,
       preload: true,
     },
     frameguard: {
       action: 'deny', // X-Frame-Options: DENY
     },
-    crossOriginResourcePolicy: false, // Disable CORP for CORS to work
+    crossOriginResourcePolicy: false, // Vô hiệu hóa CORP để cho CORS hoạt động
     noSniff: true, // X-Content-Type-Options: nosniff
     xssFilter: true, // X-XSS-Protection: 1; mode=block
     referrerPolicy: {
@@ -123,20 +126,22 @@ app.use(
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-XSRF-Token'],
     exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
-    maxAge: 600, // 10 minutes
+    maxAge: 600, // 10 phút
   })
 );
 
-// Performance optimizations
-app.use(compressionMiddleware); // Response compression (gzip)
-app.use(performanceMonitor); // Performance monitoring
+// Tối ưu hóa hiệu xuất
+app.use(compressionMiddleware); // Nén phản hồi (gzip)
+app.use(requestTimer);
+// app.use(httpLogger);
+// app.use(performanceMonitor);
 
-app.use(cookieParser()); // Parse cookies
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Security middleware
+// Middleware bảo mật
 app.use(globalRateLimiter); // Rate limiting
 app.use(sanitizeInput); // XSS protection
 
