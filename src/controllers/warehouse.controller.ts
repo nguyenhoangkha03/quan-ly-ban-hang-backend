@@ -10,6 +10,7 @@ class WarehouseController {
 
     const response: ApiResponse = {
       success: true,
+      message: result.message,
       data: result.data,
       meta: result.meta,
       timestamp: new Date().toISOString(),
@@ -87,6 +88,20 @@ class WarehouseController {
       success: true,
       data: stats,
       timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/warehouses/overview/statistics
+  async getWarehouseCards(_req: AuthRequest, res: Response) {
+    const stats = await warehouseService.getWarehouseCards();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+      message: 'Statistics fetched successfully',
     };
 
     res.status(200).json(response);

@@ -77,6 +77,17 @@ router.delete(
 );
 
 /**
+ * GET /api/warehouses/overview/statistics
+ * Get dashboard statistics (total warehouses, active, created this month, total inventory value)
+ * Permission: view_warehouses
+ */
+router.get(
+  '/cards/view',
+  authorize('view_warehouses'),
+  asyncHandler(warehouseController.getWarehouseCards.bind(warehouseController))
+);
+
+/**
  * GET /api/warehouses/:id/statistics
  * Get warehouse statistics (inventory, transactions, capacity)
  * Permission: view_warehouses

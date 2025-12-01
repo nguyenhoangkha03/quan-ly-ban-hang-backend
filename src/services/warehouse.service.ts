@@ -32,19 +32,17 @@ class WarehouseService {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Create a consistent cache key
+    // Tạo khóa cache cho nhất quán
     const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
     const cacheKey = `warehouse:list:${queryString}`;
 
-    console.log(`📦 Cache key: ${cacheKey}`);
-
     const cached = await redis.get(cacheKey);
     if (cached) {
-      console.log(`✅ Cache HIT: ${cacheKey}`);
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
 
-    console.log(`❌ Cache MISS: ${cacheKey}, querying database...`);
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.WarehouseWhereInput = {
       ...(search && {
@@ -112,6 +110,7 @@ class WarehouseService {
         total,
         totalPages: Math.ceil(total / limitNum),
       },
+      message: 'Success',
     };
 
     await redis.set(cacheKey, result, WAREHOUSE_LIST_CACHE_TTL);
@@ -466,6 +465,76 @@ class WarehouseService {
     } catch (error) {
       console.error('❌ Error invalidating warehouse list cache:', error);
     }
+  }
+
+  async getWarehouseCards() {
+    const cacheKey = 'warehouse:cards';
+
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Có Cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có Cache: ${cacheKey}, truy vấn database...`);
+
+    const [totalWarehouses, activeWarehouses, warehousesCreatedThisMonth, allInventory] =
+      await Promise.all([
+        // Total warehouses
+        prisma.warehouse.count(),
+
+        // Active warehouses
+        prisma.warehouse.count({
+          where: { status: 'active' },
+        }),
+
+        // Created this month
+        prisma.warehouse.count({
+          where: {
+            createdAt: {
+              gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+              lt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+            },
+          },
+        }),
+
+        // All inventory to calculate total value
+        prisma.inventory.findMany({
+          select: {
+            quantity: true,
+            product: {
+              select: {
+                sellingPriceRetail: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+    // Calculate total inventory value (quantity * price)
+    const totalInventoryValue = allInventory.reduce((sum, item) => {
+      const quantity =
+        typeof item.quantity === 'object' ? item.quantity.toNumber() : Number(item.quantity);
+      const price = item.product?.sellingPriceRetail
+        ? typeof item.product.sellingPriceRetail === 'object'
+          ? item.product.sellingPriceRetail.toNumber()
+          : Number(item.product.sellingPriceRetail)
+        : 0;
+      const value = quantity * price;
+      return sum + value;
+    }, 0);
+
+    const result = {
+      totalWarehouses,
+      activeWarehouses,
+      createdThisMonth: warehousesCreatedThisMonth,
+      totalInventoryValue,
+    };
+
+    await redis.set(cacheKey, result, 300); // Cache for 5 minutes
+
+    return result;
   }
 }
 

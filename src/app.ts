@@ -45,7 +45,7 @@ import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
 
 // Import notification scheduler
-import notificationScheduler from 'schedulers/notification.scheduler';
+import notificationScheduler from '@schedulers/notification.scheduler';
 
 dotenv.config();
 

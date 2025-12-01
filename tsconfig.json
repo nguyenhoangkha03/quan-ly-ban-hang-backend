@@ -7,16 +7,16 @@
     "module": "node16",
     "rootDir": "./src",
     "moduleResolution": "node16",
-    "baseUrl": "./src",
     "paths": {
-        "@config/*": ["config/*"],
-        "@middlewares/*": ["middlewares/*"],
-        "@routes/*": ["routes/*"],
-        "@controllers/*": ["controllers/*"],
-        "@services/*": ["services/*"],
-        "@utils/*": ["utils/*"],
-        "@custom-types/*": ["types/*"],
-        "@validators/*": ["validators/*"]
+        "@config/*": ["./src/config/*"],
+        "@middlewares/*": ["./src/middlewares/*"],
+        "@routes/*": ["./src/routes/*"],
+        "@controllers/*": ["./src/controllers/*"],
+        "@services/*": ["./src/services/*"],
+        "@utils/*": ["./src/utils/*"],
+        "@custom-types/*": ["./src/types/*"],
+        "@validators/*": ["./src/validators/*"],
+        "@schedulers/*": ["./src/schedulers/*"]
     },
     "resolveJsonModule": true,
 
