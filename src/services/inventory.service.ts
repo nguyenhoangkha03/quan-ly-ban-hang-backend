@@ -2,6 +2,10 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import RedisService, { CachePrefix } from './redis.service';
 import { logActivity } from '@utils/logger';
+import {
+  type AlertInventoryQueryInput,
+  type InventoryQueryInput,
+} from '@validators/inventory.validator';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
@@ -9,85 +13,253 @@ const redis = RedisService.getInstance();
 const INVENTORY_CACHE_TTL = parseInt(process.env.CACHE_TTL_INVENTORY || '300');
 
 class InventoryService {
-  async getAll(params: {
-    warehouseId?: number;
-    productId?: number;
-    productType?: string;
-    categoryId?: number;
-    lowStock?: boolean;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
+  async getAll(query: InventoryQueryInput) {
     const {
+      page = '1',
+      limit = '20',
+      search,
       warehouseId,
       productId,
       productType,
+      warehouseType,
       categoryId,
       lowStock,
+      outOfStock,
       sortBy = 'productId',
       sortOrder = 'asc',
-    } = params;
+    } = query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Tạo khóa cache cho nhất quán
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `inventory:list:${queryString}`;
+
+    const cache = await redis.get(cacheKey);
+    if (cache) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cache;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.InventoryWhereInput = {
-      ...(warehouseId && { warehouseId }),
-      ...(productId && { productId }),
+      ...(search && {
+        OR: [
+          { product: { productName: { contains: search } } },
+          { product: { sku: { contains: search } } },
+          { warehouse: { warehouseName: { contains: search } } },
+        ],
+      }),
+      ...(warehouseId && { warehouseId: Number(warehouseId) }),
+      ...(productId && { productId: Number(productId) }),
       ...(productType && {
         product: {
           productType: productType as any,
         },
       }),
+      ...(warehouseType && {
+        warehouse: {
+          warehouseType: warehouseType as any,
+        },
+      }),
       ...(categoryId && {
         product: {
-          categoryId,
+          categoryId: Number(categoryId),
         },
       }),
     };
 
-    let inventory = await prisma.inventory.findMany({
-      where,
-      include: {
-        warehouse: {
-          select: {
-            id: true,
-            warehouseName: true,
-            warehouseCode: true,
-            warehouseType: true,
+    let [inventories, total] = await Promise.all([
+      prisma.inventory.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { [sortBy]: sortOrder },
+        select: {
+          id: true,
+          quantity: true,
+          reservedQuantity: true,
+          warehouseId: true,
+          productId: true,
+          warehouse: {
+            select: {
+              id: true,
+              warehouseName: true,
+              warehouseCode: true,
+              warehouseType: true,
+            },
           },
-        },
-        product: {
-          select: {
-            id: true,
-            sku: true,
-            productName: true,
-            productType: true,
-            unit: true,
-            minStockLevel: true,
-            status: true,
-            category: {
-              select: {
-                id: true,
-                categoryName: true,
-                categoryCode: true,
+          product: {
+            select: {
+              id: true,
+              sku: true,
+              productName: true,
+              productType: true,
+              unit: true,
+              minStockLevel: true,
+              sellingPriceRetail: true,
+              status: true,
+              category: {
+                select: {
+                  id: true,
+                  categoryName: true,
+                  categoryCode: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { [sortBy]: sortOrder },
-    });
+      }),
+      prisma.inventory.count({ where }),
+    ]);
 
-    const inventoryWithCalc = inventory.map((inv) => ({
+    if (Boolean(lowStock)) {
+      inventories = inventories.filter(
+        (inv) =>
+          Number(inv.quantity) - Number(inv.reservedQuantity) < Number(inv.product.minStockLevel)
+      );
+      total = inventories.length;
+    }
+
+    if (Boolean(outOfStock)) {
+      inventories = inventories.filter(
+        (inv) => Number(inv.quantity) - Number(inv.reservedQuantity) <= 0
+      );
+      total = inventories.length;
+    }
+
+    const inventoryWithCalc = inventories.map((inv) => ({
       ...inv,
       availableQuantity: Number(inv.quantity) - Number(inv.reservedQuantity),
     }));
 
-    if (lowStock) {
-      return inventoryWithCalc.filter(
-        (inv) => inv.availableQuantity < Number(inv.product.minStockLevel)
-      );
+    const result = {
+      data: inventoryWithCalc,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      message: 'Success',
+    };
+
+    await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
+
+    return result;
+  }
+
+  async getAlerts(query: AlertInventoryQueryInput) {
+    const { page = '1', limit = '20', search, warehouseId } = query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Tạo khóa cache cho nhất quán
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `alertInventory:list:${queryString}`;
+
+    const cache = await redis.get(cacheKey);
+    if (cache) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cache;
     }
 
-    return inventoryWithCalc;
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
+
+    const where: Prisma.InventoryWhereInput = {
+      ...(search && {
+        OR: [
+          { product: { productName: { contains: search } } },
+          { product: { sku: { contains: search } } },
+          { warehouse: { warehouseName: { contains: search } } },
+        ],
+      }),
+      ...(warehouseId && { warehouseId: Number(warehouseId) }),
+      product: {
+        minStockLevel: { gt: 0 },
+        status: 'active',
+      },
+    };
+
+    const includeConfig = {
+      warehouse: {
+        select: {
+          id: true,
+          warehouseName: true,
+          warehouseCode: true,
+          warehouseType: true,
+        },
+      },
+      product: {
+        select: {
+          id: true,
+          sku: true,
+          productName: true,
+          productType: true,
+          unit: true,
+          minStockLevel: true,
+          category: {
+            select: {
+              id: true,
+              categoryName: true,
+            },
+          },
+        },
+      },
+    };
+
+    const allInventories = await prisma.inventory.findMany({
+      where,
+      include: includeConfig,
+    });
+
+    const allAlerts = allInventories
+      .map((inv) => {
+        const availableQty = Number(inv.quantity) - Number(inv.reservedQuantity);
+        const minLevel = Number(inv.product.minStockLevel);
+
+        return {
+          ...inv,
+          availableQuantity: availableQty,
+          shortfall: minLevel - availableQty,
+          percentageOfMin: minLevel > 0 ? (availableQty / minLevel) * 100 : 0,
+        };
+      })
+      .filter((inv) => inv.availableQuantity < Number(inv.product.minStockLevel))
+      .sort((a, b) => a.percentageOfMin - b.percentageOfMin);
+
+    const summary = {
+      totalAlerts: allAlerts.length,
+      outOfStock: allAlerts.filter((a) => a.availableQuantity === 0).length,
+      critical: allAlerts.filter((a) => a.availableQuantity > 0 && a.percentageOfMin < 25).length,
+      warning: allAlerts.filter((a) => a.percentageOfMin >= 25 && a.percentageOfMin < 50).length,
+      low: allAlerts.filter((a) => a.percentageOfMin >= 50 && a.percentageOfMin < 100).length,
+    };
+
+    const paginatedAlerts = allAlerts.slice(skip, skip + limitNum);
+
+    const result = {
+      data: {
+        alerts: paginatedAlerts,
+        summary,
+      },
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total: allAlerts.length,
+        totalPages: Math.ceil(allAlerts.length / limitNum),
+      },
+      message: 'Success',
+    };
+
+    await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
+
+    return result;
   }
 
   async getByWarehouse(warehouseId: number) {
@@ -116,6 +288,7 @@ class InventoryService {
             packagingType: true,
             unit: true,
             minStockLevel: true,
+            purchasePrice: true,
             status: true,
             category: {
               select: {
@@ -563,68 +736,50 @@ class InventoryService {
     };
   }
 
-  async getAlerts(warehouseId?: number) {
+  async getStats(filters?: { warehouseType?: string }) {
     const where: Prisma.InventoryWhereInput = {
-      ...(warehouseId && { warehouseId }),
-      product: {
-        minStockLevel: { gt: 0 },
-        status: 'active',
-      },
+      ...(filters?.warehouseType && {
+        warehouse: {
+          warehouseType: filters.warehouseType as any,
+        },
+      }),
     };
 
-    const inventory = await prisma.inventory.findMany({
+    const allInventory = await prisma.inventory.findMany({
       where,
       include: {
-        warehouse: {
-          select: {
-            id: true,
-            warehouseName: true,
-            warehouseCode: true,
-            warehouseType: true,
-          },
-        },
         product: {
           select: {
-            id: true,
-            sku: true,
-            productName: true,
-            productType: true,
-            unit: true,
             minStockLevel: true,
-            category: {
-              select: {
-                id: true,
-                categoryName: true,
-              },
-            },
+            sellingPriceRetail: true,
           },
         },
       },
     });
 
-    const alerts = inventory
-      .map((inv) => {
-        const availableQty = Number(inv.quantity) - Number(inv.reservedQuantity);
-        const minLevel = Number(inv.product.minStockLevel);
+    const totalItems = allInventory.length;
 
-        return {
-          ...inv,
-          availableQuantity: availableQty,
-          shortfall: minLevel - availableQty,
-          percentageOfMin: minLevel > 0 ? (availableQty / minLevel) * 100 : 0,
-        };
-      })
-      .filter((inv) => inv.availableQuantity < Number(inv.product.minStockLevel))
-      .sort((a, b) => a.percentageOfMin - b.percentageOfMin);
+    const totalValue = allInventory.reduce((sum, item) => {
+      const value = Number(item.quantity) * Number(item.product?.sellingPriceRetail || 0);
+      return sum + value;
+    }, 0);
+
+    const lowStockItems = allInventory.filter((item) => {
+      const available = Number(item.quantity) - Number(item.reservedQuantity);
+      const minLevel = Number(item.product?.minStockLevel || 0);
+      return available < minLevel;
+    }).length;
+
+    const outOfStockItems = allInventory.filter((item) => {
+      const available = Number(item.quantity) - Number(item.reservedQuantity);
+      return available === 0;
+    }).length;
 
     return {
-      alerts,
-      summary: {
-        totalAlerts: alerts.length,
-        critical: alerts.filter((a) => a.percentageOfMin < 25).length,
-        warning: alerts.filter((a) => a.percentageOfMin >= 25 && a.percentageOfMin < 50).length,
-        low: alerts.filter((a) => a.percentageOfMin >= 50).length,
-      },
+      totalItems,
+      totalValue,
+      lowStockItems,
+      outOfStockItems,
     };
   }
 

@@ -1,16 +1,31 @@
 import { z } from 'zod';
 
 export const inventoryQuerySchema = z.object({
+  page: z.string().regex(/^\d+$/).optional().default('1'),
+  limit: z.string().regex(/^\d+$/).optional().default('20'),
+  search: z.string().trim().optional(),
   warehouseId: z.string().optional().transform(Number),
   productId: z.string().optional().transform(Number),
   productType: z.enum(['raw_material', 'packaging', 'finished_product', 'goods']).optional(),
+  warehouseType: z.enum(['raw_material', 'packaging', 'finished_product', 'goods']).optional(),
   categoryId: z.string().optional().transform(Number),
   lowStock: z
     .string()
     .optional()
     .transform((val) => val === 'true'),
+  outOfStock: z
+    .string()
+    .optional()
+    .transform((val) => val === 'true'),
   sortBy: z.string().optional().default('productId'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
+});
+
+export const alertInventoryQuerySchema = z.object({
+  page: z.string().regex(/^\d+$/).optional().default('1'),
+  limit: z.string().regex(/^\d+$/).optional().default('20'),
+  search: z.string().trim().optional(),
+  warehouseId: z.string().optional().transform(Number),
 });
 
 export const warehouseInventorySchema = z.object({
@@ -79,6 +94,7 @@ export const releaseReservedSchema = z.object({
 });
 
 export type InventoryQueryInput = z.infer<typeof inventoryQuerySchema>;
+export type AlertInventoryQueryInput = z.infer<typeof alertInventoryQuerySchema>;
 export type WarehouseInventoryInput = z.infer<typeof warehouseInventorySchema>;
 export type ProductInventoryInput = z.infer<typeof productInventorySchema>;
 export type CheckInventoryInput = z.infer<typeof checkInventorySchema>;

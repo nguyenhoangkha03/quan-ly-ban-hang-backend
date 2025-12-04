@@ -13,25 +13,27 @@ import {
   adjustInventorySchema,
   reserveInventorySchema,
   releaseReservedSchema,
+  alertInventoryQuerySchema,
 } from '@validators/inventory.validator';
 
 const router = Router();
 
-// All routes require authentication
+// Tất cả các route yêu cầu phải đăng nhập
 router.use(authentication);
 
-// GET /api/inventory/alerts - Get inventory alerts (low stock)
+// GET /api/inventory/alerts - Get cảnh báo tồn kho (tồn kho thấp)
 router.get(
   '/alerts',
   authorize('view_inventory'),
+  validate(alertInventoryQuerySchema, 'query'),
   asyncHandler(inventoryController.getAlerts.bind(inventoryController))
 );
 
-// GET /api/inventory/low-stock-alerts - Get low stock alerts (alias for /alerts)
+// GET /api/inventory/stats - Get inventory statistics (not affected by pagination)
 router.get(
-  '/low-stock-alerts',
+  '/stats',
   authorize('view_inventory'),
-  asyncHandler(inventoryController.getAlerts.bind(inventoryController))
+  asyncHandler(inventoryController.getStats.bind(inventoryController))
 );
 
 // GET /api/inventory/value-report - Get inventory value report
