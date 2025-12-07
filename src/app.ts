@@ -47,6 +47,14 @@ import reportRoutes from '@routes/report.routes';
 import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
 
+import accountRoutes from '@routes/customer_account.routes';
+
+// Import customer service routes
+import cs_categoryRoutes from '@routes/cs-category.routes';
+import cs_productRoutes from '@routes/cs-product.routes';
+import cs_inventoryRoutes from '@routes/cs-inventory.routes';
+import cs_customerRoutes from '@routes/cs-customer.routes';
+
 // Import notification scheduler
 import notificationScheduler from '@schedulers/notification.scheduler';
 
@@ -90,6 +98,8 @@ app.use(
   },
   express.static(path.join(__dirname, '../uploads'))
 );
+
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Bảo mật nâng cao Headers (áp dụng SAU static files)
 app.use(
@@ -195,6 +205,16 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/security', securityRoutes);
+
+app.use('/api/accounts', accountRoutes);
+
+//custommer service routes
+app.use('/api/cs/categories', cs_categoryRoutes);
+app.use('/api/cs/products', cs_productRoutes);
+app.use('/api/cs/inventory', cs_inventoryRoutes);
+app.use('/api/cs/customers', cs_customerRoutes);
+
+
 
 // 404 handler
 app.use(notFoundHandler);

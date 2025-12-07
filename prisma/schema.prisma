@@ -5,11 +5,12 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-    provider = "prisma-client"
+    provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "mysql"
+  provider = "mysql"              
+  url      = env("DATABASE_URL")  
 }
 
 // 1 USER MANAGEMENT & PERMISSIONS
@@ -676,6 +677,7 @@ model Customer {
     salesOrders         SalesOrder[]
     paymentReceipts     PaymentReceipt[]
     debtReconciliations DebtReconciliation[]
+    customerAccount CustomerAccount[]
 
     @@index([customerCode])
     @@index([phone])
@@ -686,6 +688,30 @@ model Customer {
     @@map("customers")
 }
 
+model CustomerAccount {
+  id                Int      @id @default(autoincrement())
+  
+  customerId        Int      @unique @map("customer_id")
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Với Phone: lưu UID của Supabase. Với Social: cũng lưu UID Supabase.
+  accountIdentifier String   @unique @map("account_identifier") @db.VarChar(255)
+
+  authProvider      AuthProvider @default(PHONE) @map("auth_provider")
+  
+  passwordHash      String?  @map("password_hash") @db.VarChar(255)
+  refreshToken      String?  @map("refresh_token") @db.Text
+  
+  isVerified        Boolean  @default(false) @map("is_verified") // Supabase đã verify thì cái này auto true
+  isActive          Boolean  @default(true) @map("is_active")
+  lastLogin         DateTime? @map("last_login")
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([accountIdentifier])
+  @@map("customer_accounts")
+}
 // =====================================================
 // 5. SALES MANAGEMENT
 // =====================================================
@@ -1225,6 +1251,12 @@ enum SalesChannel {
     wholesale
     online
     distributor
+}
+
+enum AuthProvider {
+  PHONE     // SĐT
+  GOOGLE    // Gmail
+  FACEBOOK
 }
 
 enum PaymentMethod {
