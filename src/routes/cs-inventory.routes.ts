@@ -1,73 +1,27 @@
 import { Router } from 'express';
-import inventoryController from '@controllers/inventory.controller';
-import { authentication } from '@middlewares/auth';
-import { authorize } from '@middlewares/authorize';
+// Giả định import Controller Public
+import publicInventoryController from '@controllers/cs-inventory.controller'; 
 import { validate } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
 import {
-  inventoryQuerySchema,
-  warehouseInventorySchema,
-  productInventorySchema,
-  checkInventorySchema,
+    checkInventorySchema, // Import schema cần thiết
 } from '@validators/inventory.validator';
 
 const router = Router();
 
-// All routes require authentication
-router.use(authentication);
+// ==========================================
+// PUBLIC INVENTORY ROUTES (Check Availability Only)
+// ==========================================
 
-// GET /api/inventory/cs/alerts - Get inventory alerts (low stock)
-router.get(
-  '/cs/alerts',
-  authorize('view_inventory'),
-  asyncHandler(inventoryController.getAlerts.bind(inventoryController))
-);
-
-// GET /api/inventory/cs/low-stock-alerts - Get low stock alerts (alias for /alerts)
-router.get(
-  '/cs/low-stock-alerts',
-  authorize('view_inventory'),
-  asyncHandler(inventoryController.getAlerts.bind(inventoryController))
-);
-
-// GET /api/inventory/cs/value-report - Get inventory value report
-router.get(
-  '/cs/value-report',
-  authorize('view_inventory', 'view_reports'),
-  asyncHandler(inventoryController.getValueReport.bind(inventoryController))
-);
-
-// GET /api/inventory/cs/warehouse/:warehouseId - Get inventory by warehouse
-router.get(
-  '/cs/warehouse/:warehouseId',
-  authorize('view_inventory'),
-  validate(warehouseInventorySchema, 'params'),
-  asyncHandler(inventoryController.getByWarehouse.bind(inventoryController))
-);
-
-// GET /api/inventory/cs/product/:productId - Get inventory by product
-router.get(
-  '/cs/product/:productId',
-  authorize('view_inventory'),
-  validate(productInventorySchema, 'params'),
-  asyncHandler(inventoryController.getByProduct.bind(inventoryController))
-);
-
-// POST /api/inventory/cs/check - Check inventory availability
+/**
+ * POST /api/public/inventory/check
+ * Kiểm tra tính khả dụng của các mặt hàng trong giỏ hàng/đơn hàng.
+ * API này cần thiết cho luồng mua hàng công khai.
+ */
 router.post(
-  '/cs/check',
-  authorize('view_inventory'),
-  validate(checkInventorySchema, 'body'),
-  asyncHandler(inventoryController.checkAvailability.bind(inventoryController))
-);
-
-
-// GET /api/inventory/cs - Get all inventory with filters
-router.get(
-  '/cs/',
-  authorize('view_inventory'),
-  validate(inventoryQuerySchema, 'query'),
-  asyncHandler(inventoryController.getAll.bind(inventoryController))
+    '/check',
+    validate(checkInventorySchema, 'body'),
+    asyncHandler(publicInventoryController.checkAvailability.bind(publicInventoryController))
 );
 
 export default router;

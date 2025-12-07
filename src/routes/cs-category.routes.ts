@@ -1,51 +1,44 @@
 import { Router } from 'express';
-import categoryController from '@controllers/category.controller';
-import { authentication } from '@middlewares/auth';
-import { authorize } from '@middlewares/authorize';
-import { validate } from '@middlewares/validate';
+// Controller đã được tạo ra để chỉ có các hàm đọc và tự lọc status='active'
+import publicCategoryController from '@controllers/cs-category.controller';
 import { asyncHandler } from '@middlewares/errorHandler';
-
-import { queryCategoriesSchema } from '@validators/category.validator';
-
+// Không cần import validate cho query string nếu Controller xử lý nhẹ
+// hoặc nếu có validate, cần import schema tương ứng.
 
 const router = Router();
 
-// All routes require authentication
-router.use(authentication);
+// ==========================================
+// PUBLIC CATEGORY ROUTES (Dành cho Khách hàng / Không cần Token)
+// ==========================================
 
 /**
- * GET /api/cs/categories
- * Get all categories with pagination, filters, and search
- * Permission: view_products
+ * GET /api/public/categories/
+ * Lấy danh sách tất cả danh mục đang hoạt động (active) với phân trang và tìm kiếm.
  */
 router.get(
-  '/cs/',
-  authorize('view_products'),
-  validate(queryCategoriesSchema, 'query'),
-  asyncHandler(categoryController.getAllCategories.bind(categoryController))
+    '/',
+    // publicCategoryController.getAllCategories sẽ tự thêm status: 'active' vào query
+    asyncHandler(publicCategoryController.getAllCategories.bind(publicCategoryController))
 );
 
 /**
- * GET /api/cs/categories/tree
- * Get category tree structure (hierarchical)
- * Permission: view_products
+ * GET /api/public/categories/tree
+ * Lấy cấu trúc cây danh mục (chỉ các danh mục active)
  */
 router.get(
-  '/cs/tree',
-  authorize('view_products'),
-  asyncHandler(categoryController.getCategoryTree.bind(categoryController))
+    '/tree',
+    asyncHandler(publicCategoryController.getCategoryTree.bind(publicCategoryController))
 );
 
 /**
- * GET /api/cs/categories/:id
- * Get category by ID with details
- * Permission: view_products
+ * GET /api/public/categories/:id
+ * Lấy thông tin chi tiết một danh mục (chỉ danh mục active)
  */
 router.get(
-  '/cs/:id',
-  authorize('view_products'),
-  asyncHandler(categoryController.getCategoryById.bind(categoryController))
+    '/:id',
+    asyncHandler(publicCategoryController.getCategoryById.bind(publicCategoryController))
 );
+
 
 
 export default router;

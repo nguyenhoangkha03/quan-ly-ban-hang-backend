@@ -1,247 +1,90 @@
-import { PrismaClient, Prisma } from '@prisma/client';
-import { NotFoundError, ValidationError } from '@utils/errors';
-import RedisService, { CachePrefix } from '@services/redis.service';
-import {
-    UpdateCustomerInput,
-    // Không cần import các Input dành cho Admin như CreateCustomerInput, CustomerQueryInput
-} from '@validators/customer.validator';
+import { Response } from 'express';
+import { AuthRequest } from '@custom-types/common.type';
+// Import Service dành cho Khách hàng
+import customerService from '@services/cs-customer.service'; 
+import { NotFoundError } from '@utils/errors';
+import { UpdateCustomerInput } from '@validators/customer.validator'; // Import type cho update
 
-// Giả định các import cần thiết khác (logger, types)
-// import { logActivity } from '@utils/logger'; 
-// import { AuthRequest } from '@custom-types/common.type'; 
+class CustomerProfileController {
+    
+    // Helper để lấy ID khách hàng từ token
+    private getCustomerId(req: AuthRequest): number {
+        const customerId = req.user?.id; 
+        if (!customerId) {
+             throw new NotFoundError('Customer ID not found in token. Unauthorized.');
+        }
+        return customerId;
+    }
 
-const prisma = new PrismaClient();
-const redis = RedisService.getInstance();
+    // ========================================================
+    // 1. GET /api/customer/profile - Lấy thông tin hồ sơ
+    // ========================================================
+    async getProfile(req: AuthRequest, res: Response) {
+        const customerId = this.getCustomerId(req);
 
-const CUSTOMER_CACHE_TTL = 3600;
+        // Gọi Service method getById, sử dụng ID từ Token
+        const customer = await customerService.getById(customerId); 
 
-class CustomerService {
+        return res.status(200).json({
+            success: true,
+            data: customer,
+            timestamp: new Date().toISOString(),
+        });
+    }
 
-    // ========================================================
-    // 1. GET PROFILE (Tái sử dụng logic getById của Admin)
-    // Khách hàng sẽ lấy thông tin của chính họ qua ID từ Token
-    // ========================================================
-    async getById(id: number) {
-        const cacheKey = `${CachePrefix.USER}customer:${id}`;
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-            return cached;
-        }
+    // ========================================================
+    // 2. PUT /api/customer/profile - Cập nhật hồ sơ
+    // ========================================================
+    async updateProfile(req: AuthRequest, res: Response) {
+        const customerId = this.getCustomerId(req);
+        const updateData = req.body as UpdateCustomerInput;
+        
+        // Gọi Service method updateProfile đã được giới hạn (tái sử dụng updateService)
+        const customer = await customerService.updateProfile(customerId, updateData);
 
-        const customer = await prisma.customer.findUnique({
-            where: { id },
-            // Bỏ include creator/updater vì không cần thiết cho khách hàng cuối
-            include: {
-                salesOrders: {
-                    select: {
-                        id: true,
-                        orderCode: true,
-                        orderDate: true,
-                        orderStatus: true,
-                        paymentStatus: true,
-                        totalAmount: true,
-                        paidAmount: true,
-                    },
-                    orderBy: { orderDate: 'desc' },
-                    take: 10, // Giới hạn số đơn hàng gần đây
-                },
-            },
-        });
+        return res.status(200).json({
+            success: true,
+            data: customer,
+            message: 'Profile updated successfully',
+            timestamp: new Date().toISOString(),
+        });
+    }
+    
+    // ========================================================
+    // 3. GET /api/customer/debt - Lấy thông tin nợ
+    // ========================================================
+    async getDebtInfo(req: AuthRequest, res: Response) {
+        const customerId = this.getCustomerId(req);
 
-        if (!customer) {
-            throw new NotFoundError('Customer not found');
-        }
+        // Gọi Service method getDebtInfo, sử dụng ID từ Token
+        const debtInfo = await customerService.getDebtInfo(customerId);
 
-        // Tính toán thông tin nợ (giữ nguyên logic)
-        const debtPercentage =
-            Number(customer.creditLimit) > 0
-                ? (Number(customer.currentDebt) / Number(customer.creditLimit)) * 100
-                : 0;
+        return res.status(200).json({
+            success: true,
+            data: debtInfo,
+            timestamp: new Date().toISOString(),
+        });
+    }
 
-        const customerWithDebtInfo = {
-            ...customer,
-            debtPercentage: Math.round(debtPercentage * 100) / 100,
-            isOverLimit: Number(customer.currentDebt) > Number(customer.creditLimit),
-            availableCredit:
-                Number(customer.creditLimit) - Number(customer.currentDebt) > 0
-                    ? Number(customer.creditLimit) - Number(customer.currentDebt)
-                    : 0,
-        };
+    // ========================================================
+    // 4. GET /api/customer/orders - Lịch sử đơn hàng
+    // ========================================================
+    async getOrderHistory(req: AuthRequest, res: Response) {
+        const customerId = this.getCustomerId(req);
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 20;
 
-        await redis.set(cacheKey, customerWithDebtInfo, CUSTOMER_CACHE_TTL);
+        // Gọi Service method getOrderHistory, sử dụng ID từ Token
+        const result = await customerService.getOrderHistory(customerId, page, limit);
 
-        return customerWithDebtInfo;
-    }
-
-    // ========================================================
-    // 2. UPDATE PROFILE (Phiên bản giới hạn quyền cập nhật)
-    // Khách hàng chỉ được cập nhật các trường an toàn
-    // ========================================================
-    async updateProfile(id: number, data: UpdateCustomerInput) {
-        const customer = await prisma.customer.findUnique({
-            where: { id },
-        });
-
-        if (!customer) {
-            throw new NotFoundError('Customer not found');
-        }
-
-        // *** LƯU Ý BẢO MẬT: Bỏ qua kiểm tra email/phone/taxCode trùng lặp ***
-        // vì Khách hàng cuối thường không được phép tự ý thay đổi SĐT hoặc Email
-        // (trừ khi có quy trình xác thực OTP/Email riêng). Nếu bạn cho phép, 
-        // hãy đưa logic kiểm tra trùng lặp vào đây.
-
-        // Chỉ cho phép cập nhật các trường Khách hàng được phép tự quản lý
-        const safeData: Prisma.CustomerUpdateInput = {
-            ...(data.customerName && { customerName: data.customerName }),
-            ...(data.gender !== undefined && { gender: data.gender }),
-            ...(data.contactPerson !== undefined && { contactPerson: data.contactPerson }),
-            ...(data.address !== undefined && { address: data.address }),
-            ...(data.province !== undefined && { province: data.province }),
-            ...(data.district !== undefined && { district: data.district }),
-            // Giữ nguyên các trường Phone/Email/TaxCode/Classification/CreditLimit...
-            // để Khách hàng không thể tự sửa.
-        };
-
-        if (Object.keys(safeData).length === 0) {
-            throw new ValidationError('No valid fields provided for update');
-        }
-
-        const updatedCustomer = await prisma.customer.update({
-            where: { id },
-            data: {
-                ...safeData,
-                updatedAt: new Date(), // Cập nhật thời gian
-                // Bỏ updatedBy vì Khách hàng không phải là User hệ thống
-            },
-            // Bỏ includes không cần thiết
-        });
-
-        await redis.del(`${CachePrefix.USER}customer:${id}`);
-
-        return updatedCustomer;
-    }
-
-    // ========================================================
-    // 3. GET DEBT INFO (Lấy thông tin nợ của chính mình)
-    // ========================================================
-    async getDebtInfo(id: number) {
-        // Tái sử dụng logic getDebtInfo của Admin, chỉ cần truyền ID từ token
-        const customer = await prisma.customer.findUnique({
-            where: { id },
-            select: {
-                id: true,
-                customerCode: true,
-                customerName: true,
-                creditLimit: true,
-                currentDebt: true,
-                debtUpdatedAt: true,
-                salesOrders: {
-                    // Chỉ lấy các đơn hàng đang có nợ
-                    where: {
-                        orderStatus: {
-                            in: ['pending', 'preparing', 'delivering', 'completed'],
-                        },
-                    },
-                    select: {
-                        id: true,
-                        orderCode: true,
-                        orderDate: true,
-                        totalAmount: true,
-                        paidAmount: true,
-                        orderStatus: true,
-                        paymentStatus: true,
-                    },
-                    orderBy: { orderDate: 'desc' },
-                },
-            },
-        });
-
-        if (!customer) {
-            throw new NotFoundError('Customer not found');
-        }
-
-        const unpaidOrders = customer.salesOrders.map((order) => ({
-            ...order,
-            debtAmount: Number(order.totalAmount) - Number(order.paidAmount),
-        }));
-
-        const debtPercentage =
-            Number(customer.creditLimit) > 0
-                ? (Number(customer.currentDebt) / Number(customer.creditLimit)) * 100
-                : 0;
-
-        return {
-            customerId: customer.id,
-            customerCode: customer.customerCode,
-            customerName: customer.customerName,
-            creditLimit: Number(customer.creditLimit),
-            currentDebt: Number(customer.currentDebt),
-            availableCredit: Math.max(0, Number(customer.creditLimit) - Number(customer.currentDebt)),
-            debtPercentage: Math.round(debtPercentage * 100) / 100,
-            isOverLimit: Number(customer.currentDebt) > Number(customer.creditLimit),
-            debtUpdatedAt: customer.debtUpdatedAt,
-            unpaidOrders,
-            totalUnpaidOrders: unpaidOrders.length,
-        };
-    }
-
-    // ========================================================
-    // 4. GET ORDER HISTORY (Lấy lịch sử đơn hàng của chính mình)
-    // ========================================================
-    async getOrderHistory(id: number, page: number = 1, limit: number = 20) {
-        // Tái sử dụng logic getOrderHistory của Admin
-        const customer = await prisma.customer.findUnique({
-            where: { id },
-        });
-
-        if (!customer) {
-            throw new NotFoundError('Customer not found');
-        }
-
-        const offset = (page - 1) * limit;
-
-        const [orders, total] = await Promise.all([
-            prisma.salesOrder.findMany({
-                where: { customerId: id },
-                select: {
-                    id: true,
-                    orderCode: true,
-                    orderDate: true,
-                    orderStatus: true,
-                    paymentStatus: true,
-                    totalAmount: true,
-                    paidAmount: true,
-                    salesChannel: true,
-                    warehouse: {
-                        select: {
-                            id: true,
-                            warehouseName: true,
-                        },
-                    },
-                },
-                skip: offset,
-                take: limit,
-                orderBy: { orderDate: 'desc' },
-            }),
-            prisma.salesOrder.count({ where: { customerId: id } }),
-        ]);
-
-        return {
-            customer: {
-                id: customer.id,
-                customerCode: customer.customerCode,
-                customerName: customer.customerName,
-            },
-            orders,
-            meta: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
-        };
-    }
+        return res.status(200).json({
+            success: true,
+            data: result,
+            timestamp: new Date().toISOString(),
+        });
+    }
+    
+    // BỎ QUA các phương thức Admin: getAll, create, update, updateCreditLimit, updateStatus, getOverdueDebt, delete
 }
 
-export default new CustomerService();
+export default new CustomerProfileController();
