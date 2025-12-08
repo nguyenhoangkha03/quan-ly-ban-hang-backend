@@ -1,7 +1,7 @@
 import { Router } from 'express';
 // Đổi tên import Controller thành customerProfileController để phân biệt với Admin/CS Controller
 import customerProfileController from '@controllers/cs-customer.controller';
-import { customerAuthentication } from '@middlewares/authCustomer';
+//  
 import { validateNested } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
 import {
@@ -11,7 +11,7 @@ import {
 const router = Router();
 
 // Áp dụng middleware xác thực cho TẤT CẢ các route
-router.use(customerAuthentication);
+// router.use(customerAuthentication);
 
 // ========================================================
 // CUSTOMER END-USER ROUTES (Sử dụng ID từ Token - req.user.id)
