@@ -2,7 +2,7 @@ import { PrismaClient, ProductType, PackagingType, ProductStatus } from '@prisma
 
 const prisma = new PrismaClient();
 
-async function main() {
+export async function main() {
   console.log('🌱 Bắt đầu seed dữ liệu Products...');
 
   await prisma.product.deleteMany({});
@@ -676,11 +676,11 @@ async function main() {
   console.log(`   - Bao bì: 10 loại (chai, nhãn, thùng...)`);
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Lỗi khi seed products:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// main()
+//   .catch((e) => {
+//     console.error('❌ Lỗi khi seed products:', e);
+//     process.exit(1);
+//   })
+//   .finally(async () => {
+//     await prisma.$disconnect();
+//   });

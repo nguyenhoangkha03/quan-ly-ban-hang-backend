@@ -150,11 +150,11 @@ async function main() {
   console.log(`✅ Đã seed xong ${suppliers.length} nhà cung cấp!`);
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Lỗi khi seed suppliers:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// main()
+//   .catch((e) => {
+//     console.error('❌ Lỗi khi seed suppliers:', e);
+//     process.exit(1);
+//   })
+//   .finally(async () => {
+//     await prisma.$disconnect();
+//   });

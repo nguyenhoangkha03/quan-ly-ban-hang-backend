@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function main() {
+export async function main() {
   console.log('👥 Bắt đầu seed dữ liệu Khách hàng (Customers)...');
 
   await prisma.customer.deleteMany({});
@@ -375,11 +375,11 @@ async function main() {
   `);
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Lỗi khi seed customers:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// main()
+//   .catch((e) => {
+//     console.error('❌ Lỗi khi seed customers:', e);
+//     process.exit(1);
+//   })
+//   .finally(async () => {
+//     await prisma.$disconnect();
+//   });

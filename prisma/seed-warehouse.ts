@@ -290,11 +290,11 @@ async function main() {
   `);
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Lỗi khi seed warehouse:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// main()
+//   .catch((e) => {
+//     console.error('❌ Lỗi khi seed warehouse:', e);
+//     process.exit(1);
+//   })
+//   .finally(async () => {
+//     await prisma.$disconnect();
+//   });
