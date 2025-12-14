@@ -76,6 +76,23 @@ class EmailService {
     }
   }
 
+  async sendPurchaseOrderEmail(purchaseOrder: any): Promise<boolean> {
+    if (!purchaseOrder.supplier?.email) {
+      logError('Không thể gửi email đơn đặt hàng - không tìm thấy email nhà cung cấp.', null, {
+        poCode: purchaseOrder.poCode,
+        supplierId: purchaseOrder.supplier?.id,
+      });
+      return false;
+    }
+
+    return await this.sendEmail({
+      to: purchaseOrder.supplier.email,
+      subject: `Đơn mua hàng ${purchaseOrder.poCode} - Công Ty Nam Việt`,
+      html: this.getPurchaseOrderEmailTemplate(purchaseOrder),
+      text: `Đơn mua hàng ${purchaseOrder.poCode}\n\nKính gửi ${purchaseOrder.supplier.supplierName},\n\nCông ty Nam Việt xin gửi đến Quý công ty đơn đặt hàng.\nVui lòng kiểm tra email HTML để xem chi tiết.\n\nTrân trọng,\nCông Ty Nam Việt`,
+    });
+  }
+
   // Send password reset email
   async sendPasswordResetEmail(to: string, fullName: string, resetToken: string): Promise<boolean> {
     const resetLink = `${
@@ -462,6 +479,254 @@ Sales & Production System Team
   // Check if email service is configured
   isEmailServiceConfigured(): boolean {
     return this.isConfigured;
+  }
+
+  private getPurchaseOrderEmailTemplate(purchaseOrder: any): string {
+    const getStatusLabel = (status: string) => {
+      const map: Record<string, string> = {
+        pending: 'Chờ duyệt',
+        approved: 'Đã duyệt',
+        received: 'Đã nhận hàng',
+        cancelled: 'Đã hủy',
+      };
+      return map[status] || status;
+    };
+
+    const formatCurrency = (amount: number) => {
+      return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+      }).format(amount);
+    };
+
+    const formatDate = (dateString: string) => {
+      return new Date(dateString).toLocaleDateString('vi-VN');
+    };
+
+    const itemsRows =
+      purchaseOrder.details
+        ?.map((detail: any, index: any) => {
+          const itemTotal = (detail.quantity || 0) * (detail.unitPrice || 0);
+          return `
+      <tr>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${index + 1}</td>
+        <td style="border: 1px solid #ddd; padding: 8px;">${detail.product?.productName || '—'}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${
+          detail.product?.unit || 'cái'
+        }</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${
+          detail.quantity || 0
+        }</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(
+          detail.unitPrice || 0
+        )}</td>
+        <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">${formatCurrency(
+          itemTotal
+        )}</td>
+      </tr>
+    `;
+        })
+        .join('') || '';
+
+    const totalQuantity =
+      purchaseOrder.details?.reduce((sum: any, d: any) => sum + (d.quantity || 0), 0) || 0;
+    const taxAmount = (purchaseOrder.subTotal || 0) * ((purchaseOrder.taxRate || 0) / 100);
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đơn Mua Hàng - ${purchaseOrder.poCode}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+  
+  <!-- Header -->
+  <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">📋 ĐƠN MUA HÀNG</h1>
+    <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">Số: ${purchaseOrder.poCode}</p>
+  </div>
+
+  <!-- Main Content -->
+  <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    
+    <!-- Greeting -->
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Kính gửi: <strong>${purchaseOrder.supplier?.supplierName}</strong>
+    </p>
+
+    <p style="font-size: 14px; margin-bottom: 30px; line-height: 1.8;">
+      Công ty Cổ Phần Hóa Sinh Nam Việt xin gửi đến Quý công ty đơn đặt hàng với các thông tin chi tiết như sau:
+    </p>
+
+    <!-- Company Info -->
+    <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #2563eb;">
+      <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 16px;">Thông tin công ty</h3>
+      <table style="width: 100%; font-size: 14px;">
+        <tr>
+          <td style="padding: 5px 0; width: 150px; color: #64748b;">Công ty:</td>
+          <td style="padding: 5px 0; font-weight: 600;">Công Ty Cổ Phần Hoá Sinh Nam Việt</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Địa chỉ:</td>
+          <td style="padding: 5px 0;">QL30/ấp Đông Mỹ, Mỹ Hội, Cao Lãnh, Đồng Tháp</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Điện thoại:</td>
+          <td style="padding: 5px 0;">0886 357 788</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Order Info -->
+    <div style="background: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+      <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 16px;">Thông tin đơn hàng</h3>
+      <table style="width: 100%; font-size: 14px;">
+        <tr>
+          <td style="padding: 5px 0; width: 150px; color: #64748b;">Kho nhận hàng:</td>
+          <td style="padding: 5px 0; font-weight: 600;">${
+            purchaseOrder.warehouse?.warehouseName || '—'
+          }</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Trạng thái:</td>
+          <td style="padding: 5px 0;">
+            <span style="background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">
+              ${getStatusLabel(purchaseOrder.status)}
+            </span>
+          </td>
+        </tr>
+        ${
+          purchaseOrder.orderDate
+            ? `
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Ngày đặt hàng:</td>
+          <td style="padding: 5px 0;">${formatDate(purchaseOrder.orderDate)}</td>
+        </tr>
+        `
+            : ''
+        }
+        ${
+          purchaseOrder.expectedDeliveryDate
+            ? `
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Ngày giao dự kiến:</td>
+          <td style="padding: 5px 0; font-weight: 600; color: #dc2626;">${formatDate(
+            purchaseOrder.expectedDeliveryDate
+          )}</td>
+        </tr>
+        `
+            : ''
+        }
+      </table>
+    </div>
+
+    <!-- Items Table -->
+    <h3 style="margin: 30px 0 15px 0; color: #1e293b; font-size: 16px;">Chi tiết sản phẩm</h3>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+        <thead>
+          <tr style="background: #f1f5f9;">
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: center; font-weight: 600; color: #475569;">STT</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: 600; color: #475569;">Tên sản phẩm</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: center; font-weight: 600; color: #475569;">ĐVT</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: 600; color: #475569;">Số lượng</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: 600; color: #475569;">Đơn giá</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: 600; color: #475569;">Thành tiền</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsRows}
+          
+          <!-- Subtotal -->
+          <tr style="background: #fafafa; font-weight: bold;">
+            <td colspan="3" style="border: 1px solid #ddd; padding: 12px; text-align: right;">Tổng cộng:</td>
+            <td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${totalQuantity}</td>
+            <td style="border: 1px solid #ddd; padding: 12px;"></td>
+            <td style="border: 1px solid #ddd; padding: 12px; text-align: right; color: #2563eb;">${formatCurrency(
+              purchaseOrder.subTotal || 0
+            )}</td>
+          </tr>
+          
+          ${
+            purchaseOrder.taxRate > 0
+              ? `
+          <!-- Tax -->
+          <tr>
+            <td colspan="5" style="border: 1px solid #ddd; padding: 12px; text-align: right;">
+              Thuế VAT (${purchaseOrder.taxRate}%):
+            </td>
+            <td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${formatCurrency(
+              taxAmount
+            )}</td>
+          </tr>
+          
+          <!-- Total with Tax -->
+          <tr style="background: #eff6ff; font-weight: bold; font-size: 15px;">
+            <td colspan="5" style="border: 1px solid #ddd; padding: 12px; text-align: right; color: #1e40af;">
+              TỔNG THANH TOÁN:
+            </td>
+            <td style="border: 1px solid #ddd; padding: 12px; text-align: right; color: #dc2626; font-size: 16px;">
+              ${formatCurrency(purchaseOrder.totalAmount || 0)}
+            </td>
+          </tr>
+          `
+              : ''
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Notes -->
+    ${
+      purchaseOrder.notes
+        ? `
+    <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px;">
+      <p style="margin: 0; font-size: 13px; color: #92400e;">
+        <strong>📝 Ghi chú:</strong> ${purchaseOrder.notes}
+      </p>
+    </div>
+    `
+        : ''
+    }
+
+    <!-- Important Notice -->
+    <div style="background: #dcfce7; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 5px;">
+      <p style="margin: 0; font-size: 13px; color: #14532d;">
+        ✅ <strong>Lưu ý:</strong> Vui lòng xác nhận đơn hàng và thời gian giao hàng sớm nhất có thể.
+      </p>
+    </div>
+
+    <!-- Signature -->
+    <div style="margin-top: 40px; text-align: right;">
+      <p style="font-size: 14px; margin: 5px 0;">
+        <strong>Người lập đơn</strong>
+      </p>
+      <p style="font-size: 13px; color: #64748b; margin: 5px 0;">
+        ${purchaseOrder.creator?.fullName || '—'}
+      </p>
+    </div>
+
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+
+    <!-- Footer -->
+    <p style="font-size: 13px; color: #64748b; text-align: center; margin: 20px 0 0 0;">
+      Trân trọng,<br>
+      <strong style="color: #1e293b;">Công Ty Cổ Phần Hóa Sinh Nam Việt</strong><br>
+      <span style="font-size: 12px;">QL30/ấp Đông Mỹ, Mỹ Hội, Cao Lãnh, ĐT | ĐT: 0886 357 788</span>
+    </p>
+
+    <!-- Auto-generated notice -->
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; text-align: center;">
+      <p style="font-size: 11px; color: #94a3b8; margin: 0;">
+        Email này được gửi tự động từ hệ thống quản lý. Vui lòng không trả lời trực tiếp email này.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
   }
 }
 

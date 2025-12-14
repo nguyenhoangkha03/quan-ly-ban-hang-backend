@@ -15,6 +15,7 @@ import {
   approveTransactionSchema,
   cancelTransactionSchema,
 } from '@validators/stock-transaction.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -24,62 +25,69 @@ router.use(authentication);
 // POST /api/stock-transactions/import - Create import transaction
 router.post(
   '/import',
-  authorize('create_stock_transactions', 'manage_inventory'),
+  authorize('create_stock_transaction', 'manage_inventory'),
   validate(createImportSchema, 'body'),
+  logActivityMiddleware('import', 'stock_transaction'),
   asyncHandler(stockTransactionController.createImport.bind(stockTransactionController))
 );
 
 // POST /api/stock-transactions/export - Create export transaction
 router.post(
   '/export',
-  authorize('create_stock_transactions', 'manage_inventory'),
+  authorize('create_stock_transaction', 'manage_inventory'),
   validate(createExportSchema, 'body'),
+  logActivityMiddleware('export', 'stock_transaction'),
   asyncHandler(stockTransactionController.createExport.bind(stockTransactionController))
 );
 
 // POST /api/stock-transactions/transfer - Create transfer transaction
 router.post(
   '/transfer',
-  authorize('create_stock_transactions', 'manage_inventory'),
+  authorize('create_stock_transaction', 'manage_inventory'),
   validate(createTransferSchema, 'body'),
+  logActivityMiddleware('transfer', 'stock_transaction'),
   asyncHandler(stockTransactionController.createTransfer.bind(stockTransactionController))
 );
 
 // POST /api/stock-transactions/disposal - Create disposal transaction
 router.post(
   '/disposal',
-  authorize('create_stock_transactions', 'manage_inventory'),
+  authorize('create_stock_transaction', 'manage_inventory'),
   validate(createDisposalSchema, 'body'),
+  logActivityMiddleware('disposal', 'stock_transaction'),
   asyncHandler(stockTransactionController.createDisposal.bind(stockTransactionController))
 );
 
 // POST /api/stock-transactions/stocktake - Create stocktake transaction
 router.post(
   '/stocktake',
-  authorize('create_stock_transactions', 'manage_inventory'),
+  authorize('create_stock_transaction', 'manage_inventory'),
   validate(createStocktakeSchema, 'body'),
+  logActivityMiddleware('stocktake', 'stock_transaction'),
   asyncHandler(stockTransactionController.createStocktake.bind(stockTransactionController))
 );
 
 // PUT /api/stock-transactions/:id/approve - Approve transaction
 router.put(
   '/:id/approve',
-  authorize('approve_stock_transactions', 'manage_inventory'),
+  authorize('approve_stock_transaction', 'manage_inventory'),
   validateMultiple({
     params: transactionIdSchema,
     body: approveTransactionSchema,
   }),
+  logActivityMiddleware('approve', 'stock_transaction'),
   asyncHandler(stockTransactionController.approve.bind(stockTransactionController))
 );
 
 // PUT /api/stock-transactions/:id/cancel - Cancel transaction
 router.put(
   '/:id/cancel',
-  authorize('cancel_stock_transactions', 'manage_inventory'),
+  authorize('cancel_stock_transaction', 'manage_inventory'),
   validateMultiple({
     params: transactionIdSchema,
     body: cancelTransactionSchema,
   }),
+  logActivityMiddleware('cancel', 'stock_transaction'),
   asyncHandler(stockTransactionController.cancel.bind(stockTransactionController))
 );
 

@@ -26,6 +26,7 @@ class SupplierController {
     const response: ApiResponse = {
       success: true,
       data: supplier,
+      message: 'Success',
       timestamp: new Date().toISOString(),
     };
 

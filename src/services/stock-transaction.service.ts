@@ -2,8 +2,16 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { logActivity } from '@utils/logger';
 import inventoryService from './inventory.service';
+import {
+  type CreateImportInput,
+  type TransactionQueryInput,
+} from '@validators/stock-transaction.validator';
+import RedisService from './redis.service';
 
 const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
+
+const STOCK_TRANSACTION_CACHE_TTL = parseInt(process.env.STOCK_TRANSACTION_CACHE_TTL || '300');
 
 class StockTransactionService {
   private async generateTransactionCode(type: string): Promise<string> {
@@ -33,20 +41,11 @@ class StockTransactionService {
     return `${prefix}-${dateStr}-${sequence}`;
   }
 
-  async getAll(params: {
-    page: number;
-    limit: number;
-    transactionType?: string;
-    warehouseId?: number;
-    status?: string;
-    fromDate?: string;
-    toDate?: string;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
+  async getAll(query: TransactionQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
+      search = '',
       transactionType,
       warehouseId,
       status,
@@ -54,14 +53,34 @@ class StockTransactionService {
       toDate,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-    } = params;
+    } = query;
 
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Tạo khóa cache cho nhất quán
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `stock-transaction:list:${queryString}`;
+
+    const cache = await redis.get(cacheKey);
+    if (cache) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cache;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.StockTransactionWhereInput = {
+      ...(search && {
+        OR: [
+          { transactionCode: { contains: search } },
+          { creator: { fullName: { contains: search } } },
+        ],
+      }),
       ...(transactionType && { transactionType: transactionType as any }),
-      ...(warehouseId && { warehouseId }),
       ...(status && { status: status as any }),
+      ...(warehouseId && { warehouseId }),
       ...(fromDate &&
         toDate && {
           createdAt: {
@@ -119,22 +138,38 @@ class StockTransactionService {
         },
       },
       orderBy: { [sortBy]: sortOrder },
-      skip: offset,
-      take: limit,
+      skip: skip,
+      take: limitNum,
     });
 
-    return {
-      transactions,
-      pagination: {
+    const result = {
+      data: transactions,
+      meta: {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limitNum),
       },
+      message: 'Success',
     };
+
+    await redis.set(cacheKey, result, STOCK_TRANSACTION_CACHE_TTL);
+
+    return result;
   }
 
   async getById(id: number) {
+    const cacheKey = `stock-transaction:${id}`;
+
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
+
     const transaction = await prisma.stockTransaction.findUnique({
       where: { id },
       include: {
@@ -189,30 +224,16 @@ class StockTransactionService {
       throw new NotFoundError('Stock transaction');
     }
 
+    await redis.set(cacheKey, transaction, STOCK_TRANSACTION_CACHE_TTL);
+
     return transaction;
   }
 
-  async createImport(
-    data: {
-      warehouseId: number;
-      referenceType?: string;
-      referenceId?: number;
-      reason?: string;
-      notes?: string;
-      details: Array<{
-        productId: number;
-        quantity: number;
-        unitPrice?: number;
-        batchNumber?: string;
-        expiryDate?: string | Date;
-        notes?: string;
-      }>;
-    },
-    userId: number
-  ) {
+  async createImport(data: CreateImportInput, userId: number) {
     const warehouse = await prisma.warehouse.findUnique({
       where: { id: data.warehouseId },
     });
+
     if (!warehouse) {
       throw new NotFoundError('Warehouse');
     }
@@ -222,7 +243,7 @@ class StockTransactionService {
         where: { id: detail.productId },
       });
       if (!product) {
-        throw new NotFoundError(`Product with ID ${detail.productId}`);
+        throw new NotFoundError(`Sản phẩm với ID ${detail.productId}`);
       }
     }
 
@@ -272,6 +293,9 @@ class StockTransactionService {
       recordId: transaction.id,
       newValue: transaction,
     });
+
+    // Invalidate cache
+    await redis.flushPattern('stock-transaction:list:*');
 
     return transaction;
   }
@@ -590,7 +614,7 @@ class StockTransactionService {
     const transaction = await this.getById(id);
 
     if (transaction.status !== 'pending') {
-      throw new ValidationError(`Transaction is already ${transaction.status}`);
+      throw new ValidationError(`Giao dịch không thể phê duyệt. Trạng thái: ${transaction.status}`);
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -600,7 +624,7 @@ class StockTransactionService {
           status: 'approved',
           approvedBy: userId,
           approvedAt: new Date(),
-          notes: notes ? `${transaction.notes || ''}\nApproval notes: ${notes}` : transaction.notes,
+          notes: notes ? `${transaction.notes || ''} - Phê duyệt: ${notes}` : transaction.notes,
         },
         include: {
           details: {
@@ -642,10 +666,17 @@ class StockTransactionService {
       newValue: { status: 'approved' },
     });
 
+    await redis.flushPattern('stock-transaction:list:*');
+    await redis.del(`stock-transaction:${id}`);
+
     return result;
   }
 
   private async processImport(tx: any, transaction: any, userId: number) {
+    const purchaseOrder = await tx.purchaseOrder.findUnique({
+      where: { id: transaction.referenceId },
+    });
+
     for (const detail of transaction.details) {
       const current = await tx.inventory.findUnique({
         where: {
@@ -658,6 +689,7 @@ class StockTransactionService {
 
       const newQuantity = (current ? Number(current.quantity) : 0) + Number(detail.quantity);
 
+      // Tăng số lượng tồn kho trong Inventory
       await tx.inventory.upsert({
         where: {
           warehouseId_productId: {
@@ -677,6 +709,54 @@ class StockTransactionService {
           updatedBy: userId,
         },
       });
+
+      // Cập nhật giá nhập mới nhất vào Product
+      if (detail.unitPrice) {
+        await tx.product.update({
+          where: { id: detail.productId },
+          data: {
+            purchasePrice: Number(detail.unitPrice),
+            expiryDate: detail.expiryDate,
+            taxRate: purchaseOrder ? purchaseOrder.taxRate : undefined,
+            supplierId: purchaseOrder ? purchaseOrder.supplierId : undefined,
+          },
+        });
+      }
+    }
+
+    // Ghi nhận công nợ phải trả cho supplier (nếu là purchase order)
+    if (transaction.referenceType === 'purchase_order' && transaction.referenceId) {
+      const purchaseOrder = await tx.purchaseOrder.findUnique({
+        where: { id: transaction.referenceId },
+      });
+
+      if (purchaseOrder) {
+        // Lấy supplier hiện tại
+        const supplier = await tx.supplier.findUnique({
+          where: { id: purchaseOrder.supplierId },
+        });
+
+        // Tính công nợ mới = công nợ cũ + tiền đơn hàng
+        const newPayable =
+          (supplier ? Number(supplier.totalPayable) || 0 : 0) + Number(purchaseOrder.totalAmount);
+
+        // Update supplier debt
+        await tx.supplier.update({
+          where: { id: purchaseOrder.supplierId },
+          data: {
+            totalPayable: newPayable,
+            payableUpdatedAt: new Date(),
+          },
+        });
+
+        // Cập nhật PO status → 'received'
+        await tx.purchaseOrder.update({
+          where: { id: transaction.referenceId },
+          data: {
+            status: 'received',
+          },
+        });
+      }
     }
   }
 

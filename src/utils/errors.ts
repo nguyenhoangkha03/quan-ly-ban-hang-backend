@@ -34,6 +34,12 @@ export class AuthorizationError extends AppError {
   }
 }
 
+export class SendEmailOutLimitError extends AppError {
+  constructor(message: string = 'Không được gửi email quá 3 lần!') {
+    super(message, 403, ErrorCode.AUTHORIZATION_ERROR);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(resource: string = 'Resource') {
     super(`${resource} not found`, 404, ErrorCode.NOT_FOUND);

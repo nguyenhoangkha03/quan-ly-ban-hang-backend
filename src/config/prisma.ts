@@ -1,16 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import logger from '@utils/logger';
 
-/**
- * Prisma Client Configuration with Performance Optimization
- *
- * Features:
- * - Connection pooling
- * - Query logging (slow queries)
- * - Error handling
- * - Singleton pattern
- */
-
 // Configuration
 const SLOW_QUERY_THRESHOLD = parseInt(process.env.SLOW_QUERY_THRESHOLD || '1000', 10); // 1 second
 const LOG_QUERIES = process.env.LOG_QUERIES === 'true';
@@ -18,9 +8,7 @@ const LOG_SLOW_QUERIES = process.env.LOG_SLOW_QUERIES !== 'false'; // Enabled by
 
 // Determine log level based on environment
 const logLevel: ('query' | 'info' | 'warn' | 'error')[] =
-  process.env.NODE_ENV === 'development'
-    ? ['query', 'info', 'warn', 'error']
-    : ['warn', 'error'];
+  process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['warn', 'error'];
 
 // Create Prisma Client with configuration
 const prisma = new PrismaClient({
@@ -92,9 +80,7 @@ prisma.$on('error', (e: any) => {
 // CONNECTION MANAGEMENT
 // =====================================================
 
-/**
- * Connect to database
- */
+// Connect to database
 export async function connectDatabase(): Promise<void> {
   try {
     await prisma.$connect();
@@ -105,9 +91,7 @@ export async function connectDatabase(): Promise<void> {
   }
 }
 
-/**
- * Disconnect from database
- */
+// Disconnect from database
 export async function disconnectDatabase(): Promise<void> {
   try {
     await prisma.$disconnect();
@@ -117,9 +101,7 @@ export async function disconnectDatabase(): Promise<void> {
   }
 }
 
-/**
- * Health check - test database connection
- */
+// Health check - test database connection
 export async function checkDatabaseHealth(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -130,9 +112,7 @@ export async function checkDatabaseHealth(): Promise<boolean> {
   }
 }
 
-/**
- * Get database metrics
- */
+// Get database metrics
 export async function getDatabaseMetrics(): Promise<{
   connected: boolean;
   pool?: any;
@@ -142,8 +122,6 @@ export async function getDatabaseMetrics(): Promise<{
 
     return {
       connected: isConnected,
-      // Note: Prisma doesn't expose connection pool metrics directly
-      // For detailed pool metrics, you'd need to query the database directly
     };
   } catch (error) {
     return {

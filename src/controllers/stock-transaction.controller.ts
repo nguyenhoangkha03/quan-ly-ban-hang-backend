@@ -6,34 +6,13 @@ import { ApiResponse } from '@custom-types/common.type';
 class StockTransactionController {
   // GET /api/stock-transactions
   async getAll(req: AuthRequest, res: Response) {
-    const {
-      page,
-      limit,
-      transactionType,
-      warehouseId,
-      status,
-      fromDate,
-      toDate,
-      sortBy,
-      sortOrder,
-    } = req.query as any;
-
-    const result = await stockTransactionService.getAll({
-      page: parseInt(page) || 1,
-      limit: parseInt(limit) || 20,
-      transactionType,
-      warehouseId: warehouseId ? parseInt(warehouseId) : undefined,
-      status,
-      fromDate,
-      toDate,
-      sortBy,
-      sortOrder,
-    });
+    const result = await stockTransactionService.getAll(req.query as any);
 
     const response: ApiResponse = {
       success: true,
-      data: result.transactions,
-      meta: result.pagination,
+      data: result.data,
+      meta: result.meta,
+      message: result.message,
       timestamp: new Date().toISOString(),
     };
 
@@ -49,6 +28,7 @@ class StockTransactionController {
     const response: ApiResponse = {
       success: true,
       data: transaction,
+      message: 'Success',
       timestamp: new Date().toISOString(),
     };
 
@@ -65,7 +45,7 @@ class StockTransactionController {
     const response: ApiResponse = {
       success: true,
       data: transaction,
-      message: 'Import transaction created successfully',
+      message: 'Giao dịch nhập kho được tạo thành công',
       timestamp: new Date().toISOString(),
     };
 

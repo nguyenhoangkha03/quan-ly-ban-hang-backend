@@ -5,11 +5,12 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-    provider = "prisma-client"
+    provider = "prisma-client-js"
 }
 
 datasource db {
     provider = "mysql"
+    url      = env("DATABASE_URL")
 }
 
 // 1 USER MANAGEMENT & PERMISSIONS
@@ -242,22 +243,24 @@ model Category {
 }
 
 model Supplier {
-    id           Int            @id @default(autoincrement())
-    supplierCode String         @unique @map("supplier_code") @db.VarChar(50)
-    supplierName String         @map("supplier_name") @db.VarChar(200)
-    supplierType SupplierType   @default(local) @map("supplier_type")
-    contactName  String?        @map("contact_name") @db.VarChar(100)
-    phone        String?        @db.VarChar(20)
-    email        String?        @db.VarChar(100)
-    address      String?        @db.VarChar(255)
-    taxCode      String?        @map("tax_code") @db.VarChar(50)
-    paymentTerms String?        @map("payment_terms") @db.VarChar(255)
-    notes        String?        @db.VarChar(500)
-    status       SupplierStatus @default(active)
-    createdBy    Int?           @map("created_by")
-    updatedBy    Int?           @map("updated_by")
-    createdAt    DateTime       @default(now()) @map("created_at")
-    updatedAt    DateTime       @updatedAt @map("updated_at")
+    id               Int            @id @default(autoincrement())
+    supplierCode     String         @unique @map("supplier_code") @db.VarChar(50)
+    supplierName     String         @map("supplier_name") @db.VarChar(200)
+    supplierType     SupplierType   @default(local) @map("supplier_type")
+    contactName      String?        @map("contact_name") @db.VarChar(100)
+    phone            String?        @db.VarChar(20)
+    email            String?        @db.VarChar(100)
+    address          String?        @db.VarChar(255)
+    taxCode          String?        @map("tax_code") @db.VarChar(50)
+    paymentTerms     String?        @map("payment_terms") @db.VarChar(255)
+    totalPayable     Decimal        @default(0) @map("total_payable") @db.Decimal(15, 2)
+    notes            String?        @db.VarChar(500)
+    status           SupplierStatus @default(active)
+    createdBy        Int?           @map("created_by")
+    updatedBy        Int?           @map("updated_by")
+    payableUpdatedAt DateTime?      @map("payable_updated_at")
+    createdAt        DateTime       @default(now()) @map("created_at")
+    updatedAt        DateTime       @updatedAt @map("updated_at")
 
     creator             User?                @relation("SupplierCreator", fields: [createdBy], references: [id], onDelete: SetNull)
     updater             User?                @relation("SupplierUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
@@ -278,9 +281,12 @@ model PurchaseOrder {
     warehouseId          Int                 @map("warehouse_id")
     orderDate            DateTime            @map("order_date") @db.Date
     expectedDeliveryDate DateTime?           @map("expected_delivery_date") @db.Date
+    subTotal             Decimal             @default(0) @map("sub_total") @db.Decimal(15, 2)
+    taxRate              Decimal             @default(0) @map("tax_rate") @db.Decimal(5, 2)
     totalAmount          Decimal             @default(0) @map("total_amount") @db.Decimal(15, 2)
     status               PurchaseOrderStatus @default(pending)
     notes                String?             @db.VarChar(255)
+    sendNumber           Int?                @map("send_number")
     createdBy            Int                 @map("created_by")
     approvedBy           Int?                @map("approved_by")
     createdAt            DateTime            @default(now()) @map("created_at")

@@ -26,6 +26,7 @@ import permissionRoutes from '@routes/permission.routes';
 import warehouseRoutes from '@routes/warehouse.routes';
 import categoryRoutes from '@routes/category.routes';
 import supplierRoutes from '@routes/supplier.routes';
+import purchaseOrderRoutes from '@routes/purchase-order.routes';
 import productRoutes from '@routes/product.routes';
 import inventoryRoutes from '@routes/inventory.routes';
 import stockTransactionRoutes from '@routes/stock-transaction.routes';
@@ -175,6 +176,7 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/warehouses', warehouseRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/suppliers', supplierRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/stock-transactions', stockTransactionRoutes);
@@ -235,6 +237,7 @@ app.listen(PORT, async () => {
 ║   🏢 Warehouse API: http://localhost:${PORT}/api/warehouses ║
 ║   📂 Category API: http://localhost:${PORT}/api/categories ║
 ║   🏭 Supplier API: http://localhost:${PORT}/api/suppliers ║
+║   🛒 Purchase Orders API: http://localhost:${PORT}/api/purchase-orders ║
 ║   📦 Product API: http://localhost:${PORT}/api/products   ║
 ║   📊 Inventory API: http://localhost:${PORT}/api/inventory ║
 ║   🔄 Stock Transaction API: http://localhost:${PORT}/api/stock-transactions ║
