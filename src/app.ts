@@ -210,7 +210,7 @@ app.use('/api/security', securityRoutes);
 
 
 //custommer service routes
-app.use('/api/cs/accounts', cs_accountRoutes);
+app.use('/api/accounts', cs_accountRoutes);
 app.use('/api/cs/categories', cs_categoryRoutes);
 app.use('/api/cs/products', cs_productRoutes);
 app.use('/api/cs/inventory', cs_inventoryRoutes);

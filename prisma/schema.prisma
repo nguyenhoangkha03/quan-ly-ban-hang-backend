@@ -831,6 +831,7 @@ model PaymentReceipt {
     approvedBy           Int?                 @map("approved_by")
     approvedAt           DateTime?            @map("approved_at")
     isPosted             Boolean              @default(false) @map("is_posted")
+    isVerified           Boolean              @default(false) @map("is_verified")
     notes                String?              @db.VarChar(255)
     createdBy            Int                  @map("created_by")
     createdAt            DateTime             @default(now()) @map("created_at")
@@ -1247,10 +1248,10 @@ enum CustomerStatus {
 }
 
 enum SalesChannel {
-    retail
-    wholesale
-    online
-    distributor
+    retail // bán lẻ
+    wholesale      // bán sỉ
+    online         // bán trực tuyến
+    distributor   // phân phối
 }
 
 enum AuthProvider {
@@ -1260,22 +1261,22 @@ enum AuthProvider {
 }
 
 enum PaymentMethod {
-    cash
+    cash  // tiền mặt
     transfer
-    installment
+    installment // trả góp
     credit
 }
 
 enum PaymentStatus {
-    unpaid
-    partial
+    unpaid // chưa thanh toán
+    partial // thanh toán một phần
     paid
 }
 
 enum OrderStatus {
     pending
-    preparing
-    delivering
+    preparing  // đang chuẩn bị
+    delivering  // đang giao hàng
     completed
     cancelled
 }

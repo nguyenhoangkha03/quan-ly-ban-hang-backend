@@ -1,19 +1,20 @@
 import { Response } from 'express';
 import { AuthRequest } from '@custom-types/common.type';
-import salesOrderService from '@services/sales_order.customer.service'; // Import Customer Service
+import salesOrderService from '@services/cs-sales_order.service';
 import { ApiResponse } from '@custom-types/common.type';
 import { NotFoundError } from '@utils/errors';
 import type {
     CreateCustomerSalesOrderInput,
     InitiateCustomerPaymentInput,
-} from '@validators/cs-sales_order.validator'; // Dùng validator mới
+    CustomerCancelOrderInput // Import type cho hủy đơn
+} from '@validators/cs-sales_order.validator'; 
 
 class CustomerSalesOrderController {
 
     private getCustomerId(req: AuthRequest): number {
         const customerId = req.user?.id;
         if (!customerId) {
-            // Dùng lỗi AuthorizationError hoặc AuthenticationError phù hợp
+            // Nên dùng AuthorizationError nếu có, NotFoundError là tạm thời
             throw new NotFoundError('Customer ID not found in token. Unauthorized.');
         }
         return customerId;
@@ -26,13 +27,12 @@ class CustomerSalesOrderController {
         const customerId = this.getCustomerId(req);
         const data = req.body as CreateCustomerSalesOrderInput;
 
-        // Service sẽ tự gán salesChannel: 'online' và customerId
         const result = await salesOrderService.createOrder(customerId, data);
 
         const response: ApiResponse = {
             success: true,
             data: result.order,
-            // Cảnh báo nếu có thiếu hàng (nếu bạn muốn thông báo cho khách hàng)
+            // Cảnh báo nếu có thiếu hàng 
             ...(result.inventoryShortages && {
                 warnings: {
                     inventoryShortages: result.inventoryShortages,
@@ -52,8 +52,8 @@ class CustomerSalesOrderController {
     // ========================================================
     async getMyOrders(req: AuthRequest, res: Response) {
         const customerId = this.getCustomerId(req);
-        // Customer chỉ có thể query trên đơn hàng của mình
-        const query = { ...req.query, customerId } as any;
+        // Gán customerId vào query để Service có thể lọc an toàn
+        const query = { ...req.query, customerId } as any; 
 
         const result = await salesOrderService.getMyOrders(query);
 
@@ -72,7 +72,6 @@ class CustomerSalesOrderController {
         const customerId = this.getCustomerId(req);
         const orderId = parseInt(req.params.id);
 
-        // Service phải tự kiểm tra quyền sở hữu
         const order = await salesOrderService.getOrderDetail(customerId, orderId);
 
         return res.status(200).json({
@@ -83,40 +82,41 @@ class CustomerSalesOrderController {
     }
 
     // ========================================================
-    // 4. POST /api/customer/orders/:id/payment - KHỞI TẠO THANH TOÁN
+    // 4. POST /api/customer/orders/:id/payment - KHỞI TẠO THANH TOÁN (QR/Link)
     // ========================================================
     async initiatePayment(req: AuthRequest, res: Response) {
         const customerId = this.getCustomerId(req);
         const orderId = parseInt(req.params.id);
         const data = req.body as InitiateCustomerPaymentInput;
 
-        // Service tạo PaymentReceipt tạm thời và trả về thông tin giao dịch (QR Code/Link)
+        // Trả về thông tin QR/Link và Receipt ID
         const paymentInfo = await salesOrderService.initiatePayment(customerId, orderId, data);
 
         return res.status(200).json({
             success: true,
             data: paymentInfo,
-            message: 'Payment initiation successful. Please complete transaction.',
+            message: 'Payment initiation successful. Please complete transaction using the provided QR code or link.',
             timestamp: new Date().toISOString(),
         });
     }
 
     // ========================================================
     // 5. PUT /api/customer/orders/:id/cancel - HỦY ĐƠN HÀNG CỦA KHÁCH HÀNG
-    // Khách hàng chỉ được hủy đơn đang 'pending'
     // ========================================================
     async cancelOrder(req: AuthRequest, res: Response) {
         const customerId = this.getCustomerId(req);
         const orderId = parseInt(req.params.id);
-        const { reason } = req.body as { reason: string }; // Cần schema validation cho reason
-
-        // Service sẽ kiểm tra quyền sở hữu và trạng thái (chỉ được hủy khi pending)
-        const order = await salesOrderService.customerCancelOrder(orderId, customerId, reason);
+        
+        // SỬA: Lấy reason từ body sử dụng CustomerCancelOrderInput
+        const data = req.body as CustomerCancelOrderInput; 
+        
+        // Service trả về { order: updatedOrder, message: ... }
+        const result = await salesOrderService.customerCancelOrder(orderId, customerId, data); 
 
         return res.status(200).json({
             success: true,
-            data: order,
-            message: 'Sales order cancelled successfully.',
+            data: result.order, // Trả về đơn hàng đã bị hủy
+            message: result.message,
             timestamp: new Date().toISOString(),
         });
     }

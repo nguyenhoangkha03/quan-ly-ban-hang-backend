@@ -67,6 +67,13 @@ function handleLoginSuccess(responseData) {
         localStorage.setItem('accessToken', responseData.tokens.accessToken);
         localStorage.setItem('refreshToken', responseData.tokens.refreshToken);
     }
+
+    // // DÒNG BỔ SUNG ĐỂ LẤY TOKEN NHANH:
+    //     console.log("-------------------------------------------------------------------");
+    //     console.log("✅ LOGIN SUCCESS. COPY ACCESS TOKEN BELOW:");
+    //     console.log(`Token to use in test file: Bearer ${responseData.tokens.accessToken}`);
+    //     console.log("-------------------------------------------------------------------");
+    //     // =======================================
     
     // 2. Lấy thông tin khách hàng (Backend giờ trả về 'customer' thay vì 'account')
     const customer = responseData.customer;
@@ -224,6 +231,7 @@ async function handleVerifyOtp() {
 
         } else {
             showToast(json.message || 'Lỗi đồng bộ tài khoản', 'error');
+            console.error('Sync Error:', json);
         }
     } catch (err) {
         showToast('Lỗi server khi đồng bộ', 'error');
