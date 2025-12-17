@@ -21,6 +21,10 @@ export const productInventorySchema = z.object({
   productId: z.string().transform(Number),
 });
 
+export const getProductAvailabilitySchema = z.object({
+  id: z.coerce.number().int().positive('Product ID must be a valid positive number'),
+});
+
 export const checkInventorySchema = z.object({
   items: z
     .array(
@@ -86,3 +90,4 @@ export type UpdateInventoryInput = z.infer<typeof updateInventorySchema>;
 export type AdjustInventoryInput = z.infer<typeof adjustInventorySchema>;
 export type ReserveInventoryInput = z.infer<typeof reserveInventorySchema>;
 export type ReleaseReservedInput = z.infer<typeof releaseReservedSchema>;
+export type GetProductAvailabilityInput = z.infer<typeof getProductAvailabilitySchema>;

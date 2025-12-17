@@ -1,8 +1,13 @@
 import { PrismaClient } from '@prisma/client';
-import { ValidationError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
+import RedisService, { CachePrefix } from './redis.service';
+
 
 
 const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
+
+const INVENTORY_CACHE_TTL = parseInt(process.env.CACHE_TTL_INVENTORY || '300');
 
 
 class PublicInventoryService {
@@ -44,7 +49,6 @@ class PublicInventoryService {
                 },
             });
 
-            // Tương tự Admin: Nếu không tìm thấy record
             if (!inventory) {
                 results.push({
                     productId: item.productId,
@@ -55,7 +59,7 @@ class PublicInventoryService {
                 continue;
             }
 
-            // QUAN TRỌNG: Kiểm tra Sản phẩm có Active không
+            // Kiểm tra Sản phẩm có Active không
             if (inventory.product.status !== 'active') {
                 results.push({
                     productId: item.productId,
@@ -75,8 +79,7 @@ class PublicInventoryService {
                 product: { sku: inventory.product.sku, productName: inventory.product.productName },
                 warehouse: { warehouseName: inventory.warehouse.warehouseName },
                 requestedQuantity: item.quantity,
-                // BỎ currentQuantity, reservedQuantity (chi tiết nội bộ)
-                availableQuantity: availableQty, // Vẫn trả về để khách hàng biết còn bao nhiêu
+                availableQuantity: availableQty,
                 isAvailable: availableQty >= item.quantity,
                 shortfall: Math.max(0, item.quantity - availableQty),
                 message:
@@ -97,6 +100,97 @@ class PublicInventoryService {
                 unavailableItems: results.filter((r) => !r.isAvailable).length,
             },
         };
+    }
+
+
+    async getProductAvailability(productId: number) {
+        // 1. Thay đổi Cache Key: Dùng prefix khác để không trùng với Admin
+        const cacheKey = `${CachePrefix.INVENTORY}public:product:${productId}`;
+        const cached = await redis.get(cacheKey);
+        if (cached) return cached;
+
+        // 2. Chỉ lấy sản phẩm đang Active 
+        const product = await prisma.product.findUnique({
+            where: { id: productId, status: 'active' },
+            // Chỉ lấy thông tin cơ bản để hiển thị
+            select: {
+                id: true,
+                productName: true,
+                sku: true,
+                unit: true,
+                productType: true
+            }
+        });
+
+        if (!product) {
+            throw new NotFoundError('Product not found or inactive');
+        }
+
+        // 3. Lấy tồn kho
+        const inventory = await prisma.inventory.findMany({
+            where: {
+                productId,
+                // Chỉ lấy các kho đang hoạt động (tránh hiện kho đã đóng cửa/bảo trì)
+                warehouse: { status: 'active' }
+            },
+            select: {
+                // Chỉ lấy số liệu cần thiết để tính toán
+                quantity: true,
+                reservedQuantity: true,
+                warehouse: {
+                    select: {
+                        // Chỉ lấy thông tin địa chỉ để khách tìm đến
+                        warehouseName: true,
+                        address: true,
+                        city: true,
+                        region: true,
+                    },
+                },
+            },
+            // Sắp xếp theo khu vực/tên để dễ nhìn
+            orderBy: { warehouse: { city: 'asc' } },
+        });
+
+        // 4. Xử lý logic hiển thị cho khách hàng
+        const stockLocations = inventory.map((inv) => {
+            // Tính số lượng thực tế có thể bán
+            const rawAvailable = Number(inv.quantity) - Number(inv.reservedQuantity);
+
+            // Đảm bảo không bao giờ trả về số âm
+            const finalAvailable = Math.max(0, rawAvailable);
+
+            // Logic xác định trạng thái văn bản
+            let statusMessage = 'Còn hàng';
+            if (finalAvailable === 0) {
+                statusMessage = 'Hết hàng';
+            } else if (finalAvailable < 10) {
+                statusMessage = 'Sắp hết hàng';
+            }
+
+            return {
+                warehouseName: inv.warehouse.warehouseName,
+                address: inv.warehouse.address,
+                city: inv.warehouse.city,
+                region: inv.warehouse.region,
+                // Trả về số lượng cụ thể và trạng thái rõ ràng
+                availableQuantity: finalAvailable,
+                status: statusMessage
+            };
+        });
+
+        const result = {
+            product: product,
+            stockLocations: stockLocations,
+            // Tổng hợp nhanh để hiện ở header trang chi tiết (nếu cần)
+            summary: {
+                totalAvailable: stockLocations.reduce((sum, loc) => sum + loc.availableQuantity, 0),
+                inStockLocations: stockLocations.filter(l => l.availableQuantity > 0).length
+            }
+        };
+
+        await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
+
+        return result;
     }
 }
 

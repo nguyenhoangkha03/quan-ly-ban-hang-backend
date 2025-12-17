@@ -13,7 +13,7 @@ const router = Router();
 // ==========================================
 
 /**
- * GET /api/public/products/
+ * GET /api/cs/categories
  * Lấy danh sách sản phẩm đang hoạt động (active)
  * Khách hàng có thể tìm kiếm, lọc theo categoryId, productType.
  */
