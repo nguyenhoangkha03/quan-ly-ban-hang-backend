@@ -336,6 +336,7 @@ model Product {
     minStockLevel         Decimal        @default(0) @map("min_stock_level") @db.Decimal(15, 2)
     expiryDate            DateTime?      @map("expiry_date") @db.Date
     status                ProductStatus  @default(active)
+    isFeatured            Boolean        @default(false) @map("is_featured")
     createdBy             Int?           @map("created_by")
     updatedBy             Int?           @map("updated_by")
     createdAt             DateTime       @default(now()) @map("created_at")
@@ -366,6 +367,7 @@ model Product {
     @@index([productType])
     @@index([status])
     @@index([productName])
+    @@index([isFeatured])
     @@map("products")
 }
 

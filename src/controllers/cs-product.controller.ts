@@ -1,26 +1,21 @@
 import { Response } from 'express';
 import { AuthRequest } from '@custom-types/common.type';
-// Giả định bạn đã tạo product.public.service
 import productService from '@services/cs-product.service'; 
 import { ApiResponse } from '@custom-types/common.type';
+import { ProductQueryInput } from '@validators/product.validator';
 
 class PublicProductController {
     
     // GET /api/cs/categories - Lấy danh sách sản phẩm (có filter/search/pagination/sorting/status)
      async getAll(req: AuthRequest, res: Response) {
-       const { page, limit, search, productType, categoryId, supplierId, sortBy, sortOrder } =
-         req.query as any;
+       // 1. Ép kiểu req.query về ProductQueryInput do zod
+       const queryParams = req.query as unknown as ProductQueryInput;
    
+       // 2. Gọi Service truyền thẳng object vào
        const result = await productService.getAll({
-         page: parseInt(page) || 1,
-         limit: parseInt(limit) || 20,
-         search,
-         productType,
-         categoryId: categoryId ? parseInt(categoryId) : undefined,
-         supplierId: supplierId ? parseInt(supplierId) : undefined,
-         status: 'active',
-         sortBy,
-         sortOrder,
+         ...queryParams, // Spread toàn bộ tham số (page, limit, search...)
+         
+         status: 'active', 
        });
    
        const response: ApiResponse = {

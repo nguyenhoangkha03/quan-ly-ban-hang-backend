@@ -96,6 +96,19 @@ export const updateProductSchema = z.object({
   status: z.enum(['active', 'inactive', 'discontinued']).optional(),
 });
 
+export const updateFeaturedSchema = z.object({
+  action: z.enum(['set_featured', 'unset_featured', 'reset_all']),
+  productIds: z.array(z.number().int().positive()).optional(),
+}).refine((data) => {
+  if (['set_featured', 'unset_featured'].includes(data.action)) {
+    return data.productIds && data.productIds.length > 0;
+  }
+  return true;
+}, {
+  message: "productIds is required for set/unset actions",
+  path: ["productIds"]
+});
+
 export const productQuerySchema = z.object({
   page: z.string().optional().default('1').transform(Number),
   limit: z.string().optional().default('20').transform(Number),
@@ -122,6 +135,10 @@ export const productQuerySchema = z.object({
     .refine((val) => !!val, { message: 'Invalid sort order' })
     .optional()
     .default('desc'),
+  isFeatured: z
+    .string()
+    .optional()
+    .transform((val) => (val === 'true' ? true : val === 'false' ? false : undefined)),
 });
 
 export const productIdSchema = z.object({
@@ -175,6 +192,7 @@ export const deleteVideoSchema = z.object({
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export type UpdateFeaturedInput = z.infer<typeof updateFeaturedSchema>;
 export type ProductQueryInput = z.infer<typeof productQuerySchema>;
 export type ProductIdInput = z.infer<typeof productIdSchema>;
 export type UploadProductImagesInput = z.infer<typeof uploadProductImagesSchema>;

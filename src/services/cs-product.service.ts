@@ -24,9 +24,19 @@ class ProductService {
       status = 'active',
       sortBy = 'createdAt',
       sortOrder = 'desc',
+      isFeatured,
     } = params;
 
     const offset = (page - 1) * limit;
+
+    let isFeaturedFilter: boolean | undefined = undefined;
+    if (isFeatured !== undefined) {
+      if (typeof isFeatured === 'boolean') {
+        isFeaturedFilter = isFeatured;
+      } else if (typeof isFeatured === 'string') {
+        isFeaturedFilter = isFeatured === 'true';
+      }
+    }
 
     const where: Prisma.ProductWhereInput = {
       ...(search && {
@@ -37,9 +47,14 @@ class ProductService {
         ],
       }),
       ...(productType && { productType: productType as any }),
+
+
       ...(categoryId && { categoryId }),
       ...(supplierId && { supplierId }),
       ...(status && { status: status as any }),
+
+      // Logic lọc Banner/Nổi bật
+      ...(isFeaturedFilter !== undefined && { isFeatured: isFeaturedFilter }),
     };
 
     const total = await prisma.product.count({ where });
