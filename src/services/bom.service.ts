@@ -1,6 +1,6 @@
 import { PrismaClient, Prisma, ProductType } from '@prisma/client';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
-import RedisService, { CachePrefix } from './redis.service';
+import RedisService from './redis.service';
 import { logActivity } from '@utils/logger';
 import {
   CreateBomInput,
@@ -13,20 +13,35 @@ const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
 
 const BOM_CACHE_TTL = 3600;
+const BOM_LIST_CACHE_TTL = 300;
 
 class BomService {
-  async getAll(params: BomQueryInput) {
+  async getAll(query: BomQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
       search,
       status,
       finishedProductId,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-    } = params;
+    } = query;
 
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Tạo khóa cache cho nhất quán
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `bom:list:${queryString}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.BomWhereInput = {
       ...(status && { status }),
@@ -42,6 +57,9 @@ class BomService {
     const [boms, total] = await Promise.all([
       prisma.bom.findMany({
         where,
+        skip,
+        take: limitNum,
+        orderBy: { [sortBy]: sortOrder },
         include: {
           finishedProduct: {
             select: {
@@ -80,30 +98,37 @@ class BomService {
             },
           },
         },
-        skip: offset,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
       }),
       prisma.bom.count({ where }),
     ]);
 
-    return {
+    const result = {
       data: boms,
       meta: {
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limitNum),
       },
+      message: 'Lấy danh sách BOM thành công',
     };
+
+    await redis.set(cacheKey, result, BOM_LIST_CACHE_TTL);
+
+    return result;
   }
 
   async getById(id: number) {
-    const cacheKey = `${CachePrefix.PRODUCT}bom:${id}`;
+    const cacheKey = `bom:${id}`;
+
     const cached = await redis.get(cacheKey);
+
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const bom = await prisma.bom.findUnique({
       where: { id },
@@ -267,6 +292,8 @@ class BomService {
       },
     });
 
+    await redis.flushPattern(`bom:list:*`);
+
     logActivity('create', userId, 'bom', {
       recordId: bom.id,
       bomCode: bom.bomCode,
@@ -380,7 +407,8 @@ class BomService {
       },
     });
 
-    await redis.del(`${CachePrefix.PRODUCT}bom:${id}`);
+    await redis.flushPattern(`bom:list:*`);
+    await redis.del(`bom:${id}`);
 
     logActivity('update', userId, 'bom', {
       recordId: id,
@@ -419,7 +447,8 @@ class BomService {
       where: { id },
     });
 
-    await redis.del(`${CachePrefix.PRODUCT}bom:${id}`);
+    await redis.flushPattern(`bom:list:*`);
+    await redis.del(`bom:${id}`);
 
     logActivity('delete', userId, 'bom', {
       recordId: id,
@@ -475,7 +504,8 @@ class BomService {
       },
     });
 
-    await redis.del(`${CachePrefix.PRODUCT}bom:${id}`);
+    await redis.flushPattern(`bom:list:*`);
+    await redis.del(`bom:${id}`);
 
     logActivity('approve', userId, 'bom', {
       recordId: id,
@@ -488,6 +518,14 @@ class BomService {
 
   async calculateMaterials(params: CalculateMaterialsInput) {
     const { bomId, productionQuantity } = params;
+    const materialShortages: Array<{
+      materialId: number;
+      materialName: string;
+      materialSku: string;
+      required: number;
+      available: number;
+      shortage: number;
+    }> = [];
 
     const bom = await prisma.bom.findUnique({
       where: { id: bomId },
@@ -538,28 +576,67 @@ class BomService {
         totalQuantityNeeded: Math.ceil(adjustedQuantity * 100) / 100,
         unitPrice: Number(bomMaterial.material.purchasePrice) || 0,
         estimatedCost: Math.ceil(estimatedCost * 100) / 100,
+        notes: bomMaterial.notes,
       };
     });
 
+    // Kiểm tra thiếu hụt tồn kho
+    for (const material of materialsNeeded) {
+      const warehouseType = material.materialType === 'raw_material' ? 'raw_material' : 'packaging';
+
+      const inventoryRecords = await prisma.inventory.findMany({
+        where: {
+          productId: material.materialId,
+          warehouse: {
+            warehouseType,
+            status: 'active',
+          },
+        },
+      });
+
+      const totalAvailable = inventoryRecords.reduce(
+        (sum, inv) => sum + (Number(inv.quantity) - Number(inv.reservedQuantity)),
+        0
+      );
+
+      if (totalAvailable < material.totalQuantityNeeded) {
+        materialShortages.push({
+          materialId: material.materialId,
+          materialName: material.materialName,
+          materialSku: material.materialSku,
+          required: material.totalQuantityNeeded,
+          available: Math.max(0, totalAvailable),
+          shortage: material.totalQuantityNeeded - totalAvailable,
+        });
+      }
+    }
+
     const totalCost = materialsNeeded.reduce((sum, m) => sum + m.estimatedCost, 0);
 
-    return {
-      bomId: bom.id,
-      bomCode: bom.bomCode,
-      finishedProduct: {
-        id: bom.finishedProduct.id,
-        name: bom.finishedProduct.productName,
-        unit: bom.finishedProduct.unit,
+    const result = {
+      data: {
+        bomId: bom.id,
+        bomCode: bom.bomCode,
+        finishedProduct: {
+          id: bom.finishedProduct.id,
+          name: bom.finishedProduct.productName,
+          unit: bom.finishedProduct.unit,
+        },
+        productionQuantity,
+        outputQuantityPerBatch: Number(bom.outputQuantity),
+        batchCount: Math.ceil(batchCount * 100) / 100,
+        efficiencyRate: Number(bom.efficiencyRate),
+        materials: materialsNeeded,
+        totalEstimatedCost: Math.ceil(totalCost * 100) / 100,
+        costPerUnit:
+          productionQuantity > 0 ? Math.ceil((totalCost / productionQuantity) * 100) / 100 : 0,
+        shortages: materialShortages,
+        hasShortages: materialShortages.length > 0,
       },
-      productionQuantity,
-      outputQuantityPerBatch: Number(bom.outputQuantity),
-      batchCount: Math.ceil(batchCount * 100) / 100,
-      efficiencyRate: Number(bom.efficiencyRate),
-      materials: materialsNeeded,
-      totalEstimatedCost: Math.ceil(totalCost * 100) / 100,
-      costPerUnit:
-        productionQuantity > 0 ? Math.ceil((totalCost / productionQuantity) * 100) / 100 : 0,
+      message: 'Tính toán nguyên liệu thành công',
     };
+
+    return result;
   }
 
   async getByFinishedProduct(finishedProductId: number) {
@@ -608,7 +685,8 @@ class BomService {
       },
     });
 
-    await redis.del(`${CachePrefix.PRODUCT}bom:${id}`);
+    await redis.flushPattern(`bom:list:*`);
+    await redis.del(`bom:${id}`);
 
     logActivity('update', userId, 'bom', {
       recordId: id,

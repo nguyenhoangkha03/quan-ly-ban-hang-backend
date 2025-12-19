@@ -9,6 +9,7 @@ import {
   updateCategorySchema,
   queryCategoriesSchema,
 } from '@validators/category.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -25,6 +26,17 @@ router.get(
   authorize('view_products'),
   validate(queryCategoriesSchema, 'query'),
   asyncHandler(categoryController.getAllCategories.bind(categoryController))
+);
+
+/**
+ * GET /api/categories/stats/overview
+ * Get category statistics (total, active, inactive, top categories)
+ * Permission: view_products
+ */
+router.get(
+  '/stats/overview',
+  authorize('view_products'),
+  asyncHandler(categoryController.getCategoryStats.bind(categoryController))
 );
 
 /**
@@ -58,6 +70,7 @@ router.post(
   '/',
   authorize('create_product'),
   validate(createCategorySchema),
+  logActivityMiddleware('create', 'category'),
   asyncHandler(categoryController.createCategory.bind(categoryController))
 );
 
@@ -70,6 +83,7 @@ router.put(
   '/:id',
   authorize('update_product'),
   validate(updateCategorySchema),
+  logActivityMiddleware('update', 'category'),
   asyncHandler(categoryController.updateCategory.bind(categoryController))
 );
 
@@ -81,6 +95,7 @@ router.put(
 router.delete(
   '/:id',
   authorize('delete_product'),
+  logActivityMiddleware('delete', 'category'),
   asyncHandler(categoryController.deleteCategory.bind(categoryController))
 );
 

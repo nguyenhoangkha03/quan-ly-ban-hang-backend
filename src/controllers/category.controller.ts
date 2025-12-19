@@ -10,6 +10,7 @@ class CategoryController {
 
     const response: ApiResponse = {
       success: true,
+      message: result.message,
       data: result.data,
       meta: result.meta,
       timestamp: new Date().toISOString(),
@@ -53,7 +54,7 @@ class CategoryController {
     const response: ApiResponse = {
       success: true,
       data: category,
-      message: 'Category created successfully',
+      message: 'Tạo danh mục thành công',
       timestamp: new Date().toISOString(),
     };
 
@@ -69,7 +70,7 @@ class CategoryController {
     const response: ApiResponse = {
       success: true,
       data: category,
-      message: 'Category updated successfully',
+      message: 'Cập nhật danh mục thành công',
       timestamp: new Date().toISOString(),
     };
 
@@ -85,6 +86,19 @@ class CategoryController {
     const response: ApiResponse = {
       success: true,
       data: result,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/categories/stats/overview
+  async getCategoryStats(_req: AuthRequest, res: Response) {
+    const stats = await categoryService.getCategoryStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
       timestamp: new Date().toISOString(),
     };
 

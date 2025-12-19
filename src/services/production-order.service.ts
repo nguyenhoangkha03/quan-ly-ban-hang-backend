@@ -10,8 +10,13 @@ import {
   CancelProductionInput,
   ProductionOrderQueryInput,
 } from '@validators/production-order.validator';
+import RedisService from './redis.service';
 
 const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
+
+const PRODUCTION_ORDER_CACHE_TTL = 3600;
+const PRODUCTION_ORDER_LIST_CACHE_TTL = 300;
 
 class ProductionOrderService {
   private async generateOrderCode(): Promise<string> {
@@ -31,10 +36,10 @@ class ProductionOrderService {
     return `LSX-${dateStr}-${sequence}`;
   }
 
-  async getAll(params: ProductionOrderQueryInput) {
+  async getAll(query: ProductionOrderQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
       search,
       status,
       bomId,
@@ -43,9 +48,23 @@ class ProductionOrderService {
       toDate,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-    } = params;
+    } = query;
 
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Tạo khóa cache cho nhất quán
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `production-order:list:${queryString}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.ProductionOrderWhereInput = {
       ...(status && { status }),
@@ -69,6 +88,9 @@ class ProductionOrderService {
     const [orders, total] = await Promise.all([
       prisma.productionOrder.findMany({
         where,
+        skip,
+        take: limitNum,
+        orderBy: { [sortBy]: sortOrder },
         include: {
           bom: {
             select: {
@@ -107,31 +129,107 @@ class ProductionOrderService {
               employeeCode: true,
             },
           },
+          materials: {
+            include: {
+              material: {
+                select: {
+                  id: true,
+                  productName: true,
+                  unit: true,
+                  inventory: {
+                    select: {
+                      warehouseId: true,
+                      quantity: true,
+                      reservedQuantity: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           _count: {
             select: {
               materials: true,
             },
           },
         },
-        skip: offset,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
       }),
       prisma.productionOrder.count({ where }),
     ]);
 
-    return {
-      data: orders,
+    const enrichedOrders = orders.map((order) => {
+      if (order.status !== 'pending') {
+        const { materials, ...orderWithoutMaterials } = order;
+        return {
+          ...orderWithoutMaterials,
+          materialAvailability: null,
+        };
+      }
+
+      const missingItems: any[] = [];
+      let isSufficient = true;
+
+      for (const item of order.materials) {
+        const requiredQty = Number(item.plannedQuantity);
+
+        const totalAvailable = item.material.inventory.reduce((sum, inv) => {
+          const availalble = Number(inv.quantity) - Number(inv.reservedQuantity);
+
+          return sum + (availalble > 0 ? availalble : 0);
+        }, 0);
+
+        if (totalAvailable < requiredQty) {
+          isSufficient = false;
+          missingItems.push({
+            materialId: item.materialId,
+            materialName: item.material.productName,
+            unit: item.material.unit,
+            required: requiredQty,
+            available: totalAvailable,
+            missing: requiredQty - totalAvailable,
+          });
+        }
+      }
+
+      const { materials, ...orderRest } = order;
+
+      return {
+        ...orderRest,
+        materialAvailability: {
+          status: isSufficient ? 'sufficient' : 'insufficient',
+          missingItems: missingItems,
+        },
+      };
+    });
+
+    const result = {
+      data: enrichedOrders,
       meta: {
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limitNum),
       },
+      message: 'Lấy danh sách lệnh sản xuất thành công',
     };
+
+    await redis.set(cacheKey, result, PRODUCTION_ORDER_LIST_CACHE_TTL);
+
+    return result;
   }
 
   async getById(id: number) {
+    const cacheKey = `production-order:${id}`;
+
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
+
     const order = await prisma.productionOrder.findUnique({
       where: { id },
       include: {
@@ -172,6 +270,13 @@ class ProductionOrderService {
                 productName: true,
                 productType: true,
                 unit: true,
+                inventory: {
+                  select: {
+                    warehouseId: true,
+                    quantity: true,
+                    reservedQuantity: true,
+                  },
+                },
               },
             },
             stockTransaction: {
@@ -210,20 +315,53 @@ class ProductionOrderService {
     });
 
     if (!order) {
-      throw new NotFoundError('Production order not found');
+      throw new NotFoundError('Không tìm thấy lệnh sản xuất');
     }
 
-    return order;
+    // Calculate material shortages for pending orders
+    let shortages: any[] = [];
+    if (order.status === 'pending') {
+      for (const item of order.materials) {
+        const requiredQty = Number(item.plannedQuantity);
+
+        const totalAvailable = item.material.inventory.reduce((sum: number, inv: any) => {
+          const available = Number(inv.quantity) - Number(inv.reservedQuantity);
+          return sum + (available > 0 ? available : 0);
+        }, 0);
+
+        if (totalAvailable < requiredQty) {
+          shortages.push({
+            materialId: item.materialId,
+            materialName: item.material.productName,
+            materialType: item.materialType,
+            required: requiredQty,
+            available: totalAvailable,
+            shortage: requiredQty - totalAvailable,
+            unit: item.material.unit,
+          });
+        }
+      }
+    }
+
+    // Build response with shortages
+    const responseData = {
+      ...order,
+      shortages,
+    };
+
+    await redis.set(cacheKey, responseData, PRODUCTION_ORDER_CACHE_TTL);
+
+    return responseData;
   }
 
   async create(data: CreateProductionOrderInput, userId: number) {
     const bom = await bomService.getById(data.bomId);
     if (!bom) {
-      throw new NotFoundError('BOM not found');
+      throw new NotFoundError('Không tìm thấy BOM');
     }
 
     if (bom.status !== 'active') {
-      throw new ValidationError('BOM must be active to create production order');
+      throw new ValidationError('BOM phải là trạng thái active để tạo đơn sản xuất');
     }
 
     if (data.warehouseId) {
@@ -232,17 +370,15 @@ class ProductionOrderService {
       });
 
       if (!warehouse) {
-        throw new NotFoundError('Warehouse not found');
+        throw new NotFoundError('Không tìm thấy kho');
       }
 
       if (warehouse.status !== 'active') {
-        throw new ValidationError('Warehouse must be active');
+        throw new ValidationError('Kho phải là trạng thái active để tạo đơn sản xuất');
       }
 
       if (warehouse.warehouseType !== 'finished_product') {
-        throw new ValidationError(
-          'Warehouse must be of type finished_product for production orders'
-        );
+        throw new ValidationError('Kho không phù hợp. Vui lòng chọn kho thành phẩm.');
       }
     }
 
@@ -250,48 +386,6 @@ class ProductionOrderService {
       bomId: data.bomId,
       productionQuantity: data.plannedQuantity,
     });
-
-    const materialShortages: Array<{
-      materialName: string;
-      required: number;
-      available: number;
-      shortage: number;
-    }> = [];
-
-    for (const material of materialCalculation.materials) {
-      const warehouseType = material.materialType === 'raw_material' ? 'raw_material' : 'packaging';
-
-      const inventoryRecords = await prisma.inventory.findMany({
-        where: {
-          productId: material.materialId,
-          warehouse: {
-            warehouseType,
-            status: 'active',
-          },
-        },
-        include: {
-          warehouse: {
-            select: {
-              warehouseName: true,
-            },
-          },
-        },
-      });
-
-      const totalAvailable = inventoryRecords.reduce(
-        (sum, inv) => sum + (Number(inv.quantity) - Number(inv.reservedQuantity)),
-        0
-      );
-
-      if (totalAvailable < material.totalQuantityNeeded) {
-        materialShortages.push({
-          materialName: material.materialName,
-          required: material.totalQuantityNeeded,
-          available: totalAvailable,
-          shortage: material.totalQuantityNeeded - totalAvailable,
-        });
-      }
-    }
 
     const orderCode = await this.generateOrderCode();
 
@@ -308,11 +402,12 @@ class ProductionOrderService {
         status: 'pending',
         createdBy: userId,
         materials: {
-          create: materialCalculation.materials.map((mat) => ({
+          create: materialCalculation.data.materials.map((mat) => ({
             materialId: mat.materialId,
             plannedQuantity: mat.totalQuantityNeeded,
             unitPrice: mat.unitPrice,
             materialType: mat.materialType,
+            notes: mat.notes,
           })),
         },
       },
@@ -328,16 +423,14 @@ class ProductionOrderService {
       },
     });
 
+    await redis.flushPattern('production-order:list:*');
+
     logActivity('create', userId, 'production_orders', {
       recordId: productionOrder.id,
       orderCode: productionOrder.orderCode,
     });
 
-    return {
-      productionOrder,
-      materialShortages: materialShortages.length > 0 ? materialShortages : undefined,
-      estimatedCost: materialCalculation.totalEstimatedCost,
-    };
+    return productionOrder;
   }
 
   async update(id: number, data: UpdateProductionOrderInput, userId: number) {
@@ -346,11 +439,11 @@ class ProductionOrderService {
     });
 
     if (!order) {
-      throw new NotFoundError('Production order not found');
+      throw new NotFoundError('Lệnh sản xuất không tồn tại');
     }
 
     if (order.status !== 'pending') {
-      throw new ValidationError('Can only update production orders with pending status');
+      throw new ValidationError('Chỉ có thể cập nhật lệnh sản xuất ở trạng thái pending');
     }
 
     const updatedOrder = await prisma.productionOrder.update({
@@ -397,11 +490,11 @@ class ProductionOrderService {
     });
 
     if (!order) {
-      throw new NotFoundError('Production order not found');
+      throw new NotFoundError('Lệnh sản xuất không tồn tại');
     }
 
     if (order.status !== 'pending') {
-      throw new ValidationError('Can only start production orders with pending status');
+      throw new ValidationError('Chỉ có thể bắt đầu lệnh sản xuất ở trạng thái pending');
     }
 
     const materialShortages: Array<{
@@ -438,7 +531,7 @@ class ProductionOrderService {
     }
 
     if (materialShortages.length > 0) {
-      throw new ValidationError('Insufficient materials to start production', materialShortages);
+      throw new ValidationError('Không đủ nguyên vật liệu để bắt đầu sản xuất', materialShortages);
     }
 
     const stockTransactionCode = `PXK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${

@@ -36,22 +36,20 @@ export const conditionsSchema = z
 
 // Query Schema
 export const promotionQuerySchema = z.object({
-  query: z.object({
-    page: z.string().regex(/^\d+$/).transform(Number).optional(),
-    limit: z.string().regex(/^\d+$/).transform(Number).optional(),
-    search: z.string().optional(),
-    promotionType: promotionTypeEnum.optional(),
-    status: promotionStatusEnum.optional(),
-    applicableTo: applicableToEnum.optional(),
-    startDate: z.string().optional(),
-    endDate: z.string().optional(),
-    isActive: z.enum(['true', 'false']).optional(),
-    sortBy: z.string().optional(),
-    sortOrder: z.enum(['asc', 'desc']).optional(),
-  }),
+  page: z.string().regex(/^\d+$/).transform(Number).optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).optional(),
+  search: z.string().optional(),
+  promotionType: promotionTypeEnum.optional(),
+  status: promotionStatusEnum.optional(),
+  applicableTo: applicableToEnum.optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  isActive: z.enum(['true', 'false']).optional(),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
 });
 
-export type PromotionQueryInput = z.infer<typeof promotionQuerySchema>['query'];
+export type PromotionQueryInput = z.infer<typeof promotionQuerySchema>;
 
 // Create Promotion Schema
 export const createPromotionSchema = z.object({
@@ -205,10 +203,10 @@ export type ApplyPromotionInput = z.infer<typeof applyPromotionSchema>['body'];
 
 // Get Active Promotions Schema
 export const getActivePromotionsSchema = z.object({
-  query: z.object({
-    date: z.string().optional(), // Check active promotions at specific date
-    applicableTo: applicableToEnum.optional(),
-    productId: z.string().regex(/^\d+$/).transform(Number).optional(),
-    categoryId: z.string().regex(/^\d+$/).transform(Number).optional(),
-  }),
+  date: z.string().optional(), // Check active promotions at specific date
+  applicableTo: applicableToEnum.optional(),
+  productId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  categoryId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  status: promotionStatusEnum.optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).optional(),
 });

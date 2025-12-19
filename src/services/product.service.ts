@@ -915,12 +915,130 @@ class ProductService {
     return serializeBigInt(updatedVideo);
   }
 
+  async getStats() {
+    const cacheKey = 'product:stats';
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Get all products with counts
+    const products = await prisma.product.findMany({
+      select: {
+        id: true,
+        productName: true,
+        productType: true,
+        status: true,
+        supplierId: true,
+        categoryId: true,
+      },
+    });
+
+    // Calculate statistics
+    const totalProducts = products.length;
+    const activeCount = products.filter(p => p.status === 'active').length;
+    const inactiveCount = products.filter(p => p.status === 'inactive').length;
+    const discontinuedCount = products.filter(p => p.status === 'discontinued').length;
+
+    const rawMaterialCount = products.filter(p => p.productType === 'raw_material').length;
+    const packagingCount = products.filter(p => p.productType === 'packaging').length;
+    const finishedCount = products.filter(p => p.productType === 'finished_product').length;
+    const goodsCount = products.filter(p => p.productType === 'goods').length;
+
+    const withoutSupplier = products.filter(p => !p.supplierId).length;
+    const withoutCategory = products.filter(p => !p.categoryId).length;
+
+    const stats = {
+      totalProducts,
+      byStatus: {
+        active: activeCount,
+        inactive: inactiveCount,
+        discontinued: discontinuedCount,
+      },
+      byType: {
+        rawMaterial: rawMaterialCount,
+        packaging: packagingCount,
+        finished: finishedCount,
+        goods: goodsCount,
+      },
+      dataQuality: {
+        withoutSupplier,
+        withoutCategory,
+      },
+    };
+
+    await redis.set(cacheKey, stats, PRODUCT_CACHE_TTL);
+
+    return stats;
+  }
+
+  async getRawMaterialStats() {
+    const cacheKey = 'product:stats:raw-materials';
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Get all raw materials with inventory info
+    const rawMaterials = await prisma.product.findMany({
+      where: {
+        productType: 'raw_material',
+      },
+      include: {
+        inventory: true,
+      },
+    });
+
+    // Calculate statistics
+    const totalRawMaterials = rawMaterials.length;
+    const activeCount = rawMaterials.filter(p => p.status === 'active').length;
+    const inactiveCount = rawMaterials.filter(p => p.status === 'inactive').length;
+    const discontinuedCount = rawMaterials.filter(p => p.status === 'discontinued').length;
+
+    // Count low stock (quantity < minStockLevel)
+    let lowStockCount = 0;
+    for (const material of rawMaterials) {
+      const totalInventory = material.inventory.reduce((sum, inv) => sum + Number(inv.quantity), 0);
+      if (totalInventory < Number(material.minStockLevel)) {
+        lowStockCount++;
+      }
+    }
+
+    // Count expiring soon (7 days from now)
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    let expiringCount = 0;
+    for (const material of rawMaterials) {
+      if (material.expiryDate && new Date(material.expiryDate) <= sevenDaysFromNow) {
+        expiringCount++;
+      }
+    }
+
+    const stats = {
+      totalRawMaterials,
+      byStatus: {
+        active: activeCount,
+        inactive: inactiveCount,
+        discontinued: discontinuedCount,
+      },
+      lowStockCount,
+      expiringCount,
+      discontinuedCount,
+    };
+
+    await redis.set(cacheKey, stats, PRODUCT_CACHE_TTL);
+
+    return stats;
+  }
+
   private async invalidateCache(productId?: number) {
     if (productId) {
       await redis.del(`${CachePrefix.PRODUCT}${productId}`);
     }
 
     await redis.flushPattern(`${CachePrefix.PRODUCT}list:*`);
+    await redis.del('product:stats');
+    await redis.del('product:stats:raw-materials');
   }
 }
 

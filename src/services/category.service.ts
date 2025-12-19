@@ -30,11 +30,18 @@ class CategoryService {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    const cacheKey = `category:list:${JSON.stringify(query)}`;
+    // Tạo khóa cache cho nhất quán
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `category:list:${queryString}`;
+
     const cached = await redis.get(cacheKey);
+
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.CategoryWhereInput = {
       ...(search && {
@@ -96,6 +103,7 @@ class CategoryService {
         total,
         totalPages: Math.ceil(total / limitNum),
       },
+      message: 'Lấy danh sách danh mục thành công',
     };
 
     await redis.set(cacheKey, result, CATEGORY_LIST_CACHE_TTL);
@@ -105,10 +113,14 @@ class CategoryService {
 
   async getCategoryTree() {
     const cacheKey = 'category:tree';
+
     const cached = await redis.get(cacheKey);
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const categories = await prisma.category.findMany({
       where: { status: 'active' },
@@ -147,9 +159,13 @@ class CategoryService {
   async getCategoryById(id: number) {
     const cacheKey = `category:${id}`;
     const cached = await redis.get(cacheKey);
+
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const category = await prisma.category.findUnique({
       where: { id },
@@ -428,11 +444,68 @@ class CategoryService {
   }
 
   private async invalidateCache() {
-    const keys = await redis.keys('category:list:*');
-    if (keys.length > 0) {
-      await redis.del(keys);
-    }
+    await redis.flushPattern('category:list:*');
     await redis.del('category:tree');
+  }
+
+  async getCategoryStats() {
+    const cacheKey = 'category:stats';
+
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
+
+    // Get all categories with stats
+    const categories = await prisma.category.findMany({
+      select: {
+        id: true,
+        categoryName: true,
+        parentId: true,
+        status: true,
+        _count: {
+          select: {
+            children: true,
+            products: true,
+          },
+        },
+      },
+    });
+
+    // Calculate statistics
+    const totalCategories = categories.length;
+    const activeCategories = categories.filter((c) => c.status === 'active').length;
+    const inactiveCategories = categories.filter((c) => c.status === 'inactive').length;
+    const rootCategories = categories.filter((c) => !c.parentId).length;
+    const totalProducts = categories.reduce((sum, c) => sum + c._count.products, 0);
+
+    // Get top categories by product count
+    const topCategories = categories
+      .filter((c) => c._count.products > 0)
+      .sort((a, b) => b._count.products - a._count.products)
+      .slice(0, 5)
+      .map((c) => ({
+        id: c.id,
+        categoryName: c.categoryName,
+        productCount: c._count.products,
+      }));
+
+    const stats = {
+      totalCategories,
+      activeCategories,
+      inactiveCategories,
+      rootCategories,
+      totalProducts,
+      topCategories,
+    };
+
+    await redis.set(cacheKey, stats, CATEGORY_CACHE_TTL);
+
+    return stats;
   }
 }
 

@@ -23,6 +23,8 @@ export const CachePrefix = {
   PERMISSION: 'permission:',
   RATE_LIMIT: 'rate_limit:',
   BLACKLIST: 'blacklist:',
+  WAREHOUSE: 'warehouse:',
+  BOM: 'bom:',
 };
 
 class RedisService {

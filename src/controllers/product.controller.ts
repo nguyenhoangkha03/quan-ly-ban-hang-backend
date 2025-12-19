@@ -261,6 +261,32 @@ class ProductController {
 
     res.status(200).json(response);
   }
+
+  // GET /api/products/stats/overview
+  async getStats(_req: AuthRequest, res: Response) {
+    const stats = await productService.getStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/stats/raw-materials
+  async getRawMaterialStats(_req: AuthRequest, res: Response) {
+    const stats = await productService.getRawMaterialStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
 }
 
 export default new ProductController();

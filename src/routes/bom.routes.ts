@@ -12,6 +12,7 @@ import {
   calculateMaterialsSchema,
   approveBomSchema,
 } from '@validators/bom.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.post(
   '/calculate',
   authorize('view_bom', 'view_production'),
   validate(calculateMaterialsSchema, 'body'),
+  logActivityMiddleware('calculate', 'bom'),
   asyncHandler(bomController.calculateMaterials.bind(bomController))
 );
 
@@ -54,6 +56,7 @@ router.post(
   '/',
   authorize('create_bom', 'manage_production'),
   validate(createBomSchema, 'body'),
+  logActivityMiddleware('create', 'bom'),
   asyncHandler(bomController.create.bind(bomController))
 );
 
@@ -65,6 +68,7 @@ router.put(
     params: bomIdSchema,
     body: updateBomSchema,
   }),
+  logActivityMiddleware('update', 'bom'),
   asyncHandler(bomController.update.bind(bomController))
 );
 
@@ -73,6 +77,7 @@ router.delete(
   '/:id',
   authorize('delete_bom', 'manage_production'),
   validate(bomIdSchema, 'params'),
+  logActivityMiddleware('delete', 'bom'),
   asyncHandler(bomController.delete.bind(bomController))
 );
 
@@ -82,8 +87,9 @@ router.put(
   authorize('approve_bom', 'manage_production'),
   validateMultiple({
     params: bomIdSchema,
-    body: approveBomSchema,
+    body: approveBomSchema.optional(),
   }),
+  logActivityMiddleware('approve', 'bom'),
   asyncHandler(bomController.approve.bind(bomController))
 );
 
@@ -92,6 +98,7 @@ router.put(
   '/:id/inactive',
   authorize('update_bom', 'manage_production'),
   validate(bomIdSchema, 'params'),
+  logActivityMiddleware('set inactive', 'bom'),
   asyncHandler(bomController.setInactive.bind(bomController))
 );
 

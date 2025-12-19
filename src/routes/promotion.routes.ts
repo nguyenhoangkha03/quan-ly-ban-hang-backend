@@ -23,14 +23,14 @@ router.use(authentication);
 router.get(
   '/',
   authorize('view_promotions'),
-  validate(promotionQuerySchema),
+  validate(promotionQuerySchema, 'query'),
   asyncHandler(promotionController.getAll.bind(promotionController))
 );
 
 // GET /api/promotions/active - Get active promotions (before /:id to avoid conflict)
 router.get(
   '/active',
-  validate(getActivePromotionsSchema),
+  validate(getActivePromotionsSchema, 'query'),
   asyncHandler(promotionController.getActive.bind(promotionController))
 );
 

@@ -321,10 +321,14 @@ class InventoryService {
 
   async getByProduct(productId: number) {
     const cacheKey = `${CachePrefix.INVENTORY}product:${productId}`;
+
     const cached = await redis.get(cacheKey);
     if (cached) {
+      console.log(`✅ Có cache ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache ${cacheKey}, truy vấn database...`);
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
@@ -351,9 +355,32 @@ class InventoryService {
       orderBy: { warehouseId: 'asc' },
     });
 
+    const approvedPOs = await prisma.purchaseOrder.findMany({
+      where: {
+        status: 'approved',
+        details: {
+          some: {
+            productId: productId,
+          },
+        },
+      },
+      include: {
+        details: {
+          where: {
+            productId: productId,
+          },
+        },
+      },
+    });
+
     const totalQuantity = inventory.reduce((sum, inv) => sum + Number(inv.quantity), 0);
     const totalReserved = inventory.reduce((sum, inv) => sum + Number(inv.reservedQuantity), 0);
     const totalAvailable = totalQuantity - totalReserved;
+
+    const onOrderQuantity = approvedPOs.reduce((sum, po) => {
+      const detail = po.details[0];
+      return sum + Number(detail?.quantity || 0);
+    }, 0);
 
     const result = {
       product: {
@@ -372,6 +399,7 @@ class InventoryService {
         totalQuantity,
         totalReserved,
         totalAvailable,
+        onOrderQuantity,
         warehouseCount: inventory.length,
       },
     };

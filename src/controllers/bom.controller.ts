@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/common.type';
+import { ApiResponse, AuthRequest } from '@custom-types/common.type';
 import bomService from '@services/bom.service';
 
 class BomController {
@@ -7,12 +7,15 @@ class BomController {
   async getAll(req: AuthRequest, res: Response) {
     const result = await bomService.getAll(req.query as any);
 
-    res.status(200).json({
+    const response: ApiResponse = {
       success: true,
+      message: result.message,
       data: result.data,
       meta: result.meta,
       timestamp: new Date().toISOString(),
-    });
+    };
+
+    res.status(200).json(response);
   }
 
   // GET /api/bom/:id - Get BOM by ID
@@ -35,7 +38,7 @@ class BomController {
     res.status(201).json({
       success: true,
       data: bom,
-      message: 'BOM created successfully',
+      message: 'BOM tạo thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -49,7 +52,7 @@ class BomController {
     res.status(200).json({
       success: true,
       data: bom,
-      message: 'BOM updated successfully',
+      message: 'BOM cập nhật thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -71,13 +74,13 @@ class BomController {
   async approve(req: AuthRequest, res: Response) {
     const id = parseInt(req.params.id);
     const userId = req.user!.id;
-    const { notes } = req.body;
+    const notes = req.body?.notes;
     const bom = await bomService.approve(id, userId, notes);
 
     res.status(200).json({
       success: true,
       data: bom,
-      message: 'BOM approved successfully',
+      message: 'BOM duyệt thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -88,7 +91,8 @@ class BomController {
 
     res.status(200).json({
       success: true,
-      data: result,
+      data: result.data,
+      message: result.message,
       timestamp: new Date().toISOString(),
     });
   }
@@ -115,7 +119,7 @@ class BomController {
     res.status(200).json({
       success: true,
       data: bom,
-      message: 'BOM set to inactive successfully',
+      message: 'BOM đã được đặt thành không hoạt động',
       timestamp: new Date().toISOString(),
     });
   }

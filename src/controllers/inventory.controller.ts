@@ -46,6 +46,7 @@ class InventoryController {
     const response: ApiResponse = {
       success: true,
       data: inventory,
+      message: 'Lấy tồn kho theo sản phẩm thành công',
       timestamp: new Date().toISOString(),
     };
 

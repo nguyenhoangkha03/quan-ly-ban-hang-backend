@@ -63,6 +63,7 @@ router.put(
   '/:id',
   authorize('update_warehouse'),
   validate(updateWarehouseSchema),
+  logActivityMiddleware('update', 'warehouse'),
   asyncHandler(warehouseController.updateWarehouse.bind(warehouseController))
 );
 
@@ -75,7 +76,7 @@ router.put(
 router.delete(
   '/:id',
   authorize('delete_warehouse'),
-  logActivityMiddleware('delele', 'warehouse'),
+  logActivityMiddleware('delete', 'warehouse'),
   asyncHandler(warehouseController.deleteWarehouse.bind(warehouseController))
 );
 

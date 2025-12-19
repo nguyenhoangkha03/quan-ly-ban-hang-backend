@@ -1,20 +1,18 @@
 import { z } from 'zod';
 
 export const createProductionOrderSchema = z.object({
-  body: z.object({
-    bomId: z.number().int().positive('BOM ID must be positive'),
-    warehouseId: z.number().int().positive('Warehouse ID must be positive').optional(),
-    plannedQuantity: z
-      .number()
-      .positive('Planned quantity must be positive')
-      .refine((val) => val > 0, 'Planned quantity must be greater than 0'),
-    startDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start date'),
-    endDate: z
-      .string()
-      .refine((val) => !isNaN(Date.parse(val)), 'Invalid end date')
-      .optional(),
-    notes: z.string().max(255).optional(),
-  }),
+  bomId: z.number().int().positive('BOM ID must be positive'),
+  warehouseId: z.number().int().positive('Warehouse ID must be positive').optional(),
+  plannedQuantity: z
+    .number()
+    .positive('Planned quantity must be positive')
+    .refine((val) => val > 0, 'Planned quantity must be greater than 0'),
+  startDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start date'),
+  endDate: z
+    .string()
+    .refine((val) => !isNaN(Date.parse(val)), 'Invalid end date')
+    .optional(),
+  notes: z.string().max(255).optional(),
 });
 
 export const updateProductionOrderSchema = z.object({
@@ -62,23 +60,34 @@ export const cancelProductionSchema = z.object({
 });
 
 export const productionOrderQuerySchema = z.object({
-  query: z.object({
-    page: z.string().regex(/^\d+$/).transform(Number).optional(),
-    limit: z.string().regex(/^\d+$/).transform(Number).optional(),
-    search: z.string().optional(),
-    status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']).optional(),
-    bomId: z.string().regex(/^\d+$/).transform(Number).optional(),
-    warehouseId: z.string().regex(/^\d+$/).transform(Number).optional(),
-    fromDate: z.string().optional(),
-    toDate: z.string().optional(),
-    sortBy: z.string().optional(),
-    sortOrder: z.enum(['asc', 'desc']).optional(),
-  }),
+  page: z.string().regex(/^\d+$/).optional().default('1'),
+  limit: z.string().regex(/^\d+$/).optional().default('20'),
+  search: z.string().optional(),
+  status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']).optional(),
+  bomId: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : undefined))
+    .pipe(z.number().int().positive().optional()),
+  finishedProductId: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : undefined))
+    .pipe(z.number().int().positive().optional()),
+  warehouseId: z
+    .string()
+    .optional()
+    .transform((val) => (val ? Number(val) : undefined))
+    .pipe(z.number().int().positive().optional()),
+  fromDate: z.string().optional(),
+  toDate: z.string().optional(),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
 });
 
-export type CreateProductionOrderInput = z.infer<typeof createProductionOrderSchema>['body'];
+export type CreateProductionOrderInput = z.infer<typeof createProductionOrderSchema>;
 export type UpdateProductionOrderInput = z.infer<typeof updateProductionOrderSchema>['body'];
 export type StartProductionInput = z.infer<typeof startProductionSchema>['body'];
 export type CompleteProductionInput = z.infer<typeof completeProductionSchema>['body'];
 export type CancelProductionInput = z.infer<typeof cancelProductionSchema>['body'];
-export type ProductionOrderQueryInput = z.infer<typeof productionOrderQuerySchema>['query'];
+export type ProductionOrderQueryInput = z.infer<typeof productionOrderQuerySchema>;
