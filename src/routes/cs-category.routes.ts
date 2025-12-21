@@ -1,9 +1,7 @@
 import { Router } from 'express';
-// Controller đã được tạo ra để chỉ có các hàm đọc và tự lọc status='active'
 import publicCategoryController from '@controllers/cs-category.controller';
 import { asyncHandler } from '@middlewares/errorHandler';
-// Không cần import validate cho query string nếu Controller xử lý nhẹ
-// hoặc nếu có validate, cần import schema tương ứng.
+
 
 const router = Router();
 
@@ -20,6 +18,7 @@ router.get(
     // publicCategoryController.getAllCategories sẽ tự thêm status: 'active' vào query
     asyncHandler(publicCategoryController.getAllCategories.bind(publicCategoryController))
 );
+
 
 /**
  * GET /api/public/categories/tree

@@ -735,7 +735,7 @@ model SalesOrder {
     orderStatus     OrderStatus   @default(pending) @map("order_status")
     deliveryAddress String?       @map("delivery_address") @db.VarChar(255)
     notes           String?       @db.VarChar(255)
-    createdBy       Int           @map("created_by")
+    createdBy       Int?          @map("created_by")
     approvedBy      Int?          @map("approved_by")
     cancelledBy     Int?          @map("cancelled_by")
     createdAt       DateTime      @default(now()) @map("created_at")
@@ -746,7 +746,7 @@ model SalesOrder {
 
     customer  Customer   @relation(fields: [customerId], references: [id])
     warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
-    creator   User       @relation("SalesCreator", fields: [createdBy], references: [id])
+    creator   User?       @relation("SalesCreator", fields: [createdBy], references: [id])
     approver  User?      @relation("SalesApprover", fields: [approvedBy], references: [id])
     canceller User?      @relation("SalesCanceller", fields: [cancelledBy], references: [id])
 

@@ -1,28 +1,19 @@
-import { PrismaClient, Prisma, SalesChannel, PaymentMethod, OrderStatus } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError, AuthorizationError } from '@utils/errors';
-import { logActivity } from '@utils/logger';
-import customerService from './customer.service'; // Giả định service này tồn tại
+import customerService from './customer.service';
 import {
     CreateCustomerSalesOrderInput,
-    InitiateCustomerPaymentInput,
     CustomerCancelOrderInput,
 } from '@validators/cs-sales_order.validator';
 import { SalesOrderQueryInput } from '@validators/sales-order.validator';
 
-
 const prisma = new PrismaClient();
-const MAX_ORDER_AMOUNT = 30000000; // Giới hạn 30 Triệu VND
-
-// Helper để ánh xạ PaymentMethod (SalesOrder) sang FinancePaymentMethod (Receipt)
-// Giả định FinancePaymentMethod chỉ có 'cash' và 'transfer'
-const getFinancePaymentMethod = (orderMethod: string): 'cash' | 'transfer' => {
-    return orderMethod === 'cash' ? 'cash' : 'transfer';
-};
+const MAX_ORDER_AMOUNT = 30000000; // 30 Triệu
 
 class CustomerSalesOrderService {
 
     // ========================================================
-    // HELPER FUNCTIONS 
+    // HELPER: Sinh mã đơn & QR (Giữ nguyên như cũ)
     // ========================================================
     private async generateOrderCode(): Promise<string> {
         const date = new Date();
@@ -36,97 +27,95 @@ class CustomerSalesOrderService {
             },
         });
         const sequence = (count + 1).toString().padStart(3, '0');
-        return `DH-${dateStr}-${sequence}`;
+        return `DH-OL-${dateStr}-${sequence}`;
+    }
+
+    private generatePaymentInfo(orderCode: string, amount: number, methodDetail?: string) {
+        const content = `${orderCode}`;
+
+        if (methodDetail === 'MOMO_QR') {
+            return {
+                type: 'MOMO',
+                qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=MOMO:${orderCode}:${amount}`,
+                amount,
+                content,
+                instructions: "Mở App MoMo và quét mã QR."
+            };
+        }
+        if (methodDetail === 'MBBANK_QR' || methodDetail === 'BANK_TRANSFER') {
+            return {
+                type: 'BANK_TRANSFER',
+                bankName: 'MB Bank',
+                accountNo: '88888888888',
+                accountName: 'CONG TY ABC',
+                qrCode: `https://img.vietqr.io/image/MB-88888888888-compact2.png?amount=${amount}&addInfo=${content}`,
+                amount,
+                content,
+                instructions: "Quét mã bằng App Ngân hàng."
+            };
+        }
+        return null;
     }
 
     private async checkOrderOwnership(customerId: number, orderId: number) {
         const order = await prisma.salesOrder.findUnique({ where: { id: orderId } });
-        if (!order) {
-            throw new NotFoundError('Sales order not found');
-        }
-        if (order.customerId !== customerId) {
-            throw new AuthorizationError('Access denied. Order does not belong to the customer.');
-        }
+        if (!order) throw new NotFoundError('Đơn hàng không tồn tại');
+        if (order.customerId !== customerId) throw new AuthorizationError('Không có quyền truy cập');
         return order;
     }
 
-    // Hàm giả lập sinh QR/Link
-    private generateQRCodeOrPaymentLink(orderCode: string, amount: number, methodDetail?: string) {
-        const amountFormatted = amount.toLocaleString();
-        const instructionsCommon = `Vui lòng chuyển khoản chính xác ${amountFormatted} VND. Nội dung bắt buộc: ${orderCode}`;
-
-        if (methodDetail === 'MOMO_QR') {
-            return { qrCode: `BASE64_MOMO_QR_FOR_${orderCode}_${amount}`, instructions: `[MOMO] Quét mã QR dưới đây. ${instructionsCommon}.` };
-        }
-        if (methodDetail === 'MBBANK_QR' || methodDetail === 'BANK_TRANSFER') {
-            const bankInfo = `Ngân hàng MBBANK. STK: 88888888888. CTK: CONG TY ABC.`;
-            return { qrCode: `BASE64_VIETQR_MBBANK_FOR_${orderCode}_${amount}`, instructions: `[MBBANK] ${bankInfo}. ${instructionsCommon}.` };
-        }
-        return { qrCode: null, instructions: `[CHUYỂN KHOẢN THƯỜNG] Vui lòng chuyển khoản thủ công. Nội dung: ${orderCode}. Số tiền: ${amountFormatted} VND.` };
-    }
-
-
     // ========================================================
-    // 1. CREATE ORDER (Tạo đơn hàng mới)
+    // 1. CREATE ORDER (Logic Kết hợp: Bảo mật Khách + Tồn kho Admin)
     // ========================================================
     async createOrder(customerId: number, data: CreateCustomerSalesOrderInput) {
 
-        // 1. Kiểm tra trạng thái Khách hàng
+        // --- PHẦN 1: VALIDATE (Logic của Khách) ---
         const customer = await customerService.getById(customerId);
-        if (customer.status !== 'active') {
-            throw new ValidationError('Customer must be active to create order');
+        if (customer.status !== 'active') throw new ValidationError('Tài khoản khách hàng không hoạt động.');
+
+        if (data.warehouseId) {
+            const warehouse = await prisma.warehouse.findUnique({ where: { id: data.warehouseId } });
+            if (!warehouse || warehouse.status !== 'active') throw new ValidationError('Kho hàng không khả dụng.');
         }
 
-        // 2. Lấy và kiểm tra Products
-        const productIds = data.items.map((item) => item.productId);
+        // Lấy sản phẩm (Bảo mật giá: Lấy từ DB)
+        const productIds = data.items.map(item => item.productId);
         const products = await prisma.product.findMany({
             where: { id: { in: productIds }, status: 'active' },
-            select: { id: true, productName: true, status: true, taxRate: true }
+            // Lấy giá bán lẻ niêm yết từ DB
+            select: { id: true, productName: true, sellingPriceRetail: true, taxRate: true }
         });
 
         if (products.length !== productIds.length) {
-            throw new NotFoundError('One or more products not found or inactive');
+            throw new ValidationError('Một số sản phẩm không hợp lệ.');
         }
 
-        // 3. Tính toán tiền và chạy kiểm tra tồn kho
-        let totalTaxAmount = 0;
-        let subtotal = 0;
-        const inventoryShortages: Array<{ productName: string; requested: number; available: number; }> = [];
+        // --- PHẦN 2: KIỂM TRA TỒN KHO (Logic của Admin - COPY CHÍNH XÁC) ---
+        // Sử dụng đúng logic tính toán của Admin để đảm bảo đồng nhất
+        const inventoryShortages = [];
 
-        const itemsToCalculate = data.items.map((item) => {
-            const product = products.find((p) => p.id === item.productId)!;
-            const discountPercent = item.discountPercent || 0;
-            const taxRate = product.taxRate || 0;
+        for (const item of data.items) {
+            const product = products.find((p) => p.id === item.productId);
+            if (!product) continue;
 
-            const lineTotal = item.quantity * item.unitPrice;
-            const discountAmount = lineTotal * (discountPercent / 100);
-            const taxableAmount = lineTotal - discountAmount;
-            const taxAmount = taxableAmount * (Number(taxRate) / 100);
-            const lineAmount = taxableAmount + taxAmount;
-
-            subtotal += lineAmount;
-            totalTaxAmount += taxAmount;
-
-            return { ...item, taxRate: Number(taxRate) };
-        });
-
-        // 4. KIỂM TRA TỒN KHO TRƯỚC KHI TẠO ĐƠN (Sử dụng prisma global)
-        for (const item of itemsToCalculate) {
-            const product = products.find((p) => p.id === item.productId)!;
             const warehouseId = item.warehouseId || data.warehouseId;
-
             if (warehouseId) {
+                // [LOGIC ADMIN] Tìm inventory record
                 const inventory = await prisma.inventory.findFirst({
-                    where: { productId: item.productId, warehouseId },
+                    where: {
+                        productId: item.productId,
+                        warehouseId,
+                    },
                 });
 
+                // [LOGIC ADMIN] Tính available = quantity - reservedQuantity
                 if (inventory) {
                     const available = Number(inventory.quantity) - Number(inventory.reservedQuantity);
                     if (available < item.quantity) {
                         inventoryShortages.push({
                             productName: product.productName,
                             requested: item.quantity,
-                            available: available,
+                            available,
                         });
                     }
                 } else {
@@ -140,283 +129,254 @@ class CustomerSalesOrderService {
         }
 
         if (inventoryShortages.length > 0) {
-            throw new ValidationError('Inventory insufficient for the requested order.', {
-                shortages: inventoryShortages,
-            });
+            throw new ValidationError('Kho không đủ hàng.', { shortages: inventoryShortages });
         }
 
-        // 5. Tính toán Final Amount và Paid Amount
-        const finalAmount = subtotal + (data.shippingFee || 0) - (data.discountAmount || 0);
-        const paidAmount = data.paidAmount || 0;
+        // --- PHẦN 3: TÍNH TIỀN (Logic Bảo mật) ---
+        let subtotal = 0;
+        let totalTaxAmount = 0;
 
-        // 6. KIỂM TRA GIỚI HẠN 30 TRIỆU
-        if (finalAmount > MAX_ORDER_AMOUNT) {
-            throw new ValidationError(
-                `Order total (${finalAmount.toLocaleString()} VND) exceeds the maximum online limit (${MAX_ORDER_AMOUNT.toLocaleString()} VND). Please contact our company.`
-            );
-        }
+        const itemsWithCalculations = data.items.map((item) => {
+            const product = products.find((p) => p.id === item.productId)!;
+            const price = Number(product.sellingPriceRetail); // Dùng giá DB
+            const taxRate = Number(product.taxRate || 0);
 
-        // 7. Xử lý Trạng thái (Sử dụng Enum)
-        let paymentStatus: 'unpaid' | 'partial' | 'paid';
-        let orderStatus: OrderStatus = OrderStatus.pending;
+            const lineTotal = item.quantity * price;
+            const taxAmount = lineTotal * (taxRate / 100);
 
-        if (paidAmount >= finalAmount) {
-            paymentStatus = 'paid';
-            orderStatus = OrderStatus.preparing;
-        } else if (paidAmount > 0) {
-            paymentStatus = 'partial';
-        } else {
-            paymentStatus = 'unpaid';
+            subtotal += lineTotal;
+            totalTaxAmount += taxAmount;
+
+            return {
+                productId: item.productId,
+                warehouseId: item.warehouseId || data.warehouseId,
+                quantity: item.quantity,
+                unitPrice: price, // Giá DB
+                discountPercent: 0,
+                taxRate: taxRate,
+                notes: item.notes,
+            };
+        });
+
+        const shippingFee = data.shippingFee || 0;
+        const discountAmount = data.discountAmount || 0;
+        const totalAmount = subtotal + totalTaxAmount + shippingFee - discountAmount;
+
+        if (totalAmount > MAX_ORDER_AMOUNT) {
+            throw new ValidationError(`Đơn hàng vượt quá hạn mức thanh toán Online (${MAX_ORDER_AMOUNT.toLocaleString()}).`);
         }
 
         const orderCode = await this.generateOrderCode();
 
-        // 8. Thực hiện Transaction (Tạo đơn hàng và Reserve Inventory)
+        // --- PHẦN 4: TRANSACTION & UPDATE KHO (Logic của Admin - COPY CHÍNH XÁC) ---
         const result = await prisma.$transaction(async (tx) => {
-
-            // Data chi tiết đơn hàng (từ itemsToCalculate)
-            const itemsToCreate = itemsToCalculate.map((item) => ({
-                productId: item.productId,
-                warehouseId: item.warehouseId || data.warehouseId,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discountPercent: item.discountPercent || 0,
-                taxRate: item.taxRate,
-                notes: item.notes,
-            }));
-
+            // A. Tạo Order (Ép status an toàn)
             const order = await tx.salesOrder.create({
                 data: {
                     orderCode,
-                    customerId: customerId,
+                    customerId,
                     warehouseId: data.warehouseId,
                     orderDate: new Date(),
-                    salesChannel: SalesChannel.online,
-                    totalAmount: finalAmount,
-                    discountAmount: data.discountAmount || 0,
-                    shippingFee: data.shippingFee || 0,
+                    salesChannel: 'online', // Cố định
+                    totalAmount,
+                    discountAmount,
+                    shippingFee,
                     taxAmount: totalTaxAmount,
-                    paidAmount,
-                    paymentMethod: data.paymentMethod as PaymentMethod,
-                    paymentStatus: paymentStatus,
-                    orderStatus: orderStatus,
+                    paidAmount: 0, // Mặc định 0
+                    paymentMethod: data.paymentMethod,
+                    paymentStatus: 'unpaid', // Mặc định unpaid
+                    orderStatus: 'pending', // Mặc định pending
                     deliveryAddress: data.deliveryAddress || customer.address,
                     notes: data.notes,
-                    createdBy: customerId,
-                    details: { create: itemsToCreate },
+                    createdBy: null,
+                    details: {
+                        create: itemsWithCalculations,
+                    },
                 },
-                include: { customer: true, details: { include: { product: true } } },
+                include: { details: true }
             });
 
-            // 9. Reserve Inventory (Giảm reservedQuantity)
+            // B. [LOGIC ADMIN] Cập nhật tồn kho (Reserved)
+            // Copy chính xác logic vòng lặp update của Admin để tránh sai lệch
             for (const item of data.items) {
                 const warehouseId = item.warehouseId || data.warehouseId;
                 if (warehouseId) {
-                    await tx.inventory.updateMany({
-                        where: { productId: item.productId, warehouseId: warehouseId },
-                        data: {
-                            reservedQuantity: { increment: item.quantity },
+                    const inventory = await tx.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            warehouseId,
                         },
                     });
+
+                    if (inventory) {
+                        await tx.inventory.update({
+                            where: { id: inventory.id },
+                            data: {
+                                reservedQuantity: {
+                                    increment: item.quantity, // Tăng lượng đặt trước
+                                },
+                                updatedBy: null, // Log người sửa là khách
+                            },
+                        });
+                    }
+                    // Admin logic không xử lý case inventory null ở đoạn update này, ta giữ nguyên
                 }
             }
 
             return order;
         });
 
+        // --- PHẦN 5: TRẢ VỀ & QR CODE ---
+        let paymentInfo = null;
+        if (data.paymentMethod === 'transfer') {
+            paymentInfo = this.generatePaymentInfo(result.orderCode, totalAmount, data.paymentMethodDetail);
+        }
+
         return {
+            success: true,
             order: result,
-            inventoryShortages: inventoryShortages.length > 0 ? inventoryShortages : undefined,
+            paymentInfo
         };
     }
+
     // ========================================================
-    // 2. GET MY ORDERS (Dành cho Khách hàng)
+    // 2. GET MY ORDERS (Giữ nguyên - Độc lập)
     // ========================================================
     async getMyOrders(query: SalesOrderQueryInput) {
-        const customerId = query.customerId;
-
-        const {
-            page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc',
-        } = query;
-
-        const offset = (page - 1) * limit;
+        // Logic lấy danh sách đơn của riêng khách hàng
+        const { customerId, page = 1, limit = 20, orderStatus, fromDate, toDate } = query;
+        const skip = (Number(page) - 1) * Number(limit);
 
         const where: Prisma.SalesOrderWhereInput = {
-            customerId, // ÉP BUỘC customerId
-            // ... (Logic tìm kiếm và filter khác) ...
+            customerId: customerId,
+            ...(orderStatus && { orderStatus }),
+            ...(fromDate && toDate && {
+                orderDate: { gte: new Date(fromDate), lte: new Date(toDate) }
+            })
         };
 
         const [orders, total] = await Promise.all([
             prisma.salesOrder.findMany({
                 where,
+                skip,
+                take: Number(limit),
+                orderBy: { createdAt: 'desc' },
                 include: {
-                    details: {
-                        select: { productId: true, quantity: true, unitPrice: true },
-                    },
-                    paymentReceipts: {
-                        select: { id: true, amount: true, receiptDate: true, paymentMethod: true },
-                        orderBy: { receiptDate: 'desc' },
-                    },
-                },
-                skip: offset,
-                take: limit,
-                orderBy: { [sortBy]: sortOrder },
+                    details: { select: { productId: true, quantity: true, unitPrice: true } },
+                    warehouse: { select: { warehouseName: true } }
+                }
             }),
-            prisma.salesOrder.count({ where }),
+            prisma.salesOrder.count({ where })
         ]);
 
-        const ordersWithRemaining = orders.map((order) => ({
-            ...order,
-            remainingAmount: Number(order.totalAmount) - Number(order.paidAmount),
-        }));
-
         return {
-            data: ordersWithRemaining,
-            meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+            data: orders,
+            meta: { page, limit, total, totalPages: Math.ceil(total / Number(limit)) }
         };
     }
 
     // ========================================================
-    // 3. GET ORDER DETAIL (Dành cho Khách hàng)
-    // ========================================================
-    async getOrderDetail(customerId: number, orderId: number) {
-        await this.checkOrderOwnership(customerId, orderId);
-
-        const order = await prisma.salesOrder.findUnique({
-            where: { id: orderId },
-            include: {
-                details: {
-                    include: { product: { select: { id: true, sku: true, productName: true, unit: true } } },
-                },
-                paymentReceipts: {
-                    select: { id: true, receiptCode: true, amount: true, receiptDate: true, paymentMethod: true, notes: true },
-                    orderBy: { receiptDate: 'desc' },
-                },
-                customer: {
-                    select: { id: true, customerName: true, phone: true, address: true, email: true },
-                },
-                warehouse: true,
-            },
-        });
-
-        if (!order) {
-            throw new NotFoundError('Sales order not found');
-        }
-
-        return {
-            ...order,
-            remainingAmount: Number(order.totalAmount) - Number(order.paidAmount),
-        };
-    }
-
-    // ========================================================
-    // 4. INITIATE PAYMENT (Khởi tạo Thanh toán Online)
-    // ========================================================
-    async initiatePayment(customerId: number, orderId: number, data: InitiateCustomerPaymentInput) {
-        const order = await this.checkOrderOwnership(customerId, orderId);
-
-        if (order.orderStatus !== OrderStatus.pending && order.orderStatus !== OrderStatus.preparing) {
-            throw new ValidationError(`Payment can only be initiated for PENDING or PREPARING orders. Current status: ${order.orderStatus}`);
-        }
-
-        if (order.paymentMethod !== PaymentMethod.transfer) {
-            throw new ValidationError(`Order must have paymentMethod 'transfer' for online payment initiation.`);
-        }
-
-        const remainingAmount = Number(order.totalAmount) - Number(order.paidAmount);
-
-        if (remainingAmount <= 0) {
-            throw new ValidationError('Order is already fully paid.');
-        }
-
-        const amountToPay = data.amount || remainingAmount;
-
-        if (amountToPay > remainingAmount) {
-            throw new ValidationError(`Payment amount (${amountToPay}) exceeds remaining amount (${remainingAmount})`);
-        }
-
-        const financeMethod = getFinancePaymentMethod(order.paymentMethod);
-        const receiptCode = `TTKH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now() % 1000}`;
-
-        const newReceipt = await prisma.paymentReceipt.create({
-            data: {
-                receiptCode,
-                receiptType: 'sales',
-                customerId: customerId,
-                orderId: orderId,
-                amount: amountToPay,
-                receiptDate: new Date(),
-                paymentMethod: financeMethod,
-                notes: `INITIATED VIA CUSTOMER APP | Method: ${data.paymentMethodDetail || 'BANK_TRANSFER'} | ${data.notes || ''}`,
-                createdBy: customerId,
-                isVerified: false,
-            }
-        });
-
-        const amountForLink = Number(amountToPay);
-        const paymentDetails = this.generateQRCodeOrPaymentLink(order.orderCode, amountForLink, data.paymentMethodDetail);
-
-        return {
-            receiptId: newReceipt.id,
-            paymentReference: receiptCode,
-            amount: amountToPay,
-            ...paymentDetails,
-        };
-    }
-
-    // ========================================================
-    // 5. CUSTOMER CANCEL ORDER (Khách hàng tự hủy)
+    // 3. CANCEL ORDER (Giữ nguyên - Độc lập nhưng logic trả kho giống Admin)
     // ========================================================
     async customerCancelOrder(orderId: number, customerId: number, data: CustomerCancelOrderInput) {
         const order = await this.checkOrderOwnership(customerId, orderId);
 
-        if (order.orderStatus !== OrderStatus.pending) {
-            throw new ValidationError(`Only PENDING orders can be cancelled by the customer. Current status: ${order.orderStatus}`);
+        if (order.orderStatus !== 'pending') {
+            throw new ValidationError('Không thể hủy đơn hàng đã được xử lý.');
         }
 
-        const result = await prisma.$transaction(async (tx) => {
-            // 1. Release Reserved Inventory
-            // Cần lấy chi tiết đơn hàng để biết sản phẩm và kho cần release
-            const orderDetails = await tx.salesOrderDetail.findMany({ where: { orderId } });
+        await prisma.$transaction(async (tx) => {
+            // [LOGIC ADMIN] Trả tồn kho (Decrement Reserved)
+            // Lặp qua details để trả hàng
+            const details = await tx.salesOrderDetail.findMany({ where: { orderId } });
 
-            for (const detail of orderDetails) {
-                const warehouseId = detail.warehouseId;
-                if (warehouseId) {
-                    await tx.inventory.updateMany({
-                        where: { productId: detail.productId, warehouseId },
-                        data: {
-                            reservedQuantity: { decrement: detail.quantity },
-                        },
+            for (const detail of details) {
+                if (detail.warehouseId) {
+                    const inventory = await tx.inventory.findFirst({
+                        where: { productId: detail.productId, warehouseId: detail.warehouseId }
                     });
+
+                    if (inventory) {
+                        await tx.inventory.update({
+                            where: { id: inventory.id },
+                            data: {
+                                reservedQuantity: {
+                                    decrement: detail.quantity, // Giảm lượng đặt trước
+                                },
+                                updatedBy: null,
+                            },
+                        });
+                    }
                 }
             }
 
-            // 2. Cập nhật trạng thái đơn hàng
-            const updatedOrder = await tx.salesOrder.update({
+            // Cập nhật trạng thái
+            await tx.salesOrder.update({
                 where: { id: orderId },
                 data: {
-                    orderStatus: OrderStatus.cancelled,
-                    cancelledBy: customerId,
+                    orderStatus: 'cancelled',
+                    cancelledBy: null,
                     cancelledAt: new Date(),
-                    notes: `${order.notes || ''}\n[CUSTOMER CANCELLED] Reason: ${data.reason}`,
-                },
-                include: { customer: true, details: true },
+                    notes: `${order.notes || ''}\n[KHÁCH HỦY]: ${data.reason}`
+                }
             });
-
-            // 3. Xử lý Hoàn tiền nếu đã trả trước
-            if (Number(order.paidAmount) > 0) {
-                logActivity('warning', customerId, 'sales_orders', {
-                    action: 'refund_required',
-                    message: `Refund of ${order.paidAmount} VND required for cancelled order ${order.orderCode}.`,
-                });
-            }
-
-            return updatedOrder;
         });
 
+        return { message: 'Đã hủy đơn hàng thành công.' };
+    }
+
+    // ========================================================
+    // 4. GET ORDER DETAIL
+    // ========================================================
+    async getOrderDetail(customerId: number, orderId: number) {
+        // 1. Chỉ gọi để kiểm tra quyền sở hữu (nếu sai sẽ throw lỗi ngay tại đây)
+        await this.checkOrderOwnership(customerId, orderId);
+
+        // 2. Lấy chi tiết đầy đủ
+        const fullOrder = await prisma.salesOrder.findUnique({
+            where: { id: orderId },
+            include: {
+                details: {
+                    include: {
+                        product: { select: { id: true, productName: true, sku: true, unit: true } }
+                    }
+                },
+                warehouse: { select: { warehouseName: true, address: true } },
+            }
+        });
+
+        // Tính số tiền còn lại phải trả
+        const remaining = Number(fullOrder?.totalAmount || 0) - Number(fullOrder?.paidAmount || 0);
+
         return {
-            order: result,
-            message: 'Order cancelled successfully. Refund processing initiated if payment was made.'
+            ...fullOrder,
+            remainingAmount: Math.max(0, remaining)
+        };
+    }
+
+    // ========================================================
+    // 5. INITIATE PAYMENT (Thanh toán lại)
+    // ========================================================
+    async initiatePayment(customerId: number, orderId: number, data: any) {
+        const order = await this.checkOrderOwnership(customerId, orderId);
+
+        if (order.paymentStatus === 'paid') {
+            throw new ValidationError('Đơn hàng đã được thanh toán đầy đủ.');
+        }
+
+        const remaining = Number(order.totalAmount) - Number(order.paidAmount);
+        const amountToPay = data.amount || remaining; // Nếu không gửi amount thì thanh toán hết
+
+        // Sinh lại QR Code
+        const paymentInfo = this.generatePaymentInfo(order.orderCode, amountToPay, data.paymentMethodDetail);
+
+        if (!paymentInfo) {
+            throw new ValidationError('Phương thức thanh toán không hỗ trợ sinh mã online.');
+        }
+
+        return {
+            orderCode: order.orderCode,
+            ...paymentInfo
         };
     }
 }

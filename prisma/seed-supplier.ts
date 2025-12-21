@@ -149,6 +149,7 @@ async function main() {
 
   console.log(`✅ Đã seed xong ${suppliers.length} nhà cung cấp!`);
 }
+export { main };
 
 // main()
 //   .catch((e) => {

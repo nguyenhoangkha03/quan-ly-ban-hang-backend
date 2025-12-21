@@ -4,74 +4,158 @@ import { z } from 'zod';
 // 1. CREATE SALES ORDER (CUSTOMER VERSION)
 // ==========================================
 export const createCustomerSalesOrderSchema = z.object({
-    body: z.object({
-        // warehouseId: Tùy chọn, nếu Khách hàng không chọn, Service sẽ gán kho mặc định.
+        // warehouseId: Admin bắt buộc, nhưng Khách có thể optional (nếu logic tự chọn kho)
         warehouseId: z.number().int().positive('Warehouse ID must be positive').optional(),
 
-        // paymentMethod: Bắt buộc phải là 'transfer' (online) hoặc 'cash' (tiền mặt/COD).
+        // paymentMethod: Khách chỉ được dùng Tiền mặt hoặc Chuyển khoản (Không cho nợ/trả góp)
         paymentMethod: z.enum(['transfer', 'cash'])
-            .refine((val) => val === 'transfer' || val === 'cash', {
-                message: "Payment method must be either 'transfer' (online) or 'cash' (COD)."
+            .refine((val) => ['transfer', 'cash'].includes(val), {
+                 message: "Phương thức thanh toán phải là 'transfer' hoặc 'cash'."
             }),
+        // [MỚI] Chi tiết thanh toán để sinh QR (Momo/Bank)
+        // Bắt buộc nếu paymentMethod là 'transfer', nhưng ở đây để optional để validate logic chéo sau hoặc frontend tự gửi
+        paymentMethodDetail: z.enum(['MOMO_QR', 'MBBANK_QR', 'BANK_TRANSFER']).optional(),
 
-        // paidAmount: Số tiền trả trước. Chỉ được phép nếu thanh toán không phải là ghi nợ/trả góp.
+        // paidAmount: Số tiền trả trước (thường là 0 hoặc full)
         paidAmount: z.number().min(0, 'Paid amount must be non-negative').optional(),
 
-        // deliveryAddress: Bắt buộc phải có nếu không muốn lấy từ hồ sơ Khách hàng
+        // deliveryAddress: Địa chỉ giao hàng
         deliveryAddress: z.string().max(255).optional(),
 
-        // Các trường tính toán/chiết khấu
-        discountAmount: z.number().min(0, 'Discount must be non-negative').optional(),
-        shippingFee: z.number().min(0, 'Shipping fee must be non-negative').optional(),
+        // Các trường voucher/ship (Admin có thể tự nhập, Khách thường do hệ thống tính, nhưng cho phép gửi lên để tham chiếu)
+        discountAmount: z.number().min(0).optional(),
+        shippingFee: z.number().min(0).optional(),
+        
         notes: z.string().max(255).optional(),
 
-        // Chi tiết sản phẩm (Giữ nguyên - Rất tốt)
+        // Chi tiết sản phẩm (Cấu trúc Giống hệt Admin)
         items: z
             .array(
                 z.object({
                     productId: z.number().int().positive('Product ID must be positive'),
                     quantity: z.number().positive('Quantity must be positive'),
-                    unitPrice: z.number().positive('Unit price must be positive'),
+                    
+                    // unitPrice: Vẫn validate để đảm bảo frontend không gửi rác.
+                    // Tuy nhiên, Service sẽ GHI ĐÈ giá này bằng giá từ Database để bảo mật.
+                    unitPrice: z.number().positive('Unit price must be positive').optional(),
+                    
                     discountPercent: z.number().min(0).max(100).optional(),
                     taxRate: z.number().min(0).max(100).optional(),
                     warehouseId: z.number().int().positive().optional(),
                     notes: z.string().max(255).optional(),
                 })
             )
-            .min(1, 'Order must have at least one item'),
+            .min(1, 'Đơn hàng phải có ít nhất 1 sản phẩm.'),
+});
+
+export const createCustomerSalesOrderSchema1 = z.object({
+    body: z.object({
+        // warehouseId: Admin bắt buộc, nhưng Khách có thể optional (nếu logic tự chọn kho)
+        warehouseId: z.number().int().positive('Warehouse ID must be positive').optional(),
+
+        // paymentMethod: Khách chỉ được dùng Tiền mặt hoặc Chuyển khoản (Không cho nợ/trả góp)
+        paymentMethod: z.enum(['transfer', 'cash'])
+            .refine((val) => ['transfer', 'cash'].includes(val), {
+                 message: "Phương thức thanh toán phải là 'transfer' hoặc 'cash'."
+            }),
+        // [MỚI] Chi tiết thanh toán để sinh QR (Momo/Bank)
+        // Bắt buộc nếu paymentMethod là 'transfer', nhưng ở đây để optional để validate logic chéo sau hoặc frontend tự gửi
+        paymentMethodDetail: z.enum(['MOMO_QR', 'MBBANK_QR', 'BANK_TRANSFER']).optional(),
+
+        // paidAmount: Số tiền trả trước (thường là 0 hoặc full)
+        paidAmount: z.number().min(0, 'Paid amount must be non-negative').optional(),
+
+        // deliveryAddress: Địa chỉ giao hàng
+        deliveryAddress: z.string().max(255).optional(),
+
+        // Các trường voucher/ship (Admin có thể tự nhập, Khách thường do hệ thống tính, nhưng cho phép gửi lên để tham chiếu)
+        discountAmount: z.number().min(0).optional(),
+        shippingFee: z.number().min(0).optional(),
+        
+        notes: z.string().max(255).optional(),
+
+        // Chi tiết sản phẩm (Cấu trúc Giống hệt Admin)
+        items: z
+            .array(
+                z.object({
+                    productId: z.number().int().positive('Product ID must be positive'),
+                    quantity: z.number().positive('Quantity must be positive'),
+                    
+                    // unitPrice: Vẫn validate để đảm bảo frontend không gửi rác.
+                    // Tuy nhiên, Service sẽ GHI ĐÈ giá này bằng giá từ Database để bảo mật.
+                    unitPrice: z.number().positive('Unit price must be positive').optional(),
+                    
+                    discountPercent: z.number().min(0).max(100).optional(),
+                    taxRate: z.number().min(0).max(100).optional(),
+                    warehouseId: z.number().int().positive().optional(),
+                    notes: z.string().max(255).optional(),
+                })
+            )
+            .min(1, 'Đơn hàng phải có ít nhất 1 sản phẩm.'),
     }),
 });
 
 // ==========================================
-// 2. INITIATE PAYMENT (Khởi tạo thanh toán online)
-// API này chỉ được gọi sau khi Khách hàng đã tạo đơn hàng với paymentMethod = 'transfer'.
+// 2. INITIATE PAYMENT (Thanh toán Online sau khi tạo đơn)
 // ==========================================
 export const initiateCustomerPaymentSchema = z.object({
     body: z.object({
-        // amount: Tùy chọn, vì Service có thể tự tính toán số tiền còn lại (remainingAmount)
-        amount: z.number().positive('Amount must be positive').optional(),
-
-        // paymentMethodDetail: BẮT BUỘC cho thanh toán online.
-        paymentMethodDetail: z.enum(['MOMO_QR', 'MBBANK_QR', 'BANK_TRANSFER']
-            ).refine((val) => ['MOMO_QR', 'MBBANK_QR', 'BANK_TRANSFER'].includes(val), {
-                message: "Payment method detail must be one of 'MOMO_QR', 'MBBANK_QR', or 'BANK_TRANSFER'."
+        amount: z.number().positive().optional(),
+        
+        // Bắt buộc chọn cổng thanh toán
+        paymentMethodDetail: z.enum(['MOMO_QR', 'MBBANK_QR', 'BANK_TRANSFER'])
+            .optional()
+            .refine((val) => {
+                if (!val) return true; // Cho phép undefined vì là optional
+                return ['MOMO_QR', 'MBBANK_QR', 'BANK_TRANSFER'].includes(val);
+            }, {
+                message: "Cổng thanh toán phải là MOMO_QR, MBBANK_QR hoặc BANK_TRANSFER."
             }),
+        
         notes: z.string().max(255).optional(),
     }),
 });
 
 // ==========================================
-// 3. CANCEL ORDER (CUSTOMER VERSION)
+// 3. CANCEL ORDER (Khách tự hủy)
 // ==========================================
 export const customerCancelOrderSchema = z.object({
     body: z.object({
-        reason: z.string().min(10, 'Cancellation reason must be at least 10 characters').max(255),
+        reason: z.string().min(5, 'Lý do hủy phải có ít nhất 5 ký tự.').max(255),
+    }),
+});
+
+// ==========================================
+// 4. QUERY ORDERS (Lấy danh sách đơn của tôi)
+// Dựa trên salesOrderQuerySchema của Admin nhưng bỏ các trường nhạy cảm
+// ==========================================
+export const customerSalesOrderQuerySchema = z.object({
+    query: z.object({
+        page: z.string().regex(/^\d+$/).transform(Number).optional(),
+        limit: z.string().regex(/^\d+$/).transform(Number).optional(),
+        
+        // Khách có thể tìm theo mã đơn của chính mình
+        search: z.string().optional(),
+        
+        // Không cho phép lọc customerId (vì chỉ xem đc của mình)
+        // customerId: z.string().... -> BỎ
+
+        orderStatus: z.enum(['pending', 'preparing', 'delivering', 'completed', 'cancelled']).optional(),
+        paymentStatus: z.enum(['unpaid', 'partial', 'paid']).optional(),
+        
+        fromDate: z.string().optional(),
+        toDate: z.string().optional(),
+        
+        // Sắp xếp
+        sortBy: z.string().optional(),
+        sortOrder: z.enum(['asc', 'desc']).optional(),
     }),
 });
 
 // ==========================================
 // TYPES
 // ==========================================
-export type CreateCustomerSalesOrderInput = z.infer<typeof createCustomerSalesOrderSchema>['body'];
+export type CreateCustomerSalesOrderInput = z.infer<typeof createCustomerSalesOrderSchema>;
 export type InitiateCustomerPaymentInput = z.infer<typeof initiateCustomerPaymentSchema>['body'];
 export type CustomerCancelOrderInput = z.infer<typeof customerCancelOrderSchema>['body'];
+export type CustomerSalesOrderQueryInput = z.infer<typeof customerSalesOrderQuerySchema>['query'];

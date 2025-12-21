@@ -290,6 +290,8 @@ async function main() {
   `);
 }
 
+export { main };
+
 // main()
 //   .catch((e) => {
 //     console.error('❌ Lỗi khi seed warehouse:', e);

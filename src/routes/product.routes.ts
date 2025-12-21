@@ -10,6 +10,7 @@ import {
   updateProductSchema,
   productQuerySchema,
   productIdSchema,
+  updateFeaturedSchema,
 } from '@validators/product.validator';
 
 const router = Router();
@@ -292,6 +293,13 @@ router.post(
   authorize('create_product'),
   validate(createProductSchema, 'body'),
   asyncHandler(productController.create.bind(productController))
+);
+
+router.put(
+  '/banner-status', 
+  authorize('update_product'),
+  validate(updateFeaturedSchema, 'body'), // Validate Action & ProductIds
+  asyncHandler(productController.updateBannerStatus.bind(productController))
 );
 
 /**

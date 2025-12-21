@@ -10,7 +10,7 @@ import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { sanitizeInput } from '@middlewares/validate';
 import compressionMiddleware from '@middlewares/compression';
-import { requestTimer } from '@middlewares/logger';
+import { httpLogger, requestTimer } from '@middlewares/logger';
 
 // import { performanceMonitor } from '@utils/performance.monitor';
 import RedisService from '@services/redis.service';
@@ -55,6 +55,8 @@ import cs_categoryRoutes from '@routes/cs-category.routes';
 import cs_productRoutes from '@routes/cs-product.routes';
 import cs_inventoryRoutes from '@routes/cs-inventory.routes';
 import cs_customerRoutes from '@routes/cs-customer.routes';
+import cs_warehouseRoutes from '@routes/cs-warehouse.routes';
+import cs_salesOrderRoutes from '@routes/cs-sales-order.routes';
 
 // Import notification scheduler
 import notificationScheduler from '@schedulers/notification.scheduler';
@@ -144,12 +146,13 @@ app.use(
 // Tối ưu hóa hiệu xuất
 app.use(compressionMiddleware); // Nén phản hồi (gzip)
 app.use(requestTimer);
-// app.use(httpLogger);
-// app.use(performanceMonitor);
+app.use(httpLogger);
 
-app.use(cookieParser());
-app.use(express.json());
+// Body parsers
+app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
 app.use(morgan('dev'));
 
 // Middleware bảo mật
@@ -208,13 +211,14 @@ app.use('/api/performance', performanceRoutes);
 app.use('/api/security', securityRoutes);
 
 
-
 //custommer service routes
 app.use('/api/accounts', cs_accountRoutes);
 app.use('/api/cs/categories', cs_categoryRoutes);
 app.use('/api/cs/products', cs_productRoutes);
 app.use('/api/cs/inventory', cs_inventoryRoutes);
 app.use('/api/cs/customers', cs_customerRoutes);
+app.use('/api/cs/warehouses', cs_warehouseRoutes);
+app.use('/api/cs/sale-order', cs_salesOrderRoutes);
 
 
 

@@ -16,7 +16,9 @@ export interface CustomerJwtPayload {
 
 // Hàm tạo Access Token
 export const generateAccessToken = (payload: CustomerJwtPayload): string => {
+    console.log('Access Token Payload:', payload);
     return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES });
+
 };
 
 // Hàm tạo Refresh Token
