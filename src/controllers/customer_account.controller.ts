@@ -27,14 +27,15 @@ class AccountController {
     // 3. [BƯỚC 3/3 SĐT] ĐỒNG BỘ TÀI KHOẢN SAU KHI CÓ UID/OTP HOẶC ĐĂNG NHẬP (QUÊN MK)
     // Sau khi Supabase verify OTP thành công, gọi API này để tạo/cập nhật tài khoản và trả về Token
     async syncPhoneAccount(req: AuthRequest, res: Response) {
-        // Sử dụng SetPasswordInput vì nó có phone, uid và password (tạm thời chưa có password)
-        const { uid, phone } = req.body as any; // Thay vì PhoneLoginInput, dùng type chứa uid và phone
+        // Lấy thêm password từ req.body
+        const { uid, phone, password } = req.body as any; 
         
-        const result = await accountService.syncPhoneAccount({ uid, phone });
+        // Truyền password vào service
+        const result = await accountService.syncPhoneAccount({ uid, phone, password });
         
         return res.status(200).json({
             success: true,
-            data: result, // { customer, tokens, requirePasswordSet }
+            data: result,
             message: 'Phone authentication successful'
         });
     }

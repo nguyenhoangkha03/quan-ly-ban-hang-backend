@@ -5,6 +5,7 @@ import {
     UpdateCustomerInput,
     // Không cần import các Input dành cho Admin như CreateCustomerInput, CustomerQueryInput
 } from '@validators/customer.validator';
+import { calculateDebtMetrics } from '@utils/debt.util';
 
 
 const prisma = new PrismaClient();
@@ -49,24 +50,36 @@ class CustomerService {
             throw new NotFoundError('Customer not found');
         }
 
-        // Tính toán thông tin nợ (giữ nguyên logic)
-        const debtPercentage =
-            Number(customer.creditLimit) > 0
-                ? (Number(customer.currentDebt) / Number(customer.creditLimit)) * 100
-                : 0;
+        // // Tính toán thông tin nợ (giữ nguyên logic)
+        // const debtPercentage =
+        //     Number(customer.creditLimit) > 0
+        //         ? (Number(customer.currentDebt) / Number(customer.creditLimit)) * 100
+        //         : 0;
+
+        // const customerWithDebtInfo = {
+        //     ...customer,
+        //     debtPercentage: Math.round(debtPercentage * 100) / 100,
+        //     isOverLimit: Number(customer.currentDebt) > Number(customer.creditLimit),
+        //     availableCredit:
+        //         Number(customer.creditLimit) - Number(customer.currentDebt) > 0
+        //             ? Number(customer.creditLimit) - Number(customer.currentDebt)
+        //             : 0,
+        // };
+
+        // await redis.set(cacheKey, customerWithDebtInfo, CUSTOMER_CACHE_TTL);
+
+        // return customerWithDebtInfo;
+
+        // --- SỬ DỤNG HÀM TÍNH TOÁN ---
+        const debtMetrics = calculateDebtMetrics(customer.currentDebt, customer.creditLimit);
 
         const customerWithDebtInfo = {
             ...customer,
-            debtPercentage: Math.round(debtPercentage * 100) / 100,
-            isOverLimit: Number(customer.currentDebt) > Number(customer.creditLimit),
-            availableCredit:
-                Number(customer.creditLimit) - Number(customer.currentDebt) > 0
-                    ? Number(customer.creditLimit) - Number(customer.currentDebt)
-                    : 0,
+            ...debtMetrics, // Spread các thuộc tính: debtPercentage, isOverLimit, v.v.
         };
+        // -----------------------------
 
         await redis.set(cacheKey, customerWithDebtInfo, CUSTOMER_CACHE_TTL);
-
         return customerWithDebtInfo;
     }
 
@@ -163,10 +176,28 @@ class CustomerService {
             debtAmount: Number(order.totalAmount) - Number(order.paidAmount),
         }));
 
-        const debtPercentage =
-            Number(customer.creditLimit) > 0
-                ? (Number(customer.currentDebt) / Number(customer.creditLimit)) * 100
-                : 0;
+        // const debtPercentage =
+        //     Number(customer.creditLimit) > 0
+        //         ? (Number(customer.currentDebt) / Number(customer.creditLimit)) * 100
+        //         : 0;
+
+        // return {
+        //     customerId: customer.id,
+        //     customerCode: customer.customerCode,
+        //     customerName: customer.customerName,
+        //     creditLimit: Number(customer.creditLimit),
+        //     currentDebt: Number(customer.currentDebt),
+        //     availableCredit: Math.max(0, Number(customer.creditLimit) - Number(customer.currentDebt)),
+        //     debtPercentage: Math.round(debtPercentage * 100) / 100,
+        //     isOverLimit: Number(customer.currentDebt) > Number(customer.creditLimit),
+        //     debtUpdatedAt: customer.debtUpdatedAt,
+        //     unpaidOrders,
+        //     totalUnpaidOrders: unpaidOrders.length,
+        // };
+
+        // --- SỬ DỤNG HÀM TÍNH TOÁN ---
+        const debtMetrics = calculateDebtMetrics(customer.currentDebt, customer.creditLimit);
+        // -----------------------------
 
         return {
             customerId: customer.id,
@@ -174,12 +205,10 @@ class CustomerService {
             customerName: customer.customerName,
             creditLimit: Number(customer.creditLimit),
             currentDebt: Number(customer.currentDebt),
-            availableCredit: Math.max(0, Number(customer.creditLimit) - Number(customer.currentDebt)),
-            debtPercentage: Math.round(debtPercentage * 100) / 100,
-            isOverLimit: Number(customer.currentDebt) > Number(customer.creditLimit),
             debtUpdatedAt: customer.debtUpdatedAt,
             unpaidOrders,
             totalUnpaidOrders: unpaidOrders.length,
+            ...debtMetrics, // Spread kết quả tính toán vào đây
         };
     }
 
