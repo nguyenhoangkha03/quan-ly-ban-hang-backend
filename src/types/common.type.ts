@@ -11,6 +11,19 @@ export interface AuthRequest extends Request {
   };
 }
 
+// Payload dành cho Khách hàng
+export interface CustomerJwtPayload {
+  customerId: number;
+  role: 'customer';
+  email: string;
+  phone: string;
+}
+
+// Request dành RIÊNG cho Khách hàng
+export interface CustomerAuthRequest extends Request {
+  user?: CustomerJwtPayload;
+}
+
 // Error codes
 export enum ErrorCode {
   VALIDATION_ERROR = 'VALIDATION_ERROR',

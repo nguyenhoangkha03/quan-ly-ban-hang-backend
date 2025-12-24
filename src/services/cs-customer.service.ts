@@ -1,5 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import RedisService, { CachePrefix } from '@services/redis.service';
 import {
     UpdateCustomerInput,
@@ -28,8 +28,12 @@ class CustomerService {
 
         const customer = await prisma.customer.findUnique({
             where: { id },
-            // Bỏ include creator/updater vì không cần thiết cho khách hàng cuối
             include: {
+                customerAccount: {
+                    select: {
+                        authProvider: true
+                    },
+                },
                 salesOrders: {
                     select: {
                         id: true,
@@ -49,6 +53,8 @@ class CustomerService {
         if (!customer) {
             throw new NotFoundError('Customer not found');
         }
+        // Lấy provider từ account đầu tiên
+        const provider = customer.customerAccount?.[0]?.authProvider || 'PHONE';
 
         // // Tính toán thông tin nợ (giữ nguyên logic)
         // const debtPercentage =
@@ -75,9 +81,9 @@ class CustomerService {
 
         const customerWithDebtInfo = {
             ...customer,
+            authProvider: provider,
             ...debtMetrics, // Spread các thuộc tính: debtPercentage, isOverLimit, v.v.
         };
-        // -----------------------------
 
         await redis.set(cacheKey, customerWithDebtInfo, CUSTOMER_CACHE_TTL);
         return customerWithDebtInfo;
@@ -96,10 +102,18 @@ class CustomerService {
             throw new NotFoundError('Customer not found');
         }
 
-        // *** LƯU Ý BẢO MẬT: Bỏ qua kiểm tra email/phone/taxCode trùng lặp ***
-        // vì Khách hàng cuối thường không được phép tự ý thay đổi SĐT hoặc Email
-        // (trừ khi có quy trình xác thực OTP/Email riêng). Nếu bạn cho phép, 
-        // hãy đưa logic kiểm tra trùng lặp vào đây.
+        // CHẶN: Không cho phép update Email dưới mọi hình thức
+        // CHỈ: Xử lý Phone
+        if (data.phone && data.phone !== customer.phone) {
+             const exist = await prisma.customer.findFirst({ 
+                where: { phone: data.phone, id: { not: id } } 
+             });
+             
+             if (exist) {
+                 throw new ConflictError('Số điện thoại này đã được sử dụng bởi tài khoản khác');
+             }
+             // Nếu không trùng -> Cho phép code chạy tiếp xuống dưới để update
+        }
 
         // Chỉ cho phép cập nhật các trường Khách hàng được phép tự quản lý
         const safeData: Prisma.CustomerUpdateInput = {
@@ -109,8 +123,9 @@ class CustomerService {
             ...(data.address !== undefined && { address: data.address }),
             ...(data.province !== undefined && { province: data.province }),
             ...(data.district !== undefined && { district: data.district }),
-            // Giữ nguyên các trường Phone/Email/TaxCode/Classification/CreditLimit...
-            // để Khách hàng không thể tự sửa.
+
+            //cập nhật được số điện thoại nếu hợp lệ và không trùng
+            ...(data.phone && { phone: data.phone }),
         };
 
         if (Object.keys(safeData).length === 0) {

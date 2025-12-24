@@ -7,11 +7,12 @@ import { asyncHandler } from '@middlewares/errorHandler';
 import {
     updateCustomerSchema
 } from '@validators/customer.validator';
+import { customerAuthentication } from '@middlewares/authCustomer';
 
 const router = Router();
 
 // Áp dụng middleware xác thực cho TẤT CẢ các route
-// router.use(customerAuthentication);
+router.use(customerAuthentication);
 
 // ========================================================
 // CUSTOMER END-USER ROUTES (Sử dụng ID từ Token - req.user.id)

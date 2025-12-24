@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/common.type';
+import { CustomerAuthRequest } from '@custom-types/common.type';
 // Import Service dành cho Khách hàng
 import customerService from '@services/cs-customer.service'; 
 import { NotFoundError } from '@utils/errors';
@@ -8,18 +8,21 @@ import { UpdateCustomerInput } from '@validators/customer.validator'; // Import 
 class CustomerProfileController {
     
     // Helper để lấy ID khách hàng từ token
-    private getCustomerId(req: AuthRequest): number {
-        const customerId = req.user?.id; 
+    private getCustomerId(req: CustomerAuthRequest): number {
+        
+        console.log('User info from token:', req.user);
+        const customerId = req.user?.customerId; 
+
         if (!customerId) {
-             throw new NotFoundError('Customer ID not found in token. Unauthorized.');
+             throw new NotFoundError('Customer ID not found in token.');
         }
-        return customerId;
+        return Number(customerId);
     }
 
     // ========================================================
     // 1. GET /api/customer/profile - Lấy thông tin hồ sơ
     // ========================================================
-    async getProfile(req: AuthRequest, res: Response) {
+    async getProfile(req: CustomerAuthRequest, res: Response) {
         const customerId = this.getCustomerId(req);
 
         // Gọi Service method getById, sử dụng ID từ Token
@@ -35,7 +38,7 @@ class CustomerProfileController {
     // ========================================================
     // 2. PUT /api/customer/profile - Cập nhật hồ sơ
     // ========================================================
-    async updateProfile(req: AuthRequest, res: Response) {
+    async updateProfile(req: CustomerAuthRequest, res: Response) {
         const customerId = this.getCustomerId(req);
         const updateData = req.body as UpdateCustomerInput;
         
@@ -53,7 +56,7 @@ class CustomerProfileController {
     // ========================================================
     // 3. GET /api/customer/debt - Lấy thông tin nợ
     // ========================================================
-    async getDebtInfo(req: AuthRequest, res: Response) {
+    async getDebtInfo(req: CustomerAuthRequest, res: Response) {
         const customerId = this.getCustomerId(req);
 
         // Gọi Service method getDebtInfo, sử dụng ID từ Token
@@ -69,7 +72,7 @@ class CustomerProfileController {
     // ========================================================
     // 4. GET /api/customer/orders - Lịch sử đơn hàng
     // ========================================================
-    async getOrderHistory(req: AuthRequest, res: Response) {
+    async getOrderHistory(req: CustomerAuthRequest, res: Response) {
         const customerId = this.getCustomerId(req);
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 20;
