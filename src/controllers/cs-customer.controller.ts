@@ -86,6 +86,17 @@ class CustomerProfileController {
             timestamp: new Date().toISOString(),
         });
     }
+
+    // POST /api/cs/customers/confirm-phone
+    async confirmPhone(req: CustomerAuthRequest, res: Response) {
+        const customerId = this.getCustomerId(req);
+        await customerService.confirmPhoneUsage(customerId);
+        
+        return res.status(200).json({
+            success: true,
+            message: 'Đã xác nhận số điện thoại.'
+        });
+    }
     
     // BỎ QUA các phương thức Admin: getAll, create, update, updateCreditLimit, updateStatus, getOverdueDebt, delete
 }

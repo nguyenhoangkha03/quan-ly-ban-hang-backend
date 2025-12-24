@@ -672,6 +672,8 @@ model Customer {
     updatedBy      Int?                   @map("updated_by")
     createdAt      DateTime               @default(now()) @map("created_at")
     updatedAt      DateTime               @updatedAt @map("updated_at")
+    phoneVerifiedAt DateTime?              @map("phone_verified_at")
+
 
     creator User? @relation("CustomerCreator", fields: [createdBy], references: [id], onDelete: SetNull)
     updater User? @relation("CustomerUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)

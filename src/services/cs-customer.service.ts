@@ -15,6 +15,35 @@ const CUSTOMER_CACHE_TTL = 3600;
 
 class CustomerService {
 
+    // API: Xác nhận SĐT vẫn đang được sử dụng
+    async confirmPhoneUsage(id: number) {
+        return await prisma.customer.update({
+            where: { id },
+            data: { 
+                phoneVerifiedAt: new Date() // Cập nhật thời gian hiện tại
+            }
+        });
+    }
+
+    // Helper: Kiểm tra xem có cần xác thực lại SĐT không
+    // Trả về true nếu: Là Acc Social + Có SĐT + (Chưa verify bao giờ HOẶC Đã verify quá 3 tháng)
+    checkIfNeedPhoneVerification(customer: any, authProvider: string): boolean {
+        // Chỉ áp dụng cho tài khoản Social (GG/FB)
+        if (authProvider === 'PHONE') return false; 
+        
+        // Nếu chưa có SĐT thì không cần check (vì sẽ bị bắt buộc nhập ở Profile rồi)
+        if (!customer.phone || customer.phone.length < 8) return false;
+
+        // Nếu chưa từng verify
+        if (!customer.phoneVerifiedAt) return true;
+
+        // Kiểm tra thời gian (3 tháng = 90 ngày)
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setDate(threeMonthsAgo.getDate() - 90);
+
+        return new Date(customer.phoneVerifiedAt) < threeMonthsAgo;
+    }
+
     // ========================================================
     // 1. GET PROFILE (Tái sử dụng logic getById của Admin)
     // Khách hàng sẽ lấy thông tin của chính họ qua ID từ Token

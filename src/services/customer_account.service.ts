@@ -3,6 +3,7 @@ import { NotFoundError, AuthenticationError, ConflictError } from '@utils/errors
 import RedisService from './redis.service';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils/cs-jwt';
 import { hashPassword, comparePassword } from '@utils/password';
+import customerService from './cs-customer.service';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
@@ -28,7 +29,7 @@ class AccountService {
     }
 
     // 1. PHONE ACCOUNT SYNC (Dùng cho cả Đăng ký và Đăng nhập bằng OTP/UID)
-    async syncPhoneAccount(payload: { uid: string; phone: string ; password?: string }) {
+    async syncPhoneAccount(payload: { uid: string; phone: string; password?: string }) {
         console.log('Syncing phone account with payload:', payload);
         console.log('Normalized phone:', normalizePhone(payload.phone));
         console.log('Password:', payload.password);
@@ -62,7 +63,7 @@ class AccountService {
             }
 
             // 1.3 Tạo CustomerAccount liên kết
-           // --- LOGIC MỚI: MÃ HÓA MẬT KHẨU NẾU CÓ ---
+            // --- LOGIC MỚI: MÃ HÓA MẬT KHẨU NẾU CÓ ---
             let passwordHash = null;
             if (payload.password) {
                 passwordHash = await hashPassword(payload.password);
@@ -150,10 +151,18 @@ class AccountService {
             }
         });
 
+
+        // [MỚI] Kiểm tra xem có cần verify phone không
+        const requirePhoneCheck = customerService.checkIfNeedPhoneVerification(
+            account.customer,
+            account.authProvider
+        );
+
         return {
             customer: account.customer,
             tokens,
-            requirePasswordSet: false // Social login không cần đặt mật khẩu
+            requirePasswordSet: false, // Social login không cần đặt mật khẩu
+            requirePhoneCheck: requirePhoneCheck
         };
     }
 
