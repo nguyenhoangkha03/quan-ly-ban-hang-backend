@@ -30,9 +30,9 @@ class AccountService {
 
     // 1. PHONE ACCOUNT SYNC (Dùng cho cả Đăng ký và Đăng nhập bằng OTP/UID)
     async syncPhoneAccount(payload: { uid: string; phone: string; password?: string }) {
-        console.log('Syncing phone account with payload:', payload);
-        console.log('Normalized phone:', normalizePhone(payload.phone));
-        console.log('Password:', payload.password);
+        // console.log('Syncing phone account with payload:', payload);
+        // console.log('Normalized phone:', normalizePhone(payload.phone));
+        // console.log('Password:', payload.password);
 
         const normalizedPhone = normalizePhone(payload.phone);
 

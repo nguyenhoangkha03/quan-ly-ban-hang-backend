@@ -47,6 +47,7 @@ router.get(
     asyncHandler(customerProfileController.getOrderHistory.bind(customerProfileController))
 );
 
-router.post('/confirm-phone', asyncHandler(customerProfileController.confirmPhone.bind(customerProfileController)));
+router.post('/confirm-phone', 
+    asyncHandler(customerProfileController.confirmPhone.bind(customerProfileController)));
 
 export default router;

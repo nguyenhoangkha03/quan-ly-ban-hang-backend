@@ -10,7 +10,7 @@ class CustomerProfileController {
     // Helper để lấy ID khách hàng từ token
     private getCustomerId(req: CustomerAuthRequest): number {
         
-        console.log('User info from token:', req.user);
+        console.log('User info called');
         const customerId = req.user?.customerId; 
 
         if (!customerId) {
@@ -89,6 +89,7 @@ class CustomerProfileController {
 
     // POST /api/cs/customers/confirm-phone
     async confirmPhone(req: CustomerAuthRequest, res: Response) {
+        console.log('Xác nhận số điện thoại cho khách hàng');
         const customerId = this.getCustomerId(req);
         await customerService.confirmPhoneUsage(customerId);
         
@@ -98,7 +99,7 @@ class CustomerProfileController {
         });
     }
     
-    // BỎ QUA các phương thức Admin: getAll, create, update, updateCreditLimit, updateStatus, getOverdueDebt, delete
+
 }
 
 export default new CustomerProfileController();

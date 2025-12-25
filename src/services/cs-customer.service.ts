@@ -154,7 +154,11 @@ class CustomerService {
             ...(data.district !== undefined && { district: data.district }),
 
             //cập nhật được số điện thoại nếu hợp lệ và không trùng
-            ...(data.phone && { phone: data.phone }),
+           ...(data.phone && { 
+                phone: data.phone,
+                // ✅ TỰ ĐỘNG CẬP NHẬT THỜI GIAN KHI ĐỔI SỐ
+                phoneVerifiedAt: new Date() 
+            }),
         };
 
         if (Object.keys(safeData).length === 0) {
