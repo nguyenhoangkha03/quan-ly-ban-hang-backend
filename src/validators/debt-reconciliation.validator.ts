@@ -26,7 +26,7 @@ export const confirmReconciliationSchema = z.object({
   body: z.object({
     confirmedByName: z.string().min(1).max(200),
     confirmedByEmail: z.string().email().max(200),
-    discrepancyReason: z.string().max(255).optional(),
+    discrepancyReason: z.string().max(255).optional().nullable(),
     notes: z.string().max(255).optional(),
   }),
 });
