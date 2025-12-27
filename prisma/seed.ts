@@ -6,6 +6,40 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...\n');
 
+  // // =====================================================
+  // // 0. CLEAN DATABASE (Delete existing data)
+  // // =====================================================
+  // console.log('🗑️  Cleaning database...\n');
+
+  // try {
+  //   // Delete in correct order to respect foreign key constraints
+  //   await prisma.rolePermission.deleteMany({});
+  //   console.log('   ✓ Deleted RolePermissions');
+
+  //   await prisma.user.deleteMany({});
+  //   console.log('   ✓ Deleted Users');
+
+  //   await prisma.warehouse.deleteMany({});
+  //   console.log('   ✓ Deleted Warehouses');
+
+  //   await prisma.supplier.deleteMany({});
+  //   console.log('   ✓ Deleted Suppliers');
+
+  //   await prisma.category.deleteMany({});
+  //   console.log('   ✓ Deleted Categories');
+
+  //   await prisma.permission.deleteMany({});
+  //   console.log('   ✓ Deleted Permissions');
+
+  //   await prisma.role.deleteMany({});
+  //   console.log('   ✓ Deleted Roles');
+
+  //   console.log('\n✅ Database cleaned successfully!\n');
+  // } catch (error) {
+  //   console.error('⚠️  Error cleaning database:', error);
+  //   console.log('   Continuing with seed process...\n');
+  // }
+
   // =====================================================
   // 1. SEED ROLES
   // =====================================================
@@ -119,6 +153,12 @@ async function main() {
     { key: 'create_stock_transactions', name: 'Tạo phiếu kho', module: 'warehouse' },
     { key: 'approve_stock_transactions', name: 'Phê duyệt phiếu kho', module: 'warehouse' },
     { key: 'cancel_stock_transactions', name: 'Hủy phiếu kho', module: 'warehouse' },
+    { key: 'stocktake_warehouse', name: 'Kiểm kê kho', module: 'warehouse' },
+    {
+      key: 'create_disposal_transaction',
+      name: 'Tạo phiếu xuất hủy hàng hỏng',
+      module: 'warehouse',
+    },
 
     // Stock Transfers (NEW)
     { key: 'view_stock_transfers', name: 'Xem phiếu chuyển kho', module: 'warehouse' },
@@ -159,6 +199,7 @@ async function main() {
     { key: 'create_product', name: 'Tạo sản phẩm', module: 'products' },
     { key: 'update_product', name: 'Cập nhật sản phẩm', module: 'products' },
     { key: 'delete_product', name: 'Xóa sản phẩm', module: 'products' },
+    { key: 'manage_product_prices', name: 'Quản lý giá sản phẩm (Vốn/Bán)', module: 'products' },
 
     // Categories (NEW)
     { key: 'view_categories', name: 'Xem danh mục', module: 'products' },
@@ -229,6 +270,8 @@ async function main() {
     { key: 'cancel_promotion', name: 'Hủy khuyến mãi', module: 'sales' },
     { key: 'manage_promotions', name: 'Quản lý khuyến mãi', module: 'sales' },
 
+    { key: 'approve_credit_limit_override', name: 'Phê duyệt bán vượt hạn mức', module: 'sales' },
+
     // ============================================================
     // FINANCIAL MANAGEMENT
     // ============================================================
@@ -263,6 +306,11 @@ async function main() {
     { key: 'confirm_debt_reconciliation', name: 'Xác nhận đối chiếu', module: 'finance' },
     { key: 'send_debt_reconciliation_email', name: 'Gửi email đối chiếu', module: 'finance' },
 
+    // Cash Fund (Quỹ tiền mặt)
+    { key: 'view_cash_fund', name: 'Xem quỹ tiền mặt', module: 'finance' },
+    { key: 'reconcile_cash_fund', name: 'Đối chiếu/Kiểm kê quỹ', module: 'finance' }, // Dành cho Kế toán
+    { key: 'approve_cash_fund', name: 'Phê duyệt/Khóa sổ quỹ', module: 'finance' }, // Dành cho Admin/Kế toán trưởng
+
     // ============================================================
     // HR MANAGEMENT
     // ============================================================
@@ -272,9 +320,13 @@ async function main() {
     { key: 'update_attendance', name: 'Cập nhật chấm công', module: 'hr' },
     { key: 'delete_attendance', name: 'Xóa chấm công', module: 'hr' },
 
+    // Leave
+    { key: 'approve_leave', name: 'Phê duyệt nghiệp vụ', module: 'hr' },
+
     // Salary
     { key: 'view_salary', name: 'Xem lương', module: 'hr' },
     { key: 'manage_salary', name: 'Quản lý lương', module: 'hr' },
+    { key: 'create_salary', name: 'Tạo lương', module: 'hr' },
     { key: 'update_salary', name: 'Cập nhật lương', module: 'hr' },
     { key: 'delete_salary', name: 'Xóa lương', module: 'hr' },
     { key: 'calculate_salary', name: 'Tính lương', module: 'hr' },
@@ -287,6 +339,11 @@ async function main() {
     { key: 'view_dashboard', name: 'Xem dashboard', module: 'reports' },
     { key: 'view_reports', name: 'Xem báo cáo', module: 'reports' },
     { key: 'export_reports', name: 'Xuất báo cáo', module: 'reports' },
+
+    // ============================================================
+    // SYSTEM
+    // ============================================================
+    { key: 'view_activity_logs', name: 'Xem nhật ký hoạt động hệ thống', module: 'system' },
 
     // ============================================================
     // SETTINGS
@@ -419,17 +476,17 @@ async function main() {
   const accountantRole = roles.find((r) => r.roleKey === 'accountant');
   const productionManagerRole = roles.find((r) => r.roleKey === 'production_manager');
 
-  const defaultPassword = await bcrypt.hash('123456', 10);
+  const defaultPassword = await bcrypt.hash('admin123', 10);
 
   const additionalUsers = await Promise.all([
     // Warehouse Managers
     prisma.user.upsert({
-      where: { email: 'manager1@company.com' },
+      where: { email: 'hanhlanganime@gmail.com' },
       update: {},
       create: {
         employeeCode: 'NV-0002',
-        email: 'manager1@company.com',
-        passwordHash: defaultPassword,
+        email: 'hanhlanganime@gmail.com',
+        passwordHash: hashedPassword,
         fullName: 'Nguyễn Văn Quản',
         phone: '0901234567',
         gender: 'male',
@@ -440,12 +497,12 @@ async function main() {
       },
     }),
     prisma.user.upsert({
-      where: { email: 'manager2@company.com' },
+      where: { email: 'momota19102003@gmail.com' },
       update: {},
       create: {
         employeeCode: 'NV-0003',
-        email: 'manager2@company.com',
-        passwordHash: defaultPassword,
+        email: 'momota19102003@gmail.com',
+        passwordHash: hashedPassword,
         fullName: 'Trần Thị Lan',
         phone: '0902345678',
         gender: 'female',
@@ -463,7 +520,7 @@ async function main() {
       create: {
         employeeCode: 'NV-0004',
         email: 'staff1@company.com',
-        passwordHash: defaultPassword,
+        passwordHash: hashedPassword,
         fullName: 'Lê Văn Tài',
         phone: '0903456789',
         gender: 'male',
@@ -479,7 +536,7 @@ async function main() {
       create: {
         employeeCode: 'NV-0005',
         email: 'staff2@company.com',
-        passwordHash: defaultPassword,
+        passwordHash: hashedPassword,
         fullName: 'Phạm Thị Hoa',
         phone: '0904567890',
         gender: 'female',
@@ -497,7 +554,7 @@ async function main() {
       create: {
         employeeCode: 'NV-0006',
         email: 'sales@company.com',
-        passwordHash: defaultPassword,
+        passwordHash: hashedPassword,
         fullName: 'Hoàng Văn Đạt',
         phone: '0905678901',
         gender: 'male',
@@ -514,7 +571,7 @@ async function main() {
       create: {
         employeeCode: 'NV-0007',
         email: 'accountant@company.com',
-        passwordHash: defaultPassword,
+        passwordHash: hashedPassword,
         fullName: 'Vũ Thị Mai',
         phone: '0906789012',
         gender: 'female',

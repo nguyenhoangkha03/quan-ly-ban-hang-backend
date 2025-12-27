@@ -28,6 +28,287 @@ interface InventoryReportParams {
 
 class ReportService {
   // =====================================================
+  // DASHBOARD COMPLETE STATS (Optimized All-in-One)
+  // =====================================================
+  async getDashboardStats(period: string = 'month') {
+    const cacheKey = `dashboard:stats:${period}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const today = new Date();
+    let periodFromDate: Date, periodToDate: Date;
+    let previousFromDate: Date, previousToDate: Date;
+
+    // Calculate period dates
+    switch (period) {
+      case 'week':
+        periodFromDate = new Date(today);
+        periodFromDate.setDate(today.getDate() - today.getDay());
+        periodFromDate.setHours(0, 0, 0, 0);
+        periodToDate = new Date(today.setHours(23, 59, 59, 999));
+
+        previousFromDate = new Date(periodFromDate);
+        previousFromDate.setDate(previousFromDate.getDate() - 7);
+        previousToDate = new Date(periodFromDate);
+        previousToDate.setHours(23, 59, 59, 999);
+        previousToDate.setDate(previousToDate.getDate() - 1);
+        break;
+
+      case 'day':
+        periodFromDate = new Date(today.setHours(0, 0, 0, 0));
+        periodToDate = new Date(today.setHours(23, 59, 59, 999));
+
+        previousFromDate = new Date(periodFromDate);
+        previousFromDate.setDate(previousFromDate.getDate() - 1);
+        previousToDate = new Date(previousFromDate);
+        previousToDate.setHours(23, 59, 59, 999);
+        break;
+
+      case 'month':
+      default:
+        periodFromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        periodToDate = new Date(today.setHours(23, 59, 59, 999));
+
+        previousFromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        previousToDate = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+        break;
+    }
+
+    // Fetch all data in parallel
+    const [
+      // KPI metrics
+      revenueThisPeriod,
+      revenuePreviousPeriod,
+      ordersThisPeriod,
+      ordersPending,
+      totalInventoryValue,
+      lowStockCount,
+      totalReceivables,
+      overdueDebtCount,
+      activeProduction,
+
+      // Charts data
+      revenueTrendData,
+      salesChannelsData,
+      inventoryByTypeData,
+
+      // Alerts - Low stock items
+      lowStockItems,
+      overdueDebts,
+
+      // Recent data
+      recentOrders,
+      topProducts,
+      activityLogs,
+    ] = await Promise.all([
+      // KPI
+      this.getRevenueByPeriod(periodFromDate, periodToDate),
+      this.getRevenueByPeriod(previousFromDate, previousToDate),
+      this.getOrderCountByPeriod(periodFromDate, periodToDate),
+      prisma.salesOrder.count({ where: { orderStatus: 'pending' } }),
+      this.getTotalInventoryValue(),
+      this.getLowStockCount(),
+      this.getTotalReceivables(),
+      this.getOverdueDebtCount(),
+      prisma.productionOrder.count({ where: { status: 'in_progress' } }),
+
+      // Charts
+      this.getDashboardRevenue(period),
+      this.getDashboardSalesChannels(),
+      this.getDashboardInventoryByType(),
+
+      // Alerts: Get low stock items with proper query
+      prisma.inventory.findMany({
+        where: {
+          product: {
+            minStockLevel: { gt: 0 },
+            status: 'active',
+          },
+          quantity: {
+            lt: 100, // Simplified: any stock < 100
+          },
+        },
+        take: 3,
+        include: {
+          product: {
+            select: { id: true, productName: true, sku: true, minStockLevel: true },
+          },
+          warehouse: { select: { id: true, warehouseName: true } },
+        },
+      }),
+      prisma.customer.findMany({
+        where: {
+          currentDebt: { gt: 0 },
+          debtUpdatedAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        },
+        select: {
+          id: true,
+          customerCode: true,
+          customerName: true,
+          currentDebt: true,
+          debtUpdatedAt: true,
+          phone: true,
+        },
+        take: 3,
+        orderBy: { currentDebt: 'desc' },
+      }),
+
+      // Recent
+      prisma.salesOrder.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          orderCode: true,
+          orderDate: true,
+          totalAmount: true,
+          orderStatus: true,
+          paymentStatus: true,
+          customer: { select: { id: true, customerName: true } },
+        },
+      }),
+      this.getDashboardTopProducts(5),
+      prisma.activityLog.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          createdAt: true,
+          userId: true,
+          user: { select: { fullName: true } },
+          action: true,
+          tableName: true,
+          recordId: true,
+        },
+      }),
+    ]);
+
+    // Calculate trend percentage
+    const revenueGrowth =
+      revenuePreviousPeriod > 0
+        ? ((revenueThisPeriod - revenuePreviousPeriod) / revenuePreviousPeriod) * 100
+        : 0;
+
+    // Format low stock items
+    const formattedLowStockItems = lowStockItems.map((inv: any) => ({
+      product_id: inv.product.id,
+      product_name: inv.product.productName,
+      sku: inv.product.sku,
+      current_stock: Number(inv.quantity),
+      min_stock: Number(inv.product.minStockLevel),
+      warehouse_id: inv.warehouse.id,
+      warehouse_name: inv.warehouse.warehouseName,
+    }));
+
+    // Format overdue debts
+    const formattedOverdueDebts = overdueDebts.map((debt: any) => {
+      const daysOverdue = Math.floor(
+        (new Date().getTime() - new Date(debt.debtUpdatedAt || new Date()).getTime()) /
+          (1000 * 60 * 60 * 24)
+      );
+      return {
+        customer_id: debt.id,
+        customer_name: debt.customerName,
+        customer_code: debt.customerCode,
+        total_debt: Number(debt.currentDebt),
+        days_overdue: daysOverdue,
+        phone: debt.phone,
+      };
+    });
+
+    // Format activity logs
+    const formattedActivityLogs = activityLogs.map((log: any) => {
+      // Map action to activity type
+      let activityType: 'order' | 'inventory' | 'production' | 'finance' | 'user' = 'user';
+
+      if (log.tableName) {
+        if (['sales_orders', 'deliveries'].includes(log.tableName)) {
+          activityType = 'order';
+        } else if (['inventory', 'stock_transactions'].includes(log.tableName)) {
+          activityType = 'inventory';
+        } else if (['production_orders'].includes(log.tableName)) {
+          activityType = 'production';
+        } else if (
+          ['payment_vouchers', 'payment_receipts', 'debt_reconciliation'].includes(log.tableName)
+        ) {
+          activityType = 'finance';
+        }
+      }
+
+      return {
+        id: log.id,
+        timestamp: log.createdAt,
+        user_name: log.user?.fullName || 'Unknown',
+        action: log.action,
+        description: `${log.action} ${log.tableName}`,
+        type: activityType,
+      };
+    });
+
+    const result = {
+      period,
+      kpi: {
+        revenue: {
+          current: revenueThisPeriod,
+          previous: revenuePreviousPeriod,
+          growth_percent: Math.round(revenueGrowth * 100) / 100,
+        },
+        orders: {
+          current: ordersThisPeriod,
+          pending: ordersPending,
+        },
+        inventory: {
+          total_value: totalInventoryValue,
+          low_stock_count: lowStockCount,
+        },
+        debt: {
+          receivables: totalReceivables,
+          overdue_count: overdueDebtCount,
+        },
+        production: {
+          active: activeProduction,
+        },
+      },
+      charts: {
+        revenue_trend: revenueTrendData.data,
+        sales_channels: salesChannelsData,
+        inventory_share: inventoryByTypeData,
+      },
+      alerts: {
+        low_stock: formattedLowStockItems,
+        overdue_debts: formattedOverdueDebts,
+      },
+      recent: {
+        orders: recentOrders.map((order: any) => ({
+          ...order,
+          id: order.id.toString(), // Convert BigInt to string if needed
+        })),
+        products: topProducts,
+        activities: formattedActivityLogs.map((log: any) => ({
+          ...log,
+          id: log.id.toString(), // Convert BigInt to string
+        })),
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    // Convert to plain object for Redis serialization (remove BigInt fields)
+    const resultForCache = JSON.parse(
+      JSON.stringify(result, (_key, value) => {
+        if (typeof value === 'bigint') {
+          return value.toString();
+        }
+        return value;
+      })
+    );
+
+    await redis.set(cacheKey, resultForCache, DASHBOARD_CACHE_TTL);
+    return result;
+  }
+
+  // =====================================================
   // DASHBOARD METRICS
   // =====================================================
   async getDashboard() {
@@ -294,7 +575,10 @@ class ReportService {
     }
 
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const result = await this.getRevenueByChannel(startOfMonth.toISOString(), new Date().toISOString());
+    const result = await this.getRevenueByChannel(
+      startOfMonth.toISOString(),
+      new Date().toISOString()
+    );
 
     await redis.set(cacheKey, result, DASHBOARD_CACHE_TTL);
     return result;
@@ -358,6 +642,58 @@ class ReportService {
     return result;
   }
 
+  // GET /api/reports/dashboard/overdue-debts
+  async getDashboardOverdueDebts() {
+    const cacheKey = `${CachePrefix.DASHBOARD}overdue-debts`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const overdueDebts = await prisma.customer.findMany({
+      where: {
+        currentDebt: {
+          gt: 0,
+        },
+        debtUpdatedAt: {
+          lt: thirtyDaysAgo,
+        },
+      },
+      select: {
+        id: true,
+        customerCode: true,
+        customerName: true,
+        currentDebt: true,
+        debtUpdatedAt: true,
+        phone: true,
+      },
+      orderBy: { currentDebt: 'desc' },
+      take: 10,
+    });
+
+    const result = overdueDebts.map((customer) => {
+      const now = new Date();
+      const debtDate = customer.debtUpdatedAt ? new Date(customer.debtUpdatedAt) : new Date();
+      const daysOverdue = Math.floor((now.getTime() - debtDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      return {
+        customer_id: customer.id,
+        customer_name: customer.customerName,
+        customer_code: customer.customerCode,
+        total_debt: Number(customer.currentDebt),
+        overdue_amount: Number(customer.currentDebt),
+        days_overdue: daysOverdue,
+        phone: customer.phone,
+      };
+    });
+
+    await redis.set(cacheKey, result, DASHBOARD_CACHE_TTL);
+    return result;
+  }
+
   // =====================================================
   // REVENUE ANALYTICS
   // =====================================================
@@ -411,7 +747,10 @@ class ReportService {
       totalShipping: orders.reduce((sum, o) => sum + Number(o.shippingFee), 0),
       totalPaid: orders.reduce((sum, o) => sum + Number(o.paidAmount), 0),
       orderCount: orders.length,
-      averageOrderValue: orders.length > 0 ? orders.reduce((sum, o) => sum + Number(o.totalAmount), 0) / orders.length : 0,
+      averageOrderValue:
+        orders.length > 0
+          ? orders.reduce((sum, o) => sum + Number(o.totalAmount), 0) / orders.length
+          : 0,
     };
 
     return {
@@ -957,19 +1296,21 @@ class ReportService {
       },
     });
 
-    return salesByEmployee.map((item) => {
-      const employee = employees.find((e) => e.id === item.createdBy);
-      return {
-        employeeId: item.createdBy,
-        employeeCode: employee?.employeeCode,
-        fullName: employee?.fullName || 'Unknown',
-        roleName: employee?.role.roleName,
-        totalRevenue: Number(item._sum.totalAmount || 0),
-        orderCount: item._count.id,
-        averageOrderValue:
-          item._count.id > 0 ? Number(item._sum.totalAmount || 0) / item._count.id : 0,
-      };
-    }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+    return salesByEmployee
+      .map((item) => {
+        const employee = employees.find((e) => e.id === item.createdBy);
+        return {
+          employeeId: item.createdBy,
+          employeeCode: employee?.employeeCode,
+          fullName: employee?.fullName || 'Unknown',
+          roleName: employee?.role.roleName,
+          totalRevenue: Number(item._sum.totalAmount || 0),
+          orderCount: item._count.id,
+          averageOrderValue:
+            item._count.id > 0 ? Number(item._sum.totalAmount || 0) / item._count.id : 0,
+        };
+      })
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
   }
 
   // =====================================================

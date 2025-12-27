@@ -3,6 +3,18 @@ import { AuthRequest } from '@custom-types/common.type';
 import reportService from '@services/report.service';
 
 class ReportController {
+  // GET /api/reports/dashboard/stats - Complete dashboard stats (optimized all-in-one)
+  async getDashboardStats(req: AuthRequest, res: Response) {
+    const { period = 'month' } = req.query;
+    const stats = await reportService.getDashboardStats(period as string);
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // GET /api/reports/dashboard - Dashboard overview
   async getDashboard(_req: AuthRequest, res: Response) {
     const dashboard = await reportService.getDashboard();
@@ -79,6 +91,17 @@ class ReportController {
     res.status(200).json({
       success: true,
       data: topProducts,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/dashboard/overdue-debts - Overdue debts
+  async getDashboardOverdueDebts(_req: AuthRequest, res: Response) {
+    const overdueDebts = await reportService.getDashboardOverdueDebts();
+
+    res.status(200).json({
+      success: true,
+      data: overdueDebts,
       timestamp: new Date().toISOString(),
     });
   }

@@ -37,12 +37,16 @@ class UserService {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build cache key
-    const cacheKey = `users:list:${JSON.stringify(query)}`;
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `user:list:${queryString}`;
+
     const cached = await redis.get(cacheKey);
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached; // Redis already parses JSON
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     // Build where clause
     const where: Prisma.UserWhereInput = {
@@ -121,12 +125,16 @@ class UserService {
 
   // Get user by ID
   async getUserById(id: number) {
-    // Check cache
     const cacheKey = `user:${id}`;
+
     const cached = await redis.get(cacheKey);
+
     if (cached) {
-      return cached; // Redis already parses JSON
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const user = await prisma.user.findUnique({
       where: { id },
@@ -137,6 +145,9 @@ class UserService {
         fullName: true,
         phone: true,
         address: true,
+        cccd: true,
+        issuedAt: true,
+        issuedBy: true,
         gender: true,
         dateOfBirth: true,
         avatarUrl: true,
@@ -170,7 +181,7 @@ class UserService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Không tìm thấy nhân viên!');
     }
 
     // Cache result
@@ -181,40 +192,37 @@ class UserService {
 
   // Create new user
   async createUser(data: CreateUserInput, createdBy: number) {
-    // Check if email already exists
     const emailExists = await this.checkEmailExists(data.email);
+
     if (emailExists) {
-      throw new ConflictError('Email already exists');
+      throw new ConflictError('Email đã tồn tại');
     }
 
-    // Check if employee code already exists
     const employeeCodeExists = await this.checkEmployeeCodeExists(data.employeeCode);
+
     if (employeeCodeExists) {
-      throw new ConflictError('Employee code already exists');
+      throw new ConflictError('Mã nhân viên đã tồn tại');
     }
 
-    // Verify role exists
     const roleExists = await prisma.role.findUnique({
       where: { id: data.roleId },
     });
+
     if (!roleExists) {
-      throw new NotFoundError('Role not found');
+      throw new NotFoundError('Không tìm thấy vai trò');
     }
 
-    // Verify warehouse exists (if provided)
     if (data.warehouseId) {
       const warehouseExists = await prisma.warehouse.findUnique({
         where: { id: data.warehouseId },
       });
       if (!warehouseExists) {
-        throw new NotFoundError('Warehouse not found');
+        throw new NotFoundError('Kho không tìm thấy');
       }
     }
 
-    // Hash password
     const passwordHash = await hashPassword(data.password);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         employeeCode: data.employeeCode,
@@ -223,6 +231,9 @@ class UserService {
         fullName: data.fullName,
         phone: data.phone || null,
         address: data.address || null,
+        cccd: data.cccd || null,
+        issuedAt: data.issuedAt ? new Date(data.issuedAt) : null,
+        issuedBy: data.issuedBy || null,
         gender: data.gender || null,
         dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
         roleId: data.roleId,
@@ -262,14 +273,12 @@ class UserService {
       },
     });
 
-    // Log activity
+    await redis.flushPattern(`user:list:*`);
+
     logActivity('create', createdBy, 'users', {
       recordId: user.id,
       newValue: { ...user, passwordHash: '[HIDDEN]' },
     });
-
-    // Invalidate list cache
-    await this.invalidateListCache();
 
     return user;
   }
@@ -282,14 +291,14 @@ class UserService {
     });
 
     if (!existingUser) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Nhân viên không tìm thấy!');
     }
 
     // Check email uniqueness (if changing)
     if (data.email && data.email !== existingUser.email) {
       const emailExists = await this.checkEmailExists(data.email, id);
       if (emailExists) {
-        throw new ConflictError('Email already exists');
+        throw new ConflictError('Email đã tồn tại');
       }
     }
 
@@ -297,7 +306,7 @@ class UserService {
     if (data.employeeCode && data.employeeCode !== existingUser.employeeCode) {
       const employeeCodeExists = await this.checkEmployeeCodeExists(data.employeeCode, id);
       if (employeeCodeExists) {
-        throw new ConflictError('Employee code already exists');
+        throw new ConflictError('Mã nhân viên đã tồn tại');
       }
     }
 
@@ -307,7 +316,7 @@ class UserService {
         where: { id: data.roleId },
       });
       if (!roleExists) {
-        throw new NotFoundError('Role not found');
+        throw new NotFoundError('Vai trò không tìm thấy');
       }
     }
 
@@ -317,7 +326,7 @@ class UserService {
         where: { id: data.warehouseId },
       });
       if (!warehouseExists) {
-        throw new NotFoundError('Warehouse not found');
+        throw new NotFoundError('Kho không tìm thấy');
       }
     }
 
@@ -330,6 +339,9 @@ class UserService {
         ...(data.fullName && { fullName: data.fullName }),
         ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.address !== undefined && { address: data.address }),
+        ...(data.cccd !== undefined && { cccd: data.cccd }),
+        ...(data.issuedAt !== undefined && { issuedAt: new Date(data.issuedAt) }),
+        ...(data.issuedBy !== undefined && { issuedBy: data.issuedBy }),
         ...(data.gender !== undefined && { gender: data.gender }),
         ...(data.dateOfBirth !== undefined && {
           dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
@@ -379,33 +391,39 @@ class UserService {
 
     // Invalidate cache
     await redis.del(`user:${id}`);
-    await this.invalidateListCache();
+    await redis.flushPattern(`user:list:*`);
 
     return updatedUser;
   }
 
-  // Delete user (soft delete - set status to inactive)
+  // Delete user (hard delete - permanently remove)
   async deleteUser(id: number, deletedBy: number) {
     const user = await prisma.user.findUnique({
       where: { id },
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Nhân viên không tìm thấy');
     }
 
     // Prevent deleting self
     if (id === deletedBy) {
-      throw new ValidationError('Cannot delete your own account');
+      throw new ValidationError('Không thể tự xóa tài khoản của mình');
     }
 
-    // Soft delete by setting status to inactive
-    await prisma.user.update({
+    // Delete avatar file if exists
+    if (user.avatarUrl) {
+      try {
+        await uploadService.deleteAvatar(user.avatarUrl);
+      } catch (error) {
+        console.error('Error deleting avatar:', error);
+        // Continue with user deletion even if avatar delete fails
+      }
+    }
+
+    // Hard delete user
+    await prisma.user.delete({
       where: { id },
-      data: {
-        status: 'inactive',
-        updatedBy: deletedBy,
-      },
     });
 
     // Log activity
@@ -416,9 +434,9 @@ class UserService {
 
     // Invalidate cache
     await redis.del(`user:${id}`);
-    await this.invalidateListCache();
+    await redis.flushPattern(`user:list:*`);
 
-    return { message: 'User deleted successfully' };
+    return { message: 'Xóa nhân viên thành công' };
   }
 
   // Update user status (lock/unlock)
@@ -428,12 +446,12 @@ class UserService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Nhân viên không tìm thấy');
     }
 
     // Prevent changing own status
     if (id === updatedBy) {
-      throw new ValidationError('Cannot change your own status');
+      throw new ValidationError('Không thể sửa tài khoản của mình');
     }
 
     const updatedUser = await prisma.user.update({
@@ -458,12 +476,11 @@ class UserService {
       action: 'status_change',
       oldValue: { status: user.status },
       newValue: { status: data.status },
-      reason: data.reason,
     });
 
     // Invalidate cache
     await redis.del(`user:${id}`);
-    await this.invalidateListCache();
+    await redis.flushPattern(`user:list:*`);
 
     return updatedUser;
   }
@@ -476,7 +493,7 @@ class UserService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Nhân viên không tìm thấy');
     }
 
     // Process and save avatar
@@ -511,11 +528,11 @@ class UserService {
     });
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('Nhân viên không tìm thấy');
     }
 
     if (!user.avatarUrl) {
-      throw new ValidationError('User does not have an avatar');
+      throw new ValidationError('Nhân viên này không có avatar');
     }
 
     // Delete avatar file
@@ -530,7 +547,57 @@ class UserService {
     // Invalidate cache
     await redis.del(`user:${userId}`);
 
-    return { message: 'Avatar deleted successfully' };
+    return { message: 'Xóa ảnh thành công' };
+  }
+
+  // Change user password (admin reset)
+  async changePassword(userId: number, newPassword: string, changedBy: number) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, fullName: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('Nhân viên không tìm thấy');
+    }
+
+    // Prevent changing own password (use dedicated endpoint for that)
+    if (userId === changedBy) {
+      throw new ValidationError(
+        'Không thể thay đổi mật khẩu của chính mình, vui lòng sử dụng chức năng đổi mật khẩu cá nhân'
+      );
+    }
+
+    // Hash new password
+    const passwordHash = await hashPassword(newPassword);
+
+    // Update password
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        updatedBy: changedBy,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        status: true,
+      },
+    });
+
+    // Log activity
+    logActivity('update', changedBy, 'users', {
+      recordId: userId,
+      action: 'password_change',
+      description: `Admin đã thay đổi mật khẩu cho ${user.fullName}`,
+    });
+
+    // Invalidate cache
+    await redis.del(`user:${userId}`);
+    await redis.flushPattern(`user:list:*`);
+
+    return updatedUser;
   }
 
   // Check if email exists
@@ -557,12 +624,57 @@ class UserService {
     return !!user;
   }
 
-  // Invalidate list cache
-  private async invalidateListCache() {
-    const keys = await redis.keys('users:list:*');
-    if (keys.length > 0) {
-      await redis.del(keys);
+  // Get activity logs for a user
+  async getActivityLogs(userId: number, options: { limit: number; offset: number }) {
+    // Verify user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('Nhân viên không tìm thấy');
     }
+
+    // Fetch activity logs
+    const [logs, total] = await Promise.all([
+      prisma.activityLog.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          action: true,
+          tableName: true,
+          recordId: true,
+          oldValue: true,
+          newValue: true,
+          reason: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: options.limit,
+        skip: options.offset,
+      }),
+      prisma.activityLog.count({
+        where: { userId },
+      }),
+    ]);
+
+    // Convert BigInt to string for JSON serialization
+    const serializedLogs = logs.map((log) => ({
+      ...log,
+      id: log.id.toString(),
+    }));
+
+    return {
+      data: serializedLogs,
+      meta: {
+        total,
+        limit: options.limit,
+        offset: options.offset,
+        pages: Math.ceil(total / options.limit),
+      },
+    };
   }
 }
 

@@ -93,7 +93,7 @@ class AttendanceController {
       res.status(201).json({
         success: true,
         data: attendance,
-        message: 'Checked in successfully',
+        message: 'Checked in thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -119,7 +119,7 @@ class AttendanceController {
       res.json({
         success: true,
         data: result,
-        message: 'Checked out successfully',
+        message: 'Checked out thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -146,7 +146,7 @@ class AttendanceController {
       res.json({
         success: true,
         data: attendance,
-        message: 'Attendance updated successfully',
+        message: 'Đã cập nhật điểm danh thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -172,7 +172,7 @@ class AttendanceController {
       res.status(201).json({
         success: true,
         data: attendance,
-        message: 'Leave request submitted successfully',
+        message: 'Yêu cầu xin nghỉ phép được gửi thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -199,7 +199,7 @@ class AttendanceController {
       res.json({
         success: true,
         data: attendance,
-        message: approved ? 'Leave approved successfully' : 'Leave rejected',
+        message: approved ? 'Duyệt yêu cầu nghỉ phép thành công' : 'Huỷ yêu cầu nghỉ phép',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -243,14 +243,27 @@ class AttendanceController {
   // GET /api/attendance/statistics - Get user statistics
   async getUserStatistics(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { userId, fromDate, toDate } = req.query;
+      const { userId, fromDate, toDate, month } = req.query;
 
-      if (!fromDate || !toDate) {
+      let startDate: Date;
+      let endDate: Date;
+
+      if (month) {
+        // Convert YYYYMM format to date range
+        const monthStr = month as string;
+        const year = parseInt(monthStr.substring(0, 4));
+        const monthNum = parseInt(monthStr.substring(4, 6));
+        startDate = new Date(year, monthNum - 1, 1);
+        endDate = new Date(year, monthNum, 0);
+      } else if (fromDate && toDate) {
+        startDate = new Date(fromDate as string);
+        endDate = new Date(toDate as string);
+      } else {
         res.status(400).json({
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'fromDate and toDate are required',
+            message: 'Bạn cần chọn tháng hoặc (từ ngày và đến ngày).',
             timestamp: new Date().toISOString(),
           },
         });
@@ -259,13 +272,74 @@ class AttendanceController {
 
       const stats = await attendanceService.getUserStatistics(
         userId ? parseInt(userId as string) : req.user!.id,
-        new Date(fromDate as string),
-        new Date(toDate as string)
+        startDate,
+        endDate
       );
 
       res.json({
         success: true,
         data: stats,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'INTERNAL_ERROR',
+          message: error.message,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+  }
+
+  // POST /api/attendance/lock-month - Lock attendance month
+  async lockMonth(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { month } = req.body as { month: string };
+      const userId = req.user!.id;
+
+      const result = await attendanceService.lockMonth(month, userId);
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Điểm danh tháng ${month} đã được khóa thành công.`,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'INTERNAL_ERROR',
+          message: error.message,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+  }
+
+  // POST /api/attendance/import - Import attendance from file
+  async importFromFile(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'No file provided',
+            timestamp: new Date().toISOString(),
+          },
+        });
+        return;
+      }
+
+      const result = await attendanceService.importFromFile(req.file.path, req.user!.id);
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Imported ${result.summary.validCount} attendance records`,
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -291,7 +365,7 @@ class AttendanceController {
       res.json({
         success: true,
         data: result,
-        message: 'Attendance deleted successfully',
+        message: 'Đã xóa chấm công thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {

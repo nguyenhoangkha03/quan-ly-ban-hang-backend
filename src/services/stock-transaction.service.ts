@@ -124,6 +124,7 @@ class StockTransactionService {
             employeeCode: true,
           },
         },
+        details: true,
         approver: {
           select: {
             id: true,

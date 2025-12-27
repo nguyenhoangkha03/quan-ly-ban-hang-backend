@@ -533,13 +533,13 @@ class BomService {
         materials: {
           include: {
             material: {
-              select: {
-                id: true,
-                sku: true,
-                productName: true,
-                productType: true,
-                unit: true,
-                purchasePrice: true,
+              include: {
+                inventory: {
+                  select: {
+                    quantity: true,
+                    reservedQuantity: true,
+                  },
+                },
               },
             },
           },
@@ -566,6 +566,12 @@ class BomService {
       const adjustedQuantity = baseQuantity * (100 / Number(bom.efficiencyRate));
       const estimatedCost = adjustedQuantity * (Number(bomMaterial.material.purchasePrice) || 0);
 
+      // Tính số lượng hệ thống trong kho
+      const currentQuantity = bomMaterial.material.inventory.reduce((sum: number, inv: any) => {
+        const available = Number(inv.quantity) - Number(inv.reservedQuantity);
+        return sum + (available > 0 ? available : 0);
+      }, 0);
+
       return {
         materialId: bomMaterial.materialId,
         materialName: bomMaterial.material.productName,
@@ -574,6 +580,7 @@ class BomService {
         unit: bomMaterial.unit || bomMaterial.material.unit,
         baseQuantityPerBatch: Number(bomMaterial.quantity),
         totalQuantityNeeded: Math.ceil(adjustedQuantity * 100) / 100,
+        currentQuantity: currentQuantity, // Added: Available quantity in warehouse
         unitPrice: Number(bomMaterial.material.purchasePrice) || 0,
         estimatedCost: Math.ceil(estimatedCost * 100) / 100,
         notes: bomMaterial.notes,

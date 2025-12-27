@@ -1,8 +1,7 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/common.type';
+import { ApiResponse, AuthRequest } from '@custom-types/common.type';
 import salaryService from '@services/salary.service';
 import {
-  SalaryQueryInput,
   CalculateSalaryInput,
   UpdateSalaryInput,
   PaySalaryInput,
@@ -11,26 +10,17 @@ import {
 class SalaryController {
   // GET /api/salary - Get all salary records
   async getAll(req: AuthRequest, res: Response): Promise<void> {
-    try {
-      const query = req.query as unknown as SalaryQueryInput;
-      const result = await salaryService.getAll(query);
+    const result = await salaryService.getAll(req.query as any);
 
-      res.json({
-        success: true,
-        data: result.data,
-        meta: result.meta,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error: any) {
-      res.status(error.statusCode || 500).json({
-        success: false,
-        error: {
-          code: error.code || 'INTERNAL_ERROR',
-          message: error.message,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    }
+    const response: ApiResponse = {
+      success: true,
+      data: result.data,
+      meta: result.meta,
+      message: 'Lấy danh sách bảng lương thành công!',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
   }
 
   // GET /api/salary/:id - Get salary by ID

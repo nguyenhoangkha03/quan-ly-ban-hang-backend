@@ -71,7 +71,7 @@ class ProductionOrderController {
           code: result.stockTransaction.transactionCode,
         },
       },
-      message: 'Production started successfully. Materials have been exported from warehouse.',
+      message: 'Quá trình sản xuất đã bắt đầu thành công. Nguyên liệu đã được xuất kho.',
       timestamp: new Date().toISOString(),
     });
   }
@@ -92,8 +92,7 @@ class ProductionOrderController {
         },
         totalWastage: result.totalWastage,
       },
-      message:
-        'Production completed successfully. Finished products have been imported to warehouse.',
+      message: 'Quá trình sản xuất đã hoàn tất thành công. Thành phẩm đã được nhập kho.',
       timestamp: new Date().toISOString(),
     });
   }

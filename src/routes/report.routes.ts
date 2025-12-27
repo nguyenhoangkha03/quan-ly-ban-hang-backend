@@ -20,6 +20,13 @@ router.use(authentication);
 // =====================================================
 // DASHBOARD
 // =====================================================
+// GET /api/reports/dashboard/stats - Complete dashboard stats (optimized)
+router.get(
+  '/dashboard/stats',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardStats.bind(reportController))
+);
+
 // GET /api/reports/dashboard - Dashboard overview
 router.get(
   '/dashboard',
@@ -67,6 +74,13 @@ router.get(
   '/dashboard/top-products',
   authorize('view_reports'),
   asyncHandler(reportController.getDashboardTopProducts.bind(reportController))
+);
+
+// GET /api/reports/dashboard/overdue-debts - Overdue debts
+router.get(
+  '/dashboard/overdue-debts',
+  authorize('view_reports'),
+  asyncHandler(reportController.getDashboardOverdueDebts.bind(reportController))
 );
 
 // =====================================================

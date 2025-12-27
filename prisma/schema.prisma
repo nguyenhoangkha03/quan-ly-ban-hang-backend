@@ -93,12 +93,13 @@ model User {
     avatarUrl    String?    @map("avatar_url") @db.VarChar(255)
     roleId       Int        @map("role_id")
     warehouseId  Int?       @map("warehouse_id")
-    status       UserStatus @default(active)
-    createdBy    Int?       @map("created_by")
-    updatedBy    Int?       @map("updated_by")
-    createdAt    DateTime   @default(now()) @map("created_at")
-    updatedAt    DateTime   @updatedAt @map("updated_at")
-    lastLogin    DateTime?  @map("last_login")
+    status            UserStatus @default(active)
+    canEditProfile    Boolean    @default(false) @map("can_edit_profile")
+    createdBy         Int?       @map("created_by")
+    updatedBy         Int?       @map("updated_by")
+    createdAt         DateTime   @default(now()) @map("created_at")
+    updatedAt         DateTime   @updatedAt @map("updated_at")
+    lastLogin         DateTime?  @map("last_login")
 
     role      Role       @relation(fields: [roleId], references: [id])
     warehouse Warehouse? @relation("UserWarehouse", fields: [warehouseId], references: [id])
@@ -148,6 +149,7 @@ model User {
     promotionsCancelled         Promotion[]          @relation("PromotionCanceller")
     attendance                  Attendance[]
     attendanceApproved          Attendance[]         @relation("AttendanceApprover")
+    lockedAttendanceMonths      AttendanceMonth[]
     salaries                    Salary[]
     salariesCreated             Salary[]             @relation("SalaryCreator")
     salariesApproved            Salary[]             @relation("SalaryApprover")
@@ -996,6 +998,22 @@ model Attendance {
     @@index([date])
     @@index([status])
     @@map("attendance")
+}
+
+model AttendanceMonth {
+    id        Int       @id @default(autoincrement())
+    month     String    @db.Char(6) // YYYYMM format
+    isLocked  Boolean   @default(false) @map("is_locked")
+    lockedBy  Int?      @map("locked_by")
+    lockedAt  DateTime? @map("locked_at")
+    createdAt DateTime  @default(now()) @map("created_at")
+    updatedAt DateTime  @updatedAt @map("updated_at")
+
+    locker User? @relation(fields: [lockedBy], references: [id], onDelete: SetNull)
+
+    @@unique([month])
+    @@index([month])
+    @@map("attendance_months")
 }
 
 model Salary {

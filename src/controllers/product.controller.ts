@@ -6,8 +6,18 @@ import { ApiResponse } from '@custom-types/common.type';
 class ProductController {
   // GET /api/products
   async getAll(req: AuthRequest, res: Response) {
-    const { page, limit, search, productType, categoryId, supplierId, status, sortBy, sortOrder } =
-      req.query as any;
+    const {
+      page,
+      limit,
+      search,
+      productType,
+      categoryId,
+      warehouseId,
+      supplierId,
+      status,
+      sortBy,
+      sortOrder,
+    } = req.query as any;
 
     const result = await productService.getAll({
       page: parseInt(page) || 1,
@@ -16,6 +26,7 @@ class ProductController {
       productType,
       categoryId: categoryId ? parseInt(categoryId) : undefined,
       supplierId: supplierId ? parseInt(supplierId) : undefined,
+      warehouseId: warehouseId ? parseInt(warehouseId) : undefined,
       status,
       sortBy,
       sortOrder,

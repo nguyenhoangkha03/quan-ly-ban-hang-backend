@@ -9,6 +9,22 @@ import type {
 } from '@validators/user.validator';
 
 class UserController {
+  // GET /api/users/me - Get current user profile
+  async getMe(req: AuthRequest, res: Response) {
+    const userId = req.user!.id;
+
+    const user = await userService.getUserById(userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: user,
+      message: 'Lấy thông tin thành công!',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
   // GET /api/users - Get all users with pagination & filters
   async getAllUsers(req: AuthRequest, res: Response) {
     const query = req.query as unknown as QueryUsersInput;
@@ -19,6 +35,7 @@ class UserController {
       success: true,
       data: result.data,
       meta: result.meta,
+      message: 'Lấy danh sách nhân viên thành công!',
       timestamp: new Date().toISOString(),
     };
 
@@ -34,6 +51,7 @@ class UserController {
     const response: ApiResponse = {
       success: true,
       data: user,
+      message: 'Lấy thông tin nhân viên thành công!',
       timestamp: new Date().toISOString(),
     };
 
@@ -50,7 +68,7 @@ class UserController {
     const response: ApiResponse = {
       success: true,
       data: user,
-      message: 'User created successfully',
+      message: 'Tạo nhân viên thành công!',
       timestamp: new Date().toISOString(),
     };
 
@@ -63,33 +81,12 @@ class UserController {
     const data = req.body as UpdateUserInput;
     const updatedBy = req.user!.id;
 
-    // Check if user is updating own profile or is admin
-    const userRole = await this.getUserRole(req.user!.roleId);
-
-    if (userRole !== 'admin' && userId !== updatedBy) {
-      // Non-admin can only update own profile
-      const response: ApiResponse = {
-        success: false,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'You can only update your own profile',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return res.status(403).json(response);
-    }
-
-    // Non-admin cannot change roleId
-    if (userRole !== 'admin' && data.roleId) {
-      delete data.roleId;
-    }
-
     const user = await userService.updateUser(userId, data, updatedBy);
 
     const response: ApiResponse = {
       success: true,
       data: user,
-      message: 'User updated successfully',
+      message: 'Cập nhật nhân viên thành công!',
       timestamp: new Date().toISOString(),
     };
 
@@ -106,6 +103,7 @@ class UserController {
     const response: ApiResponse = {
       success: true,
       data: result,
+      message: result.message,
       timestamp: new Date().toISOString(),
     };
 
@@ -123,7 +121,7 @@ class UserController {
     const response: ApiResponse = {
       success: true,
       data: user,
-      message: 'User status updated successfully',
+      message: 'Cập nhật trạng thái nhân viên thành công!',
       timestamp: new Date().toISOString(),
     };
 
@@ -142,7 +140,7 @@ class UserController {
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: 'You can only upload avatar for your own profile',
+          message: 'Bạn chỉ có thể tải lên ảnh đại diện cho hồ sơ của chính mình',
         },
         timestamp: new Date().toISOString(),
       };
@@ -154,7 +152,7 @@ class UserController {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'No file uploaded',
+          message: 'Chưa tải lên file nào',
         },
         timestamp: new Date().toISOString(),
       };
@@ -166,7 +164,7 @@ class UserController {
     const response: ApiResponse = {
       success: true,
       data: result,
-      message: 'Avatar uploaded successfully',
+      message: 'Tải lên ảnh đại diện thành công!',
       timestamp: new Date().toISOString(),
     };
 
@@ -185,7 +183,7 @@ class UserController {
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: 'You can only delete avatar for your own profile',
+          message: 'Bạn chỉ có thể xóa ảnh đại diện cho hồ sơ của chính mình',
         },
         timestamp: new Date().toISOString(),
       };
@@ -197,6 +195,62 @@ class UserController {
     const response: ApiResponse = {
       success: true,
       data: result,
+      message: result.message,
+      timestamp: new Date().toISOString(),
+    };
+
+    return res.status(200).json(response);
+  }
+
+  // PUT /api/users/:id/password - Change user password (admin only)
+  async changePassword(req: AuthRequest, res: Response) {
+    const userId = parseInt(req.params.id);
+    const { password } = req.body as { password: string };
+    const changedBy = req.user!.id;
+
+    if (!password) {
+      const response: ApiResponse = {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Mật khẩu không được để trống',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return res.status(400).json(response);
+    }
+
+    const result = await userService.changePassword(userId, password, changedBy);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Cập nhật mật khẩu thành công!',
+      timestamp: new Date().toISOString(),
+    };
+
+    return res.status(200).json(response);
+  }
+
+  // GET /api/users/:id/activity-logs - Get user activity logs
+  async getActivityLogs(req: AuthRequest, res: Response) {
+    const userId = parseInt(req.params.id);
+    const limitParam = req.query.limit as string | undefined;
+    const offsetParam = req.query.offset as string | undefined;
+
+    const limitNum = Math.min(parseInt(limitParam || '50') || 50, 100);
+    const offsetNum = parseInt(offsetParam || '0') || 0;
+
+    const result = await userService.getActivityLogs(userId, {
+      limit: limitNum,
+      offset: offsetNum,
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: result.data,
+      meta: result.meta,
+      message: 'Lấy nhật ký hoạt động thành công!',
       timestamp: new Date().toISOString(),
     };
 

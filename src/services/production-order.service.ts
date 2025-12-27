@@ -264,12 +264,7 @@ class ProductionOrderService {
         materials: {
           include: {
             material: {
-              select: {
-                id: true,
-                sku: true,
-                productName: true,
-                productType: true,
-                unit: true,
+              include: {
                 inventory: {
                   select: {
                     warehouseId: true,
@@ -318,34 +313,60 @@ class ProductionOrderService {
       throw new NotFoundError('Không tìm thấy lệnh sản xuất');
     }
 
-    // Calculate material shortages for pending orders
+    // Bổ sung nguyên liệu với số lượng hiện tại từ kho.
+    let enrichedOrder = order;
+    if (order.materials.length > 0) {
+      const enrichedMaterials = await Promise.all(
+        order.materials.map(async (material) => {
+          const totalAvailable = material.material.inventory.reduce((sum: number, inv: any) => {
+            const available = Number(inv.quantity) - Number(inv.reservedQuantity);
+            return sum + (available > 0 ? available : 0);
+          }, 0);
+
+          // Xóa mảng hàng tồn kho khỏi phản hồi, chỉ giữ lại currentQuantity.
+          const { inventory, ...materialWithoutInventory } = material.material as any;
+
+          return {
+            ...material,
+            material: {
+              ...materialWithoutInventory,
+              currentQuantity: totalAvailable,
+            } as any,
+          };
+        })
+      );
+
+      enrichedOrder = {
+        ...order,
+        materials: enrichedMaterials as any,
+      };
+    }
+
+    // Tính toán lượng nguyên vật liệu thiếu hụt cho các đơn hàng đang chờ xử lý
     let shortages: any[] = [];
-    if (order.status === 'pending') {
-      for (const item of order.materials) {
+    if (enrichedOrder.status === 'pending') {
+      for (const item of enrichedOrder.materials) {
         const requiredQty = Number(item.plannedQuantity);
+        const material = item.material as any;
+        const currentQty = Number(material.currentQuantity || 0);
 
-        const totalAvailable = item.material.inventory.reduce((sum: number, inv: any) => {
-          const available = Number(inv.quantity) - Number(inv.reservedQuantity);
-          return sum + (available > 0 ? available : 0);
-        }, 0);
-
-        if (totalAvailable < requiredQty) {
+        if (currentQty < requiredQty) {
           shortages.push({
             materialId: item.materialId,
-            materialName: item.material.productName,
+            materialName: material.productName,
             materialType: item.materialType,
             required: requiredQty,
-            available: totalAvailable,
-            shortage: requiredQty - totalAvailable,
-            unit: item.material.unit,
+            available: currentQty,
+            shortage: requiredQty - currentQty,
+            unit: material.unit,
           });
         }
       }
     }
 
-    // Build response with shortages
+    // Xây dựng phương án ứng phó khi thiếu hụt nguồn cung.
     const responseData = {
-      ...order,
+      ...enrichedOrder,
       shortages,
     };
 
@@ -417,20 +438,53 @@ class ProductionOrderService {
         warehouse: true,
         materials: {
           include: {
-            material: true,
+            material: {
+              include: {
+                inventory: {
+                  select: {
+                    quantity: true,
+                    reservedQuantity: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
     });
 
+    // Làm giàu vật liệu với số lượng hiện tại
+    const enrichedProductionOrder = {
+      ...productionOrder,
+      materials: productionOrder.materials.map((material) => {
+        const totalAvailable = material.material.inventory.reduce((sum: number, inv: any) => {
+          const available = Number(inv.quantity) - Number(inv.reservedQuantity);
+          return sum + (available > 0 ? available : 0);
+        }, 0);
+
+        return {
+          ...material,
+          material: {
+            id: material.material.id,
+            sku: material.material.sku,
+            productName: material.material.productName,
+            productType: material.material.productType,
+            unit: material.material.unit,
+            purchasePrice: material.material.purchasePrice,
+            currentQuantity: totalAvailable,
+          } as any,
+        };
+      }) as any,
+    };
+
     await redis.flushPattern('production-order:list:*');
 
     logActivity('create', userId, 'production_orders', {
-      recordId: productionOrder.id,
-      orderCode: productionOrder.orderCode,
+      recordId: enrichedProductionOrder.id,
+      orderCode: enrichedProductionOrder.orderCode,
     });
 
-    return productionOrder;
+    return enrichedProductionOrder as any;
   }
 
   async update(id: number, data: UpdateProductionOrderInput, userId: number) {
@@ -497,115 +551,159 @@ class ProductionOrderService {
       throw new ValidationError('Chỉ có thể bắt đầu lệnh sản xuất ở trạng thái pending');
     }
 
-    const materialShortages: Array<{
-      materialName: string;
+    // BƯỚC 1: Kiểm tra lại lần nữa - Xác minh tất cả các vật liệu đều có sẵn.
+    const materialAvailability: Array<{
+      material: any;
       required: number;
       available: number;
+      warehouseId: number;
     }> = [];
 
     for (const material of order.materials) {
       const warehouseType = material.materialType === 'raw_material' ? 'raw_material' : 'packaging';
 
-      const inventoryRecords = await prisma.inventory.findMany({
+      const inventoryRecord = await prisma.inventory.findFirst({
         where: {
           productId: material.materialId,
           warehouse: {
             warehouseType,
             status: 'active',
           },
-        },
-      });
-
-      const totalAvailable = inventoryRecords.reduce(
-        (sum, inv) => sum + (Number(inv.quantity) - Number(inv.reservedQuantity)),
-        0
-      );
-
-      if (totalAvailable < Number(material.plannedQuantity)) {
-        materialShortages.push({
-          materialName: material.material.productName,
-          required: Number(material.plannedQuantity),
-          available: totalAvailable,
-        });
-      }
-    }
-
-    if (materialShortages.length > 0) {
-      throw new ValidationError('Không đủ nguyên vật liệu để bắt đầu sản xuất', materialShortages);
-    }
-
-    const stockTransactionCode = `PXK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${
-      Date.now() % 1000
-    }`;
-
-    const result = await prisma.$transaction(async (tx) => {
-      const stockTransaction = await tx.stockTransaction.create({
-        data: {
-          transactionCode: stockTransactionCode,
-          transactionType: 'export',
-          warehouseId: order.materials[0]?.material.productType === 'raw_material' ? 1 : 2, // TODO: Dynamic warehouse selection
-          referenceType: 'production_order',
-          referenceId: id,
-          reason: `Export materials for production order ${order.orderCode}`,
-          status: 'approved',
-          createdBy: userId,
-          approvedBy: userId,
-          approvedAt: new Date(),
-          details: {
-            create: order.materials.map((mat) => ({
-              productId: mat.materialId,
-              quantity: mat.plannedQuantity,
-              unitPrice: mat.unitPrice,
-            })),
+          quantity: {
+            gte: material.plannedQuantity,
           },
         },
+        include: {
+          warehouse: true,
+        },
       });
 
-      for (const material of order.materials) {
-        const warehouseType =
-          material.materialType === 'raw_material' ? 'raw_material' : 'packaging';
-
-        const inventoryRecord = await tx.inventory.findFirst({
+      if (!inventoryRecord) {
+        // Tính toán số lượng thực tế có sẵn cho thông báo lỗi.
+        const totalAvailable = await prisma.inventory.aggregate({
           where: {
             productId: material.materialId,
             warehouse: {
               warehouseType,
               status: 'active',
             },
-            quantity: {
-              gte: material.plannedQuantity,
-            },
           },
-          include: {
-            warehouse: true,
+          _sum: {
+            quantity: true,
+            reservedQuantity: true,
           },
         });
 
-        if (inventoryRecord) {
-          await tx.inventory.update({
-            where: { id: inventoryRecord.id },
-            data: {
-              quantity: {
-                decrement: material.plannedQuantity,
-              },
-              updatedBy: userId,
-            },
-          });
+        const available = Math.max(
+          0,
+          (Number(totalAvailable._sum.quantity) || 0) -
+            (Number(totalAvailable._sum.reservedQuantity) || 0)
+        );
 
-          await tx.productionOrderMaterial.update({
-            where: { id: material.id },
-            data: {
-              actualQuantity: material.plannedQuantity,
-              stockTransactionId: stockTransaction.id,
-            },
-          });
-        }
+        throw new ValidationError(
+          `Không đủ tồn kho cho nguyên liệu "${material.material.productName}". ` +
+            `Cần: ${Number(material.plannedQuantity)}, Có: ${available}`
+        );
       }
 
+      materialAvailability.push({
+        material,
+        required: Number(material.plannedQuantity),
+        available: Number(inventoryRecord.quantity),
+        warehouseId: inventoryRecord.warehouseId,
+      });
+    }
+
+    const stockTransactionCode = `PXK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${
+      Date.now() % 1000
+    }`;
+
+    // BƯỚC 2, 3, 4: Thực hiện giao dịch
+    const result = await prisma.$transaction(async (tx) => {
+      // BƯỚC 1: Tính tổng giá trị giao dịch trước khi tạo
+      const totalValue = materialAvailability.reduce((sum, matAvail) => {
+        const cost = Number(matAvail.material.plannedQuantity) * Number(matAvail.material.unitPrice);
+        return sum + cost;
+      }, 0);
+
+      // BƯỚC 2: Create stock transaction header with total_value
+      const stockTransaction = await tx.stockTransaction.create({
+        data: {
+          transactionCode: stockTransactionCode,
+          transactionType: 'export',
+          warehouseId: materialAvailability[0]?.warehouseId || 1,
+          referenceType: 'production_order',
+          referenceId: id,
+          reason: `Export materials for production order ${order.orderCode}`,
+          totalValue,
+          status: 'approved',
+          createdBy: userId,
+          approvedBy: userId,
+          approvedAt: new Date(),
+        },
+      });
+
+      // BƯỚC 3: Gia công từng vật liệu
+      for (const matAvail of materialAvailability) {
+        const material = matAvail.material;
+        const inventoryId = (
+          await tx.inventory.findFirst({
+            where: {
+              productId: material.materialId,
+              warehouseId: matAvail.warehouseId,
+              quantity: {
+                gte: material.plannedQuantity,
+              },
+            },
+            select: { id: true },
+          })
+        )?.id;
+
+        if (!inventoryId) {
+          throw new ValidationError(
+            `Lỗi: Không tìm thấy tồn kho cho nguyên liệu "${material.material.productName}"`
+          );
+        }
+
+        // BƯỚC 3A: Khấu trừ hàng tồn kho
+        await tx.inventory.update({
+          where: { id: inventoryId },
+          data: {
+            quantity: {
+              decrement: material.plannedQuantity,
+            },
+            updatedBy: userId,
+          },
+        });
+
+        // BƯỚC 3B: Tạo chi tiết giao dịch với warehouseId
+        await tx.stockTransactionDetail.create({
+          data: {
+            transactionId: stockTransaction.id,
+            productId: material.materialId,
+            warehouseId: matAvail.warehouseId,
+            quantity: material.plannedQuantity,
+            unitPrice: material.unitPrice,
+          },
+        });
+
+        // BƯỚC 3C: Cập nhật production_order_materials - Khóa actualQuantity & unitPrice
+        await tx.productionOrderMaterial.update({
+          where: { id: material.id },
+          data: {
+            actualQuantity: material.plannedQuantity,
+            unitPrice: material.unitPrice, // ✅ Khóa giá hiện tại
+            stockTransactionId: stockTransaction.id,
+          },
+        });
+      }
+
+      // BƯỚC 4: Cập nhật trạng thái đơn đặt hàng sản xuất và ngày bắt đầu
       const updatedOrder = await tx.productionOrder.update({
         where: { id },
         data: {
           status: 'in_progress',
+          startDate: new Date(), // ✅ Cập nhật đến thời điểm hiện tại
           approvedBy: userId,
           approvedAt: new Date(),
           notes: data?.notes ? `${order.notes || ''}\n${data.notes}` : order.notes,
@@ -626,10 +724,14 @@ class ProductionOrderService {
       return { order: updatedOrder, stockTransaction };
     });
 
+    await redis.del(`production-order:${id}`);
+    await redis.flushPattern('production-order:list:*');
+
     logActivity('update', userId, 'production_orders', {
       recordId: id,
       action: 'start_production',
       orderCode: order.orderCode,
+      materialCount: materialAvailability.length,
     });
 
     return result;
@@ -651,15 +753,17 @@ class ProductionOrderService {
     });
 
     if (!order) {
-      throw new NotFoundError('Production order not found');
+      throw new NotFoundError('Lệnh sản xuất không tìm thấy');
     }
 
     if (order.status !== 'in_progress') {
-      throw new ValidationError('Can only complete production orders with in_progress status');
+      throw new ValidationError(
+        'Chỉ có thể hoàn thành các đơn đặt hàng sản xuất có trạng thái (in_progress).'
+      );
     }
 
     if (!order.warehouseId) {
-      throw new ValidationError('Warehouse must be specified to complete production order');
+      throw new ValidationError('Cần phải chỉ định kho hàng để hoàn tất đơn đặt hàng sản xuất.');
     }
 
     let totalWastage = 0;
@@ -668,7 +772,7 @@ class ProductionOrderService {
         const plannedMaterial = order.materials.find(
           (m) => m.materialId === materialInput.materialId
         );
-        if (plannedMaterial) {
+        if (plannedMaterial && materialInput.actualQuantity !== undefined) {
           const wastage =
             materialInput.wastage !== undefined
               ? materialInput.wastage
@@ -683,6 +787,12 @@ class ProductionOrderService {
     }`;
 
     const result = await prisma.$transaction(async (tx) => {
+      // BƯỚC 1: Tính tổng chi phí vật liệu dự kiến (trước khi update)
+      const preliminaryMaterialCost = order.materials.reduce((sum, mat) => {
+        return sum + Number(mat.plannedQuantity) * Number(mat.unitPrice);
+      }, 0);
+
+      // Tạo stock transaction header với totalValue tạm tính
       const stockTransaction = await tx.stockTransaction.create({
         data: {
           transactionCode: stockTransactionCode,
@@ -690,7 +800,8 @@ class ProductionOrderService {
           warehouseId: order.warehouseId!,
           referenceType: 'production_order',
           referenceId: id,
-          reason: `Import finished products from production order ${order.orderCode}`,
+          reason: `Nhập khẩu thành phẩm theo đơn đặt hàng sản xuất ${order.orderCode}`,
+          totalValue: preliminaryMaterialCost, // Tạm tính, sẽ update lại sau
           status: 'approved',
           createdBy: userId,
           approvedBy: userId,
@@ -699,7 +810,7 @@ class ProductionOrderService {
             create: {
               productId: order.finishedProductId,
               quantity: data.actualQuantity,
-              unitPrice: 0,
+              unitPrice: 0, // Tạm thời, sẽ update lại sau khi tính chi phí
               warehouseId: order.warehouseId!,
             },
           },
@@ -737,6 +848,66 @@ class ProductionOrderService {
 
       if (data.materials) {
         for (const materialInput of data.materials) {
+          const originalMaterial = order.materials.find(
+            (m) => m.materialId === materialInput.materialId
+          );
+
+          if (!originalMaterial) continue;
+
+          // Chỉ xử lý nếu user nhập actualQuantity
+          if (materialInput.actualQuantity === undefined) {
+            continue;
+          }
+
+          // BƯỚC 1A: Tính toán chênh lệch số lượng
+          const quantityDifference =
+            Number(materialInput.actualQuantity) - Number(originalMaterial.plannedQuantity);
+
+          // BƯỚC 1B: Nếu thực tế > kế hoạch, cần trừ thêm từ kho
+          if (quantityDifference > 0) {
+            // Lấy materialType từ originalMaterial (có sẵn từ start)
+            const warehouseType =
+              originalMaterial.materialType === 'raw_material' ? 'raw_material' : 'packaging';
+
+            // Tìm tồn kho của nguyên liệu này
+            const inventoryRecord = await tx.inventory.findFirst({
+              where: {
+                productId: materialInput.materialId,
+                warehouse: {
+                  warehouseType,
+                  status: 'active',
+                },
+              },
+            });
+
+            if (!inventoryRecord) {
+              throw new ValidationError(
+                `Không tìm thấy tồn kho cho nguyên liệu ID ${materialInput.materialId}`
+              );
+            }
+
+            // Kiểm tra xem kho có đủ để trừ thêm không
+            if (Number(inventoryRecord.quantity) < quantityDifference) {
+              throw new ValidationError(
+                `Không đủ tồn kho để trừ thêm ${quantityDifference} ` +
+                  `cho nguyên liệu ID ${materialInput.materialId}. ` +
+                  `Hiện có: ${inventoryRecord.quantity}`
+              );
+            }
+
+            // Trừ thêm số lượng từ kho
+            await tx.inventory.update({
+              where: { id: inventoryRecord.id },
+              data: {
+                quantity: {
+                  decrement: quantityDifference,
+                },
+                updatedBy: userId,
+              },
+            });
+          }
+
+          // BƯỚC 1C: Cập nhật actualQuantity và wastage
           await tx.productionOrderMaterial.updateMany({
             where: {
               productionOrderId: id,
@@ -751,10 +922,37 @@ class ProductionOrderService {
         }
       }
 
-      const totalCost = order.materials.reduce(
-        (sum, mat) => sum + Number(mat.actualQuantity) * Number(mat.unitPrice),
-        0
-      );
+      // BƯỚC 2: Tính toán giá thành chính xác (sau khi cập nhật)
+      // Re-fetch materials với actualQuantity mới nhất
+      const updatedMaterials = await tx.productionOrderMaterial.findMany({
+        where: { productionOrderId: id },
+        include: {
+          material: true,
+        },
+      });
+
+      const totalCost = updatedMaterials.reduce((sum, mat) => {
+        return sum + Number(mat.actualQuantity) * Number(mat.unitPrice);
+      }, 0);
+
+      // Tính unit price cho thành phẩm
+      const finishedProductUnitPrice = data.actualQuantity > 0 ? totalCost / data.actualQuantity : 0;
+
+      // Cập nhật stock transaction với tổng chi phí chính xác
+      await tx.stockTransaction.update({
+        where: { id: stockTransaction.id },
+        data: {
+          totalValue: totalCost,
+        },
+      });
+
+      // Cập nhật stock transaction detail với unit price chính xác
+      await tx.stockTransactionDetail.updateMany({
+        where: { transactionId: stockTransaction.id },
+        data: {
+          unitPrice: finishedProductUnitPrice,
+        },
+      });
 
       const updatedOrder = await tx.productionOrder.update({
         where: { id },
@@ -781,6 +979,9 @@ class ProductionOrderService {
 
       return { order: updatedOrder, stockTransaction, totalWastage };
     });
+
+    await redis.del(`production-order:${id}`);
+    await redis.flushPattern('production-order:list:*');
 
     logActivity('update', userId, 'production_orders', {
       recordId: id,
@@ -852,6 +1053,9 @@ class ProductionOrderService {
         },
       },
     });
+
+    await redis.del(`production-order:${id}`);
+    await redis.flushPattern('production-order:list:*');
 
     logActivity('update', userId, 'production_orders', {
       recordId: id,

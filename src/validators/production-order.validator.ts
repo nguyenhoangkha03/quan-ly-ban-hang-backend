@@ -16,47 +16,39 @@ export const createProductionOrderSchema = z.object({
 });
 
 export const updateProductionOrderSchema = z.object({
-  body: z.object({
-    plannedQuantity: z.number().positive().optional(),
-    startDate: z
-      .string()
-      .refine((val) => !isNaN(Date.parse(val)), 'Invalid start date')
-      .optional(),
-    endDate: z
-      .string()
-      .refine((val) => !isNaN(Date.parse(val)), 'Invalid end date')
-      .optional(),
-    notes: z.string().max(255).optional(),
-  }),
+  plannedQuantity: z.number().positive().optional(),
+  startDate: z
+    .string()
+    .refine((val) => !isNaN(Date.parse(val)), 'Invalid start date')
+    .optional(),
+  endDate: z
+    .string()
+    .refine((val) => !isNaN(Date.parse(val)), 'Invalid end date')
+    .optional(),
+  notes: z.string().max(255).optional(),
 });
 
 export const startProductionSchema = z.object({
-  body: z.object({
-    notes: z.string().max(255).optional(),
-  }),
+  notes: z.string().max(255).optional(),
 });
 
 export const completeProductionSchema = z.object({
-  body: z.object({
-    actualQuantity: z.number().positive('Actual quantity must be positive'),
-    notes: z.string().max(255).optional(),
-    materials: z
-      .array(
-        z.object({
-          materialId: z.number().int().positive(),
-          actualQuantity: z.number().positive(),
-          wastage: z.number().min(0).optional(),
-          notes: z.string().max(255).optional(),
-        })
-      )
-      .optional(),
-  }),
+  actualQuantity: z.number().positive('Actual quantity must be positive'),
+  notes: z.string().max(255).optional(),
+  materials: z
+    .array(
+      z.object({
+        materialId: z.number().int().positive(),
+        actualQuantity: z.number().positive().optional(),
+        wastage: z.number().min(0).optional(),
+        notes: z.string().max(255).optional(),
+      })
+    )
+    .optional(),
 });
 
 export const cancelProductionSchema = z.object({
-  body: z.object({
-    reason: z.string().min(10, 'Cancellation reason must be at least 10 characters'),
-  }),
+  reason: z.string().min(10, 'Cancellation reason must be at least 10 characters'),
 });
 
 export const productionOrderQuerySchema = z.object({
@@ -86,8 +78,8 @@ export const productionOrderQuerySchema = z.object({
 });
 
 export type CreateProductionOrderInput = z.infer<typeof createProductionOrderSchema>;
-export type UpdateProductionOrderInput = z.infer<typeof updateProductionOrderSchema>['body'];
-export type StartProductionInput = z.infer<typeof startProductionSchema>['body'];
-export type CompleteProductionInput = z.infer<typeof completeProductionSchema>['body'];
-export type CancelProductionInput = z.infer<typeof cancelProductionSchema>['body'];
+export type UpdateProductionOrderInput = z.infer<typeof updateProductionOrderSchema>;
+export type StartProductionInput = z.infer<typeof startProductionSchema>;
+export type CompleteProductionInput = z.infer<typeof completeProductionSchema>;
+export type CancelProductionInput = z.infer<typeof cancelProductionSchema>;
 export type ProductionOrderQueryInput = z.infer<typeof productionOrderQuerySchema>;

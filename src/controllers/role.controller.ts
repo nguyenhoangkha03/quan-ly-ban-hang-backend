@@ -1,16 +1,69 @@
 import { Response } from 'express';
 import { AuthRequest, ApiResponse } from '@custom-types/common.type';
 import roleService from '@services/role.service';
-import type { AssignPermissionsInput } from '@validators/role.validator';
+import type { AssignPermissionsInput, UpdateRoleInput } from '@validators/role.validator';
 
 class RoleController {
   // GET /api/roles - Get all roles
-  async getAllRoles(_req: AuthRequest, res: Response) {
-    const roles = await roleService.getAllRoles();
+  async getAllRoles(req: AuthRequest, res: Response) {
+    const result = await roleService.getAllRoles(req.query as any);
 
     const response: ApiResponse = {
       success: true,
-      data: roles,
+      message: result.message,
+      data: result.data,
+      meta: result.meta,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // POST /api/roles - Create new role
+  async createRole(req: AuthRequest, res: Response) {
+    const userId = req.user!.id;
+
+    const result = await roleService.createRole(req.body, userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Tạo role thành công',
+      timestamp: new Date().toISOString(),
+    };
+
+    return res.status(201).json(response);
+  }
+
+  // PUT /api/roles/:id - Update role
+  async updateRole(req: AuthRequest, res: Response) {
+    const roleId = parseInt(req.params.id);
+    const data = req.body as UpdateRoleInput;
+    const updatedBy = req.user!.id;
+
+    const result = await roleService.updateRole(roleId, data, updatedBy);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Role cập nhật thành công!',
+      timestamp: new Date().toISOString(),
+    };
+
+    return res.status(200).json(response);
+  }
+
+  // DELETE /api/roles/:id - Delete role
+  async deleteRole(req: AuthRequest, res: Response) {
+    const roleId = parseInt(req.params.id);
+    const deletedBy = req.user!.id;
+
+    const result = await roleService.deleteRole(roleId, deletedBy);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Xóa vai trò thành công!',
       timestamp: new Date().toISOString(),
     };
 
@@ -58,7 +111,7 @@ class RoleController {
     const response: ApiResponse = {
       success: true,
       data: result,
-      message: 'Permissions assigned successfully',
+      message: 'Phân quyền thành cong',
       timestamp: new Date().toISOString(),
     };
 

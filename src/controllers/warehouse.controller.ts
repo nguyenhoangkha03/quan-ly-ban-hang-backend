@@ -57,7 +57,7 @@ class WarehouseController {
     const response: ApiResponse = {
       success: true,
       data: warehouse,
-      message: 'Warehouse updated successfully',
+      message: 'Kho cập nhật thành công',
       timestamp: new Date().toISOString(),
     };
 
@@ -101,7 +101,7 @@ class WarehouseController {
       success: true,
       data: stats,
       timestamp: new Date().toISOString(),
-      message: 'Statistics fetched successfully',
+      message: 'Thống kê fetch thành công',
     };
 
     res.status(200).json(response);
