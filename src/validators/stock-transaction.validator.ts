@@ -6,7 +6,11 @@ const transactionDetailSchema = z.object({
   quantity: z.number().positive('Số lượng phải là số dương'),
   unitPrice: z.number().min(0, 'Giá phải lớn hơn 0').optional(),
   batchNumber: z.string().max(100, 'Batch lớn hơn 100').optional(),
-  expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày hết hạn phải là YYYY-MM-DD').or(z.date()).optional(),
+  expiryDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày hết hạn phải là YYYY-MM-DD')
+    .or(z.date())
+    .optional(),
   notes: z.string().max(500, 'Ghi chú không được quá 500 ký tự').optional(),
 });
 
@@ -83,7 +87,7 @@ export const transactionQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).optional().default('20'),
   search: z.string().trim().optional(),
   transactionType: z.enum(['import', 'export', 'transfer', 'disposal', 'stocktake']).optional(),
-  warehouseId: z.string().optional().transform(Number),
+  warehouseId: z.string().optional(),
   status: z.enum(['draft', 'pending', 'approved', 'completed', 'cancelled']).optional(),
   fromDate: z.string().optional(),
   toDate: z.string().optional(),

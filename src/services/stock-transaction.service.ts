@@ -80,7 +80,7 @@ class StockTransactionService {
       }),
       ...(transactionType && { transactionType: transactionType as any }),
       ...(status && { status: status as any }),
-      ...(warehouseId && { warehouseId }),
+      ...(warehouseId && { warehouseId: parseInt(warehouseId) }),
       ...(fromDate &&
         toDate && {
           createdAt: {

@@ -13,7 +13,6 @@ const redis = RedisService.getInstance();
 const INVENTORY_CACHE_TTL = parseInt(process.env.CACHE_TTL_INVENTORY || '300');
 
 class InventoryService {
-
   // Lấy danh sách tồn kho với các bộ lọc tùy chọn
   async getAll(params: {
     warehouseId?: number;
@@ -273,67 +272,59 @@ class InventoryService {
   }
 
   async getByWarehouse(warehouseId: number) {
-    const cacheKey = `${CachePrefix.INVENTORY}warehouse:${warehouseId}`;
+    const cacheKey = `inventory:warehouse:${warehouseId}`;
+
     const cached = await redis.get(cacheKey);
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const warehouse = await prisma.warehouse.findUnique({
       where: { id: warehouseId },
     });
+
     if (!warehouse) {
       throw new NotFoundError('Warehouse');
     }
 
-    // Lấy toàn bộ inventory cho warehouse
-    const inventory = await prisma.inventory.findMany({
+    let inventory = await prisma.inventory.findMany({
       where: { warehouseId },
-      include: {
+      select: {
+        quantity: true,
+        reservedQuantity: true,
+        warehouseId: true,
+        productId: true,
         product: {
           select: {
-            id: true,
+            minStockLevel: true,
             sku: true,
             productName: true,
-            productType: true,
-            packagingType: true,
-            unit: true,
-            minStockLevel: true,
-            purchasePrice: true,
-            status: true,
-            category: {
-              select: {
-                id: true,
-                categoryName: true,
-              },
-            },
-            images: {
-              where: { isPrimary: true },
-              select: {
-                imageUrl: true,
-                altText: true,
-              },
-            },
           },
         },
       },
       orderBy: { productId: 'asc' },
     });
 
-    const result = inventory.map((inv) => ({
+    inventory = inventory.map((inv) => ({
       ...inv,
       availableQuantity: Number(inv.quantity) - Number(inv.reservedQuantity),
     }));
+
+    const result = {
+      data: inventory,
+    };
 
     await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
 
     return result;
   }
 
-
   // Lấy tồn kho theo sản phẩm (trên tất cả kho)
   async getByProduct(productId: number) {
-    const cacheKey = `${CachePrefix.INVENTORY}product:${productId}`;
+    const cacheKey = `inventory:product:${productId}`;
 
     const cached = await redis.get(cacheKey);
     if (cached) {
@@ -906,10 +897,10 @@ class InventoryService {
 
   private async invalidateCache(warehouseId?: number, productId?: number) {
     if (warehouseId) {
-      await redis.del(`${CachePrefix.INVENTORY}warehouse:${warehouseId}`);
+      await redis.del(`inventory:warehouse:${warehouseId}`);
     }
     if (productId) {
-      await redis.del(`${CachePrefix.INVENTORY}product:${productId}`);
+      await redis.del(`inventory:product:${productId}`);
     }
     await redis.flushPattern(`${CachePrefix.DASHBOARD}*`);
   }

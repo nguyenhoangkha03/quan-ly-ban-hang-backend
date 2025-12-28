@@ -110,7 +110,7 @@ class WarehouseService {
         total,
         totalPages: Math.ceil(total / limitNum),
       },
-      message: 'Success',
+      message: 'Lấy danh sách kho thành công',
     };
 
     await redis.set(cacheKey, result, WAREHOUSE_LIST_CACHE_TTL);
@@ -184,7 +184,7 @@ class WarehouseService {
     });
 
     if (!warehouse) {
-      throw new NotFoundError('Warehouse không tìm thấy');
+      throw new NotFoundError('Không tìm thấy kho này');
     }
 
     await redis.set(cacheKey, warehouse, WAREHOUSE_CACHE_TTL);
@@ -249,7 +249,7 @@ class WarehouseService {
       newValue: warehouse,
     });
 
-    await this.invalidateListCache();
+    await redis.flushPattern('warehouse:list:*');
 
     return warehouse;
   }
@@ -260,13 +260,13 @@ class WarehouseService {
     });
 
     if (!existingWarehouse) {
-      throw new NotFoundError('Warehouse not found');
+      throw new NotFoundError('Không tìm thấy kho này');
     }
 
     if (data.warehouseCode && data.warehouseCode !== existingWarehouse.warehouseCode) {
       const codeExists = await this.checkWarehouseCodeExists(data.warehouseCode, id);
       if (codeExists) {
-        throw new ConflictError('Warehouse code already exists');
+        throw new ConflictError('Mã kho đã tồn tại');
       }
     }
 
@@ -275,7 +275,7 @@ class WarehouseService {
         where: { id: data.managerId },
       });
       if (!managerExists) {
-        throw new NotFoundError('Manager not found');
+        throw new NotFoundError('Không tìm thấy người quản lý');
       }
     }
 
@@ -323,8 +323,8 @@ class WarehouseService {
       newValue: updatedWarehouse,
     });
 
+    await redis.flushPattern('warehouse:list:*');
     await redis.del(`warehouse:${id}`);
-    await this.invalidateListCache();
 
     return updatedWarehouse;
   }
@@ -343,15 +343,15 @@ class WarehouseService {
     });
 
     if (!warehouse) {
-      throw new NotFoundError('Không tìm thấy kho');
+      throw new NotFoundError('Không tìm thấy kho này');
     }
 
     if (warehouse._count.inventory > 0) {
-      throw new ValidationError('Không thể xóa kho có hàng tồn kho hiện có');
+      throw new ValidationError('Không thể xóa kho vì đang có hàng tồn kho');
     }
 
     if (warehouse._count.stockTransactions > 0) {
-      throw new ValidationError('Không thể xóa kho có giao dịch hiện có');
+      throw new ValidationError('Không thể xóa kho vì đang có giao dịch');
     }
 
     await prisma.warehouse.delete({
@@ -363,9 +363,8 @@ class WarehouseService {
       oldValue: warehouse,
     });
 
+    await redis.flushPattern('warehouse:list:*');
     await redis.del(`warehouse:${id}`);
-
-    await this.invalidateListCache();
 
     return { message: 'Đã xóa kho thành công' };
   }
@@ -376,7 +375,7 @@ class WarehouseService {
     });
 
     if (!warehouse) {
-      throw new NotFoundError('Warehouse not found');
+      throw new NotFoundError('Không tìm thấy kho này');
     }
 
     const inventoryStats = await prisma.inventory.aggregate({
@@ -387,6 +386,26 @@ class WarehouseService {
         reservedQuantity: true,
       },
     });
+
+    // Lấy giá trị tồn kho = sum(quantity * purchasePrice)
+    const inventoryWithPrice = await prisma.inventory.findMany({
+      where: { warehouseId: id },
+      select: {
+        quantity: true,
+        product: {
+          select: {
+            purchasePrice: true,
+          },
+        },
+      },
+    });
+
+    let totalInventoryValue = 0;
+    for (const item of inventoryWithPrice) {
+      const price = item.product?.purchasePrice ? Number(item.product.purchasePrice) : 0;
+      const quantity = Number(item.quantity);
+      totalInventoryValue += price * quantity;
+    }
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -419,6 +438,7 @@ class WarehouseService {
         availableQuantity:
           Number(inventoryStats._sum?.quantity ?? 0) -
           Number(inventoryStats._sum?.reservedQuantity ?? 0),
+        totalValue: totalInventoryValue,
       },
       transactions: {
         last30Days: transactionStats.reduce((acc, stat) => {
@@ -448,26 +468,6 @@ class WarehouseService {
     });
 
     return !!warehouse;
-  }
-
-  private async invalidateListCache() {
-    try {
-      const pattern = 'warehouse:list:*';
-      console.log(`🔍 Tìm kiếm key match với: ${pattern}`);
-
-      const keys = await redis.keys(pattern);
-      console.log(`📋 Tìm thấy ${keys.length} keys:`, keys);
-
-      if (keys.length === 0) {
-        console.log('⚠️  Không có key danh sách kho cache nào');
-        return;
-      }
-
-      const deletedCount = await redis.del(keys);
-      console.log(`✅ Xóa key thành công ${deletedCount} danh sách kho cache keys`);
-    } catch (error) {
-      console.error('❌ Lỗi khi vô hiệu hóa danh sách kho cache:', error);
-    }
   }
 
   async getWarehouseCards() {

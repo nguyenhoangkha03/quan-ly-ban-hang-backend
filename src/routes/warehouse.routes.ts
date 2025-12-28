@@ -29,6 +29,17 @@ router.get(
 );
 
 /**
+ * GET /api/warehouses/cards/view
+ * Get dashboard statistics (total warehouses, active, created this month, total inventory value)
+ * Permission: view_warehouses
+ */
+router.get(
+  '/cards/view',
+  authorize('view_warehouses'),
+  asyncHandler(warehouseController.getWarehouseCards.bind(warehouseController))
+);
+
+/**
  * GET /api/warehouses/:id
  * Get warehouse by ID with details
  * Permission: view_warehouses
@@ -37,6 +48,17 @@ router.get(
   '/:id',
   authorize('view_warehouses'),
   asyncHandler(warehouseController.getWarehouseById.bind(warehouseController))
+);
+
+/**
+ * GET /api/warehouses/:id/statistics
+ * Get warehouse statistics (inventory, transactions, capacity)
+ * Permission: view_warehouses
+ */
+router.get(
+  '/:id/statistics',
+  authorize('view_warehouses'),
+  asyncHandler(warehouseController.getWarehouseStatistics.bind(warehouseController))
 );
 
 /**
@@ -78,28 +100,6 @@ router.delete(
   authorize('delete_warehouse'),
   logActivityMiddleware('delete', 'warehouse'),
   asyncHandler(warehouseController.deleteWarehouse.bind(warehouseController))
-);
-
-/**
- * GET /api/warehouses/overview/statistics
- * Get dashboard statistics (total warehouses, active, created this month, total inventory value)
- * Permission: view_warehouses
- */
-router.get(
-  '/cards/view',
-  authorize('view_warehouses'),
-  asyncHandler(warehouseController.getWarehouseCards.bind(warehouseController))
-);
-
-/**
- * GET /api/warehouses/:id/statistics
- * Get warehouse statistics (inventory, transactions, capacity)
- * Permission: view_warehouses
- */
-router.get(
-  '/:id/statistics',
-  authorize('view_warehouses'),
-  asyncHandler(warehouseController.getWarehouseStatistics.bind(warehouseController))
 );
 
 export default router;

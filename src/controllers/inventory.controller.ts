@@ -23,14 +23,11 @@ class InventoryController {
   async getByWarehouse(req: AuthRequest, res: Response) {
     const { warehouseId } = req.params;
 
-    const inventory = await inventoryService.getByWarehouse(parseInt(warehouseId));
+    const result = await inventoryService.getByWarehouse(parseInt(warehouseId));
 
     const response: ApiResponse = {
       success: true,
-      data: inventory,
-      meta: {
-        total: inventory.length,
-      },
+      data: result.data,
       timestamp: new Date().toISOString(),
     };
 

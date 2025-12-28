@@ -53,6 +53,7 @@ class ProductService {
       limit = 20,
       search,
       productType,
+      packagingType,
       categoryId,
       supplierId,
       warehouseId,
@@ -83,6 +84,7 @@ class ProductService {
         ],
       }),
       ...(productType && { productType: productType as any }),
+      ...(packagingType && { packagingType: packagingType as any }),
       ...(categoryId && { categoryId }),
       ...(supplierId && { supplierId }),
       ...(warehouseId && {
@@ -1145,6 +1147,76 @@ class ProductService {
 
     const stats = {
       totalRawMaterials,
+      byStatus: {
+        active: activeCount,
+        inactive: inactiveCount,
+        discontinued: discontinuedCount,
+      },
+      lowStockCount,
+      expiringCount,
+      discontinuedCount,
+      totalInventoryValue,
+    };
+
+    await redis.set(cacheKey, stats, PRODUCT_CACHE_TTL);
+
+    return stats;
+  }
+
+  async getPackagingStats() {
+    const cacheKey = 'product:stats:packaging';
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Có cache ${cacheKey}`);
+      return cached;
+    }
+    console.log(`❌ Không có cache ${cacheKey}, truy vấn database...`);
+
+    // Get all packaging with inventory info
+    const packaging = await prisma.product.findMany({
+      where: {
+        productType: 'packaging',
+      },
+      include: {
+        inventory: true,
+      },
+    });
+
+    // Calculate statistics
+    const totalPackaging = packaging.length;
+    const activeCount = packaging.filter((p) => p.status === 'active').length;
+    const inactiveCount = packaging.filter((p) => p.status === 'inactive').length;
+    const discontinuedCount = packaging.filter((p) => p.status === 'discontinued').length;
+
+    // Count low stock (quantity < minStockLevel)
+    let lowStockCount = 0;
+    for (const pk of packaging) {
+      const totalInventory = pk.inventory.reduce((sum, inv) => sum + Number(inv.quantity), 0);
+      if (totalInventory < Number(pk.minStockLevel)) {
+        lowStockCount++;
+      }
+    }
+
+    // Count expiring soon (7 days from now)
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    let expiringCount = 0;
+    for (const pk of packaging) {
+      if (pk.expiryDate && new Date(pk.expiryDate) <= sevenDaysFromNow) {
+        expiringCount++;
+      }
+    }
+
+    // Calculate total inventory value (Tồn kho × Giá nhập)
+    let totalInventoryValue = 0;
+    for (const pk of packaging) {
+      const totalQuantity = pk.inventory.reduce((sum, inv) => sum + Number(inv.quantity), 0);
+      const purchasePrice = Number(pk.purchasePrice) || 0;
+      totalInventoryValue += totalQuantity * purchasePrice;
+    }
+
+    const stats = {
+      totalPackaging,
       byStatus: {
         active: activeCount,
         inactive: inactiveCount,

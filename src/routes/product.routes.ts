@@ -36,9 +36,9 @@ router.get(
 
 // GET /api/products/stats/packaging
 router.get(
-  '/stats/raw-materials',
+  '/stats/packaging',
   authorize('view_products'),
-  asyncHandler(productController.getRawMaterialStats.bind(productController))
+  asyncHandler(productController.getPackagingStats.bind(productController))
 );
 
 // GET /api/products/low-stock
