@@ -32,9 +32,13 @@ class SupplierService {
 
     const cacheKey = `supplier:list:${JSON.stringify(query)}`;
     const cached = await redis.get(cacheKey);
+
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.SupplierWhereInput = {
       ...(search && {
@@ -67,11 +71,13 @@ class SupplierService {
           email: true,
           address: true,
           taxCode: true,
+          totalPayable: true,
           paymentTerms: true,
           notes: true,
           status: true,
           createdBy: true,
           updatedBy: true,
+          payableUpdatedAt: true,
           createdAt: true,
           updatedAt: true,
           creator: {
@@ -109,10 +115,15 @@ class SupplierService {
 
   async getSupplierById(id: number) {
     const cacheKey = `supplier:${id}`;
+
     const cached = await redis.get(cacheKey);
+
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const supplier = await prisma.supplier.findUnique({
       where: { id },
@@ -126,11 +137,13 @@ class SupplierService {
         email: true,
         address: true,
         taxCode: true,
+        totalPayable: true,
         paymentTerms: true,
         notes: true,
         status: true,
         createdBy: true,
         updatedBy: true,
+        payableUpdatedAt: true,
         createdAt: true,
         updatedAt: true,
         creator: {
@@ -331,12 +344,8 @@ class SupplierService {
       throw new ValidationError('Không thể xóa nhà cung cấp có đơn hàng tồn tại');
     }
 
-    await prisma.supplier.update({
+    await prisma.supplier.delete({
       where: { id },
-      data: {
-        status: 'inactive',
-        updatedBy: deletedBy,
-      },
     });
 
     logActivity('delete', deletedBy, 'suppliers', {

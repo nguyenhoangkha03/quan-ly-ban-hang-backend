@@ -1,89 +1,90 @@
 import { z } from 'zod';
 
 const transactionDetailSchema = z.object({
-  productId: z.number().int().positive('Invalid product ID'),
-  warehouseId: z.number().int().positive('Invalid warehouse ID').optional(),
-  quantity: z.number().positive('Quantity must be positive'),
-  unitPrice: z.number().min(0, 'Unit price cannot be negative').optional(),
-  batchNumber: z.string().max(100, 'Batch number too long').optional(),
-  expiryDate: z.string().datetime().or(z.date()).optional(),
-  notes: z.string().max(500, 'Notes too long').optional(),
+  productId: z.number().int().positive('Id sản phẩm không hợp lệ'),
+  warehouseId: z.number().int().positive('Id kho không hợp lệ').optional(),
+  quantity: z.number().positive('Số lượng phải là số dương'),
+  unitPrice: z.number().min(0, 'Giá phải lớn hơn 0').optional(),
+  batchNumber: z.string().max(100, 'Batch lớn hơn 100').optional(),
+  expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày hết hạn phải là YYYY-MM-DD').or(z.date()).optional(),
+  notes: z.string().max(500, 'Ghi chú không được quá 500 ký tự').optional(),
 });
 
 export const createImportSchema = z.object({
-  warehouseId: z.number().int().positive('Invalid warehouse ID'),
+  warehouseId: z.number().int().positive('Id kho không hợp lệ'),
   referenceType: z.string().max(50).optional(),
   referenceId: z.number().int().positive().optional(),
   reason: z.string().max(255).optional(),
   notes: z.string().max(500).optional(),
   details: z
     .array(transactionDetailSchema)
-    .min(1, 'At least one item is required')
-    .max(100, 'Maximum 100 items per transaction'),
+    .min(1, 'Cần ít nhất một mặt hàng')
+    .max(100, 'Tối đa 100 mặt hàng cho mỗi giao dịch'),
 });
 
 export const createExportSchema = z.object({
-  warehouseId: z.number().int().positive('Invalid warehouse ID'),
+  warehouseId: z.number().int().positive('Id kho không hợp lệ'),
   referenceType: z.string().max(50).optional(),
   referenceId: z.number().int().positive().optional(),
   reason: z.string().max(255).optional(),
   notes: z.string().max(500).optional(),
   details: z
     .array(transactionDetailSchema)
-    .min(1, 'At least one item is required')
-    .max(100, 'Maximum 100 items per transaction'),
+    .min(1, 'Cần ít nhất một mặt hàng')
+    .max(100, 'Tối đa 100 mặt hàng cho mỗi giao dịch'),
 });
 
 export const createTransferSchema = z
   .object({
-    sourceWarehouseId: z.number().int().positive('Invalid source warehouse ID'),
-    destinationWarehouseId: z.number().int().positive('Invalid destination warehouse ID'),
+    sourceWarehouseId: z.number().int().positive('Id kho nguồn không hợp lệ'),
+    destinationWarehouseId: z.number().int().positive('Id kho đích không hợp lệ'),
     reason: z.string().max(255).optional(),
     notes: z.string().max(500).optional(),
     details: z
       .array(transactionDetailSchema)
-      .min(1, 'At least one item is required')
-      .max(100, 'Maximum 100 items per transaction'),
+      .min(1, 'Cần ít nhất một mặt hàng')
+      .max(100, 'Tối đa 100 mặt hàng cho mỗi giao dịch'),
   })
   .refine((data) => data.sourceWarehouseId !== data.destinationWarehouseId, {
-    message: 'Source and destination warehouses must be different',
+    message: 'Kho nguồn và kho đích phải khác nhau',
     path: ['destinationWarehouseId'],
   });
 
 export const createDisposalSchema = z.object({
-  warehouseId: z.number().int().positive('Invalid warehouse ID'),
-  reason: z.string().min(1, 'Reason is required for disposal').max(255),
+  warehouseId: z.number().int().positive('Id kho không hợp lệ'),
+  reason: z.string().min(1, 'Lý do là bắt buộc cho việc thanh lý').max(255),
   notes: z.string().max(500).optional(),
   details: z
     .array(transactionDetailSchema)
-    .min(1, 'At least one item is required')
-    .max(100, 'Maximum 100 items per transaction'),
+    .min(1, 'Cần ít nhất một mặt hàng')
+    .max(100, 'Tối đa 100 mặt hàng cho mỗi giao dịch'),
 });
 
 export const createStocktakeSchema = z.object({
-  warehouseId: z.number().int().positive('Invalid warehouse ID'),
+  warehouseId: z.number().int().positive('Id kho không hợp lệ'),
   reason: z.string().max(255).optional(),
   notes: z.string().max(500).optional(),
   details: z
     .array(
       z.object({
-        productId: z.number().int().positive('Invalid product ID'),
-        systemQuantity: z.number().min(0, 'System quantity cannot be negative'),
-        actualQuantity: z.number().min(0, 'Actual quantity cannot be negative'),
+        productId: z.number().int().positive('Id sản phẩm không hợp lệ'),
+        systemQuantity: z.number().min(0, 'Số lượng hệ thống không thể âm'),
+        actualQuantity: z.number().min(0, 'Số lượng thực tế không thể âm'),
         batchNumber: z.string().max(100).optional(),
         notes: z.string().max(500).optional(),
       })
     )
-    .min(1, 'At least one item is required')
-    .max(100, 'Maximum 100 items per transaction'),
+    .min(1, 'Cần ít nhất một mặt hàng')
+    .max(100, 'Tối đa 100 mặt hàng cho mỗi giao dịch'),
 });
 
 export const transactionQuerySchema = z.object({
-  page: z.string().optional().default('1').transform(Number),
-  limit: z.string().optional().default('20').transform(Number),
+  page: z.string().regex(/^\d+$/).optional().default('1'),
+  limit: z.string().regex(/^\d+$/).optional().default('20'),
+  search: z.string().trim().optional(),
   transactionType: z.enum(['import', 'export', 'transfer', 'disposal', 'stocktake']).optional(),
   warehouseId: z.string().optional().transform(Number),
-  status: z.enum(['draft', 'pending', 'approved', 'cancelled']).optional(),
+  status: z.enum(['draft', 'pending', 'approved', 'completed', 'cancelled']).optional(),
   fromDate: z.string().optional(),
   toDate: z.string().optional(),
   sortBy: z.string().optional().default('createdAt'),
@@ -99,7 +100,7 @@ export const approveTransactionSchema = z.object({
 });
 
 export const cancelTransactionSchema = z.object({
-  reason: z.string().min(1, 'Reason is required for cancellation').max(500),
+  reason: z.string().min(1, 'Lý do là bắt buộc cho việc hủy bỏ').max(500),
 });
 
 export type CreateImportInput = z.infer<typeof createImportSchema>;

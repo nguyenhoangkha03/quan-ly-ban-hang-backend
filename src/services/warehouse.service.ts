@@ -120,10 +120,15 @@ class WarehouseService {
 
   async getWarehouseById(id: number) {
     const cacheKey = `warehouse:${id}`;
+
     const cached = await redis.get(cacheKey);
+
     if (cached) {
+      console.log(`✅ Có cache ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache ${cacheKey}, truy vấn database...`);
 
     const warehouse = await prisma.warehouse.findUnique({
       where: { id },
@@ -179,7 +184,7 @@ class WarehouseService {
     });
 
     if (!warehouse) {
-      throw new NotFoundError('Warehouse not found');
+      throw new NotFoundError('Warehouse không tìm thấy');
     }
 
     await redis.set(cacheKey, warehouse, WAREHOUSE_CACHE_TTL);

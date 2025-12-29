@@ -10,6 +10,7 @@ class ProductionOrderController {
     res.status(200).json({
       success: true,
       data: result.data,
+      message: result.message,
       meta: result.meta,
       timestamp: new Date().toISOString(),
     });
@@ -23,6 +24,7 @@ class ProductionOrderController {
     res.status(200).json({
       success: true,
       data: order,
+      message: 'Lấy lệnh sản xuất thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -30,22 +32,12 @@ class ProductionOrderController {
   // POST /api/production-orders - Create new production order
   async create(req: AuthRequest, res: Response) {
     const userId = req.user!.id;
-    const result = await productionOrderService.create(req.body, userId);
+    const productionOrder = await productionOrderService.create(req.body, userId);
 
     res.status(201).json({
       success: true,
-      data: result.productionOrder,
-      ...(result.materialShortages && {
-        warnings: {
-          materialShortages: result.materialShortages,
-          message:
-            'Production order created but some materials are insufficient. Please restock before starting production.',
-        },
-      }),
-      meta: {
-        estimatedCost: result.estimatedCost,
-      },
-      message: 'Production order created successfully',
+      data: productionOrder,
+      message: 'Lệnh sản xuất được tạo thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -79,7 +71,7 @@ class ProductionOrderController {
           code: result.stockTransaction.transactionCode,
         },
       },
-      message: 'Production started successfully. Materials have been exported from warehouse.',
+      message: 'Quá trình sản xuất đã bắt đầu thành công. Nguyên liệu đã được xuất kho.',
       timestamp: new Date().toISOString(),
     });
   }
@@ -100,8 +92,7 @@ class ProductionOrderController {
         },
         totalWastage: result.totalWastage,
       },
-      message:
-        'Production completed successfully. Finished products have been imported to warehouse.',
+      message: 'Quá trình sản xuất đã hoàn tất thành công. Thành phẩm đã được nhập kho.',
       timestamp: new Date().toISOString(),
     });
   }

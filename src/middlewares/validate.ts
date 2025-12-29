@@ -89,7 +89,7 @@ export const validateMultiple = (schemas: {
           req.body = await schemas.body.parseAsync(req.body);
         } catch (error) {
           if (error instanceof ZodError) {
-            errors.push(...(error as any).errors.map((e: any) => ({ source: 'body', ...e })));
+            errors.push(...(error.issues || []).map((e: any) => ({ source: 'body', ...e })));
           }
         }
       }
@@ -99,7 +99,7 @@ export const validateMultiple = (schemas: {
           req.query = (await schemas.query.parseAsync(req.query)) as any;
         } catch (error) {
           if (error instanceof ZodError) {
-            errors.push(...(error as any).errors.map((e: any) => ({ source: 'query', ...e })));
+            errors.push(...(error.issues || []).map((e: any) => ({ source: 'query', ...e })));
           }
         }
       }
@@ -109,7 +109,7 @@ export const validateMultiple = (schemas: {
           req.params = (await schemas.params.parseAsync(req.params)) as any;
         } catch (error) {
           if (error instanceof ZodError) {
-            errors.push(...(error as any).errors.map((e: any) => ({ source: 'params', ...e })));
+            errors.push(...(error.issues || []).map((e: any) => ({ source: 'params', ...e })));
           }
         }
       }

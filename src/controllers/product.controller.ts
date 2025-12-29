@@ -7,8 +7,18 @@ import { UpdateFeaturedInput } from '@validators/product.validator';
 class ProductController {
   // GET /api/products
   async getAll(req: AuthRequest, res: Response) {
-    const { page, limit, search, productType, categoryId, supplierId, status, sortBy, sortOrder } =
-      req.query as any;
+    const {
+      page,
+      limit,
+      search,
+      productType,
+      categoryId,
+      warehouseId,
+      supplierId,
+      status,
+      sortBy,
+      sortOrder,
+    } = req.query as any;
 
     const result = await productService.getAll({
       page: parseInt(page) || 1,
@@ -17,6 +27,7 @@ class ProductController {
       productType,
       categoryId: categoryId ? parseInt(categoryId) : undefined,
       supplierId: supplierId ? parseInt(supplierId) : undefined,
+      warehouseId: warehouseId ? parseInt(warehouseId) : undefined,
       status,
       sortBy,
       sortOrder,
@@ -288,6 +299,32 @@ class ProductController {
       success: true,
       data: result,
       message: 'Primary video set successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/stats/overview
+  async getStats(_req: AuthRequest, res: Response) {
+    const stats = await productService.getStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/stats/raw-materials
+  async getRawMaterialStats(_req: AuthRequest, res: Response) {
+    const stats = await productService.getRawMaterialStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
       timestamp: new Date().toISOString(),
     };
 

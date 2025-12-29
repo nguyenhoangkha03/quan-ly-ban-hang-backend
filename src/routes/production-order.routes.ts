@@ -12,6 +12,7 @@ import {
   cancelProductionSchema,
   productionOrderQuerySchema,
 } from '@validators/production-order.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.use(authentication);
 router.get(
   '/',
   authorize('view_production_orders'),
-  validate(productionOrderQuerySchema),
+  validate(productionOrderQuerySchema, 'query'),
   asyncHandler(productionOrderController.getAll.bind(productionOrderController))
 );
 
@@ -38,6 +39,7 @@ router.post(
   '/',
   authorize('create_production_order'),
   validate(createProductionOrderSchema),
+  logActivityMiddleware('create', 'production_order'),
   asyncHandler(productionOrderController.create.bind(productionOrderController))
 );
 
@@ -46,6 +48,7 @@ router.put(
   '/:id',
   authorize('update_production_order'),
   validate(updateProductionOrderSchema),
+  logActivityMiddleware('update', 'production_order'),
   asyncHandler(productionOrderController.update.bind(productionOrderController))
 );
 
@@ -54,6 +57,7 @@ router.put(
   '/:id/start',
   authorize('start_production'),
   validate(startProductionSchema),
+  logActivityMiddleware('start', 'production_order'),
   asyncHandler(productionOrderController.start.bind(productionOrderController))
 );
 
@@ -62,6 +66,7 @@ router.put(
   '/:id/complete',
   authorize('complete_production'),
   validate(completeProductionSchema),
+  logActivityMiddleware('complete', 'production_order'),
   asyncHandler(productionOrderController.complete.bind(productionOrderController))
 );
 
@@ -70,6 +75,7 @@ router.put(
   '/:id/cancel',
   authorize('cancel_production_order'),
   validate(cancelProductionSchema),
+  logActivityMiddleware('cancel', 'production_order'),
   asyncHandler(productionOrderController.cancel.bind(productionOrderController))
 );
 
@@ -84,6 +90,7 @@ router.get(
 router.delete(
   '/:id',
   authorize('delete_production_order'),
+  logActivityMiddleware('delete', 'production_order'),
   asyncHandler(productionOrderController.delete.bind(productionOrderController))
 );
 

@@ -1,21 +1,168 @@
-import { PrismaClient } from '@prisma/client';
-import { NotFoundError } from '@utils/errors';
+import { Prisma, PrismaClient, RoleStatus } from '@prisma/client';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import RedisService from './redis.service';
 import { logActivity } from '@utils/logger';
 import { invalidatePermissionCache } from '@middlewares/authorize';
-import type { AssignPermissionsInput } from '@validators/role.validator';
+import type {
+  AssignPermissionsInput,
+  CreateRoleInput,
+  QueryRolesInput,
+  UpdateRoleInput,
+} from '@validators/role.validator';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
 
 // Cache settings
 const ROLE_CACHE_TTL = 3600;
+const ROLE_LIST_CACHE_TTL = 3600;
 
 class RoleService {
-  // Get all roles
-  async getAllRoles() {
-    const roles = await prisma.role.findMany({
-      orderBy: { roleName: 'asc' },
+  async getAllRoles(query: QueryRolesInput) {
+    const {
+      page = '1',
+      limit = '20',
+      search,
+      status,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Tạo khóa cache cho nhất quán
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `role:list:${queryString}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
+
+    const where: Prisma.RoleWhereInput = {
+      ...(search && {
+        OR: [
+          { roleKey: { contains: search } },
+          { roleName: { contains: search } },
+          { description: { contains: search } },
+        ],
+      }),
+      ...(status && { status }),
+    };
+
+    const [roles, total] = await Promise.all([
+      prisma.role.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { [sortBy]: sortOrder },
+        select: {
+          id: true,
+          roleKey: true,
+          roleName: true,
+          description: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: {
+            select: {
+              users: true,
+              rolePermissions: true,
+            },
+          },
+        },
+      }),
+      prisma.role.count({ where }),
+    ]);
+
+    const result = {
+      data: roles,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      message: 'Success',
+    };
+
+    await redis.set(cacheKey, result, ROLE_LIST_CACHE_TTL);
+
+    return result;
+  }
+
+  // Create new role
+  async createRole(data: CreateRoleInput, createdBy: number) {
+    // Check if roleKey already exists
+    const existing = await prisma.role.findUnique({
+      where: { roleKey: data.roleKey },
+    });
+
+    if (existing) {
+      throw new ValidationError(`Role key "${data.roleKey}" đã tồn tại`);
+    }
+
+    // Create role
+    const role = await prisma.role.create({
+      data: {
+        roleKey: data.roleKey,
+        roleName: data.roleName,
+        description: data.description || null,
+        status: (data.status || 'active') as RoleStatus,
+      },
+      select: {
+        id: true,
+        roleKey: true,
+        roleName: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Log activity
+    logActivity('create', createdBy, 'roles', {
+      recordId: role.id,
+      roleKey: role.roleKey,
+      roleName: role.roleName,
+    });
+
+    // Invalidate list cache
+    await redis.flushPattern('role:*');
+
+    return role;
+  }
+
+  // Update role
+  async updateRole(id: number, data: UpdateRoleInput, updatedBy: number) {
+    // Verify role exists
+    const role = await prisma.role.findUnique({
+      where: { id },
+    });
+
+    if (!role) {
+      throw new NotFoundError('Role không tìm thấy');
+    }
+
+    // Don't allow updating roleKey (system field)
+    if (role.roleKey === 'admin') {
+      throw new ValidationError('Không thể cập nhật vai trò hệ thống');
+    }
+
+    // Update role
+    const updatedRole = await prisma.role.update({
+      where: { id },
+      data: {
+        ...(data.roleName && { roleName: data.roleName }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.status && { status: data.status as RoleStatus }),
+      },
       select: {
         id: true,
         roleKey: true,
@@ -33,17 +180,82 @@ class RoleService {
       },
     });
 
-    return roles;
+    // Log activity
+    logActivity('update', updatedBy, 'roles', {
+      recordId: id,
+      roleKey: role.roleKey,
+      changes: data,
+    });
+
+    // Invalidate caches
+    await redis.del(`role:${id}`);
+    await redis.del(`role:permissions:${id}`);
+    await redis.flushPattern('role:*');
+
+    return updatedRole;
+  }
+
+  // Delete role
+  async deleteRole(id: number, deletedBy: number) {
+    // Verify role exists and get user count
+    const role = await prisma.role.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { users: true },
+        },
+      },
+    });
+
+    if (!role) {
+      throw new NotFoundError('Role không tìm thấy');
+    }
+
+    // Don't allow deleting system roles
+    if (['admin', 'user'].includes(role.roleKey)) {
+      throw new ValidationError(`Không thể xóa role hệ thống "${role.roleName}"`);
+    }
+
+    // Check if role is assigned to users
+    if (role._count.users > 0) {
+      throw new ValidationError(
+        `Không thể xóa role "${role.roleName}" nó đã được gán với ${role._count.users} user(s). Vui lòng gỡ gán user trước.`
+      );
+    }
+
+    // Delete role (cascade will delete role_permissions)
+    await prisma.role.delete({
+      where: { id },
+    });
+
+    // Log activity
+    logActivity('delete', deletedBy, 'roles', {
+      recordId: id,
+      roleKey: role.roleKey,
+      roleName: role.roleName,
+    });
+
+    // Invalidate caches
+    await redis.del(`role:${id}`);
+    await redis.del(`role:permissions:${id}`);
+    await redis.flushPattern('role:*');
+
+    return { message: 'Role xóa thành công' };
   }
 
   // Get role by ID
   async getRoleById(id: number) {
     // Check cache
     const cacheKey = `role:${id}`;
+
     const cached = await redis.get(cacheKey);
+
     if (cached) {
+      console.log(`✅ Có cache ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache ${cacheKey}, truy vấn database...`);
 
     const role = await prisma.role.findUnique({
       where: { id },
@@ -65,7 +277,7 @@ class RoleService {
     });
 
     if (!role) {
-      throw new NotFoundError('Role not found');
+      throw new NotFoundError('Role không tìm thấy');
     }
 
     // Cache result
@@ -89,7 +301,7 @@ class RoleService {
     });
 
     if (!role) {
-      throw new NotFoundError('Role not found');
+      throw new NotFoundError('Vai trò không tìm thấy');
     }
 
     const rolePermissions = await prisma.rolePermission.findMany({
@@ -149,7 +361,7 @@ class RoleService {
     });
 
     if (!role) {
-      throw new NotFoundError('Role not found');
+      throw new NotFoundError('Vai trò không tìm thấy');
     }
 
     // Verify all permission IDs exist
@@ -162,7 +374,7 @@ class RoleService {
     });
 
     if (permissions.length !== data.permissionIds.length) {
-      throw new NotFoundError('One or more permissions not found');
+      throw new NotFoundError('Không tìm thấy một hoặc nhiều quyền.');
     }
 
     // Get current permissions for logging
@@ -197,8 +409,7 @@ class RoleService {
     });
 
     // Invalidate caches
-    await redis.del(`role:permissions:${roleId}`);
-    await redis.del(`role:${roleId}`);
+    await redis.flushPattern(`role:*`);
     await invalidatePermissionCache(roleId);
 
     // Get updated permissions
@@ -215,7 +426,7 @@ class RoleService {
     });
 
     if (!role) {
-      throw new NotFoundError('Role not found');
+      throw new NotFoundError('Vai trò không tìm thấy');
     }
 
     // Verify permission exists
@@ -224,7 +435,7 @@ class RoleService {
     });
 
     if (!permission) {
-      throw new NotFoundError('Permission not found');
+      throw new NotFoundError('Quyền không tìm thấy');
     }
 
     // Check if already assigned
@@ -238,7 +449,7 @@ class RoleService {
     });
 
     if (existing) {
-      return { message: 'Permission already assigned to this role' };
+      return { message: 'Quyền hạn đã được cấp cho vai trò này' };
     }
 
     // Create role permission
@@ -258,10 +469,10 @@ class RoleService {
     });
 
     // Invalidate caches
-    await redis.del(`role:permissions:${roleId}`);
+    await redis.flushPattern(`role:*`);
     await invalidatePermissionCache(roleId);
 
-    return { message: 'Permission added successfully' };
+    return { message: 'Đã thêm quyền thành công' };
   }
 
   // Remove single permission from role
@@ -276,7 +487,7 @@ class RoleService {
     });
 
     if (!deleted) {
-      throw new NotFoundError('Permission assignment not found');
+      throw new NotFoundError('Không tìm thấy quyền phân bổ.');
     }
 
     // Log activity
@@ -287,10 +498,10 @@ class RoleService {
     });
 
     // Invalidate caches
-    await redis.del(`role:permissions:${roleId}`);
+    await redis.flushPattern(`role:*`);
     await invalidatePermissionCache(roleId);
 
-    return { message: 'Permission removed successfully' };
+    return { message: 'Đã xóa quyền thành công' };
   }
 }
 

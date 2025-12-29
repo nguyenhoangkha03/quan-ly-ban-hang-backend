@@ -23,7 +23,7 @@ router.use(authentication);
 router.get(
   '/',
   authorize('view_salary'),
-  validate(salaryQuerySchema),
+  validate(salaryQuerySchema, 'query'),
   asyncHandler(salaryController.getAll.bind(salaryController))
 );
 

@@ -81,7 +81,7 @@ export const updateProductSchema = z.object({
     .min(0, 'Wholesale price cannot be negative')
     .nullable()
     .optional(),
-  sellingPriceVip: z.number().min(0, 'VIP price cannot be negative').nullable().optional(),
+  sellingPriceVip: z.number().min(0, 'Giá VIP không thể số âm!').nullable().optional(),
   taxRate: z.number().min(0).max(100).optional(),
   minStockLevel: z.number().min(0).optional(),
   expiryDate: z
@@ -115,9 +115,13 @@ export const productQuerySchema = z.object({
   search: z.string().optional(),
   productType: z
     .enum(['raw_material', 'packaging', 'finished_product', 'goods'])
-    .refine((val) => !!val, { message: 'Invalid product type' })
+    .refine((val) => !!val, { message: 'Loại không hợp lệ!' })
     .optional(),
   categoryId: z
+    .string()
+    .optional()
+    .transform((v) => (v ? Number(v) : undefined)),
+  warehouseId: z
     .string()
     .optional()
     .transform((v) => (v ? Number(v) : undefined)),
@@ -127,12 +131,12 @@ export const productQuerySchema = z.object({
     .transform((v) => (v ? Number(v) : undefined)),
   status: z
     .enum(['active', 'inactive', 'discontinued'])
-    .refine((val) => !!val, { message: 'Invalid status' })
+    .refine((val) => !!val, { message: 'Trạng thái không hợp lệ!' })
     .optional(),
   sortBy: z.string().optional().default('createdAt'),
   sortOrder: z
     .enum(['asc', 'desc'])
-    .refine((val) => !!val, { message: 'Invalid sort order' })
+    .refine((val) => !!val, { message: 'Sắp xếp không hợp lệ!' })
     .optional()
     .default('desc'),
   isFeatured: z

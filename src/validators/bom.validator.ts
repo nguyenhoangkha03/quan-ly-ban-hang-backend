@@ -49,16 +49,15 @@ export const updateBomSchema = z.object({
 });
 
 export const bomQuerySchema = z.object({
-  page: z.string().optional().default('1').transform(Number).pipe(z.number().int().positive()),
-  limit: z
+  page: z.string().regex(/^\d+$/).optional().default('1'),
+  limit: z.string().regex(/^\d+$/).optional().default('20'),
+  search: z.string().trim().optional(),
+  status: z.enum(['draft', 'active', 'inactive']).optional(),
+  finishedProductId: z
     .string()
     .optional()
-    .default('20')
-    .transform(Number)
-    .pipe(z.number().int().positive().max(100)),
-  search: z.string().optional(),
-  status: z.enum(['draft', 'active', 'inactive']).optional(),
-  finishedProductId: z.string().optional().transform(Number).pipe(z.number().int().positive()),
+    .transform((val) => (val ? Number(val) : undefined))
+    .pipe(z.number().int().positive().optional()),
   sortBy: z.string().default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });

@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import { logActivity } from '@utils/logger';
+import { importAttendanceFromFile } from '@utils/attendance-import';
 import {
   AttendanceQueryInput,
   CheckInInput,
@@ -46,8 +47,8 @@ class AttendanceService {
   // Get all attendance records with filters
   async getAll(params: AttendanceQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
       userId,
       status,
       leaveType,
@@ -58,7 +59,9 @@ class AttendanceService {
       sortOrder = 'desc',
     } = params;
 
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
     const where: Prisma.AttendanceWhereInput = {
       ...(userId && { userId }),
@@ -103,8 +106,8 @@ class AttendanceService {
             },
           },
         },
-        skip: offset,
-        take: limit,
+        skip,
+        take: limitNum,
         orderBy: { [sortBy]: sortOrder },
       }),
       prisma.attendance.count({ where }),
@@ -113,10 +116,10 @@ class AttendanceService {
     return {
       data: records,
       meta: {
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limitNum),
       },
     };
   }
@@ -690,6 +693,121 @@ class AttendanceService {
     }
 
     return stats;
+  }
+
+  // Lock attendance month
+  async lockMonth(month: string, userId: number) {
+    // Check if month already locked
+    const existingLock = await prisma.attendanceMonth.findUnique({
+      where: { month },
+    });
+
+    if (existingLock?.isLocked) {
+      throw new ConflictError('Tháng này đã được chốt công');
+    }
+
+    // Lock the month
+    const lockedMonth = await prisma.attendanceMonth.upsert({
+      where: { month },
+      update: {
+        isLocked: true,
+        lockedBy: userId,
+        lockedAt: new Date(),
+      },
+      create: {
+        month,
+        isLocked: true,
+        lockedBy: userId,
+        lockedAt: new Date(),
+      },
+    });
+
+    return lockedMonth;
+  }
+
+  // Check if month is locked
+  async isMonthLocked(month: string): Promise<boolean> {
+    const lock = await prisma.attendanceMonth.findUnique({
+      where: { month },
+    });
+    return lock?.isLocked || false;
+  }
+
+  // Import attendance from file
+  async importFromFile(filePath: string, userId: number) {
+    const result = await importAttendanceFromFile(filePath);
+
+    // Create attendance records for valid imports
+    const createdRecords = [];
+    for (const record of result.valid) {
+      try {
+        // Find user by employee code
+        const user = await prisma.user.findUnique({
+          where: { employeeCode: record.employeeCode },
+        });
+
+        if (!user) {
+          result.invalid.push({
+            ...record,
+            errors: [...(record.errors || []), `Employee with code ${record.employeeCode} not found`],
+          });
+          continue;
+        }
+
+        // Parse times
+        const checkInTime = record.checkInTime
+          ? new Date(`${record.date} ${record.checkInTime}`)
+          : null;
+        const checkOutTime = record.checkOutTime
+          ? new Date(`${record.date} ${record.checkOutTime}`)
+          : null;
+
+        // Create or update attendance
+        const attendance = await prisma.attendance.upsert({
+          where: {
+            userId_date: {
+              userId: user.id,
+              date: new Date(record.date),
+            },
+          },
+          update: {
+            checkInTime,
+            checkOutTime,
+            status: (record.status || 'present') as any,
+            leaveType: (record.leaveType || 'none') as any,
+            notes: record.notes,
+          },
+          create: {
+            userId: user.id,
+            date: new Date(record.date),
+            checkInTime,
+            checkOutTime,
+            status: (record.status || 'present') as any,
+            leaveType: (record.leaveType || 'none') as any,
+            notes: record.notes,
+          },
+        });
+
+        createdRecords.push(attendance);
+      } catch (error: any) {
+        result.invalid.push({
+          ...record,
+          errors: [...(record.errors || []), error.message],
+        });
+      }
+    }
+
+    await logActivity(
+      'import',
+      userId,
+      'attendance',
+      `Imported ${createdRecords.length} attendance records`
+    );
+
+    return {
+      ...result,
+      importedCount: createdRecords.length,
+    };
   }
 }
 

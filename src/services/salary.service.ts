@@ -8,8 +8,10 @@ import {
   PaySalaryInput,
   SalaryQueryInput,
 } from '@validators/salary.validator';
+import RedisService from './redis.service';
 
 const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
 
 // Salary calculation constants
 const STANDARD_WORK_HOURS_PER_MONTH = 208; // 26 days * 8 hours
@@ -18,9 +20,163 @@ const COMMISSION_RATE = 0.05; // 5% of sales revenue
 const SOCIAL_INSURANCE_RATE = 0.08; // BHXH 8%
 const HEALTH_INSURANCE_RATE = 0.015; // BHYT 1.5%
 const UNEMPLOYMENT_INSURANCE_RATE = 0.01; // BHTN 1%
-const TOTAL_INSURANCE_RATE = SOCIAL_INSURANCE_RATE + HEALTH_INSURANCE_RATE + UNEMPLOYMENT_INSURANCE_RATE; // 10.5%
+const TOTAL_INSURANCE_RATE =
+  SOCIAL_INSURANCE_RATE + HEALTH_INSURANCE_RATE + UNEMPLOYMENT_INSURANCE_RATE; // 10.5%
+
+// Cache settings
+// const SALARY_CACHE_TTL = 3600;
+const SALARY_LIST_CACHE_TTL = 300;
 
 class SalaryService {
+  // Get all salary records with filters
+  async getAll(query: SalaryQueryInput) {
+    const {
+      page = '1',
+      limit = '20',
+      search,
+      userId,
+      roleId,
+      warehouseId,
+      month,
+      status,
+      fromMonth,
+      toMonth,
+      sortBy = 'month',
+      sortOrder = 'desc',
+    } = query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
+    const cacheKey = `salary:list:${queryString}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
+
+    // Build where clause
+    const where: Prisma.SalaryWhereInput = {
+      ...(userId && { userId: parseInt(userId) }),
+      ...(month && { month }),
+      ...(status && { status }),
+      ...(fromMonth &&
+        toMonth && {
+          month: {
+            gte: fromMonth,
+            lte: toMonth,
+          },
+        }),
+      ...(roleId && { user: { roleId: parseInt(roleId) } }),
+      ...(warehouseId && { user: { warehouseId: parseInt(warehouseId) } }),
+      ...(search && {
+        user: {
+          OR: [
+            { fullName: { contains: search } },
+            { email: { contains: search } },
+            { employeeCode: { contains: search } },
+            { phone: { contains: search } },
+          ],
+        },
+      }),
+    };
+
+    const [records, total] = await Promise.all([
+      prisma.salary.findMany({
+        where,
+        select: {
+          id: true,
+          userId: true,
+          month: true,
+          basicSalary: true,
+          allowance: true,
+          overtimePay: true,
+          bonus: true,
+          commission: true,
+          deduction: true,
+          advance: true,
+          notes: true,
+          status: true,
+          isPosted: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+              email: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+            },
+          },
+          approver: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+            },
+          },
+          payer: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+            },
+          },
+          voucher: {
+            select: {
+              id: true,
+              voucherCode: true,
+              amount: true,
+            },
+          },
+        },
+        skip,
+        take: limitNum,
+        orderBy: { [sortBy]: sortOrder },
+      }),
+      prisma.salary.count({ where }),
+    ]);
+
+    // Calculate total salary for each record
+    const recordsWithTotal = records.map((record) => ({
+      ...record,
+      totalSalary:
+        Number(record.basicSalary) +
+        Number(record.allowance) +
+        Number(record.overtimePay) +
+        Number(record.bonus) +
+        Number(record.commission) -
+        Number(record.deduction) -
+        Number(record.advance),
+    }));
+
+    const result = {
+      data: recordsWithTotal,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    };
+
+    // Cache result
+    await redis.set(cacheKey, result, SALARY_LIST_CACHE_TTL);
+
+    return result;
+  }
+
   // Calculate tax based on progressive tax brackets (Vietnam 2024)
   private calculatePersonalIncomeTax(taxableIncome: number): number {
     if (taxableIncome <= 0) return 0;
@@ -80,107 +236,6 @@ class SalaryService {
 
     const totalRevenue = orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
     return totalRevenue;
-  }
-
-  // Get all salary records with filters
-  async getAll(params: SalaryQueryInput) {
-    const {
-      page = 1,
-      limit = 20,
-      userId,
-      month,
-      status,
-      fromMonth,
-      toMonth,
-      sortBy = 'month',
-      sortOrder = 'desc',
-    } = params;
-
-    const offset = (page - 1) * limit;
-
-    const where: Prisma.SalaryWhereInput = {
-      ...(userId && { userId }),
-      ...(month && { month }),
-      ...(status && { status }),
-      ...(fromMonth &&
-        toMonth && {
-          month: {
-            gte: fromMonth,
-            lte: toMonth,
-          },
-        }),
-    };
-
-    const [records, total] = await Promise.all([
-      prisma.salary.findMany({
-        where,
-        include: {
-          user: {
-            select: {
-              id: true,
-              fullName: true,
-              employeeCode: true,
-              email: true,
-            },
-          },
-          creator: {
-            select: {
-              id: true,
-              fullName: true,
-              employeeCode: true,
-            },
-          },
-          approver: {
-            select: {
-              id: true,
-              fullName: true,
-              employeeCode: true,
-            },
-          },
-          payer: {
-            select: {
-              id: true,
-              fullName: true,
-              employeeCode: true,
-            },
-          },
-          voucher: {
-            select: {
-              id: true,
-              voucherCode: true,
-              amount: true,
-            },
-          },
-        },
-        skip: offset,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-      }),
-      prisma.salary.count({ where }),
-    ]);
-
-    // Calculate total salary for each record
-    const recordsWithTotal = records.map((record) => ({
-      ...record,
-      totalSalary:
-        Number(record.basicSalary) +
-        Number(record.allowance) +
-        Number(record.overtimePay) +
-        Number(record.bonus) +
-        Number(record.commission) -
-        Number(record.deduction) -
-        Number(record.advance),
-    }));
-
-    return {
-      data: recordsWithTotal,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
   }
 
   // Get salary by ID
@@ -293,7 +348,8 @@ class SalaryService {
     const attendanceReport = await attendanceService.getMonthlyReport(month, userId);
     const userAttendance = attendanceReport.users.find((u: any) => u.user.id === userId);
     const overtimeHours = userAttendance?.summary.totalOvertimeHours ?? 0;
-    const overtimePay = (actualBasicSalary / STANDARD_WORK_HOURS_PER_MONTH) * overtimeHours * OVERTIME_RATE;
+    const overtimePay =
+      (actualBasicSalary / STANDARD_WORK_HOURS_PER_MONTH) * overtimeHours * OVERTIME_RATE;
 
     // 2. Calculate commission from sales revenue
     const salesRevenue = await this.getUserSalesRevenue(userId, month);
@@ -308,7 +364,8 @@ class SalaryService {
     // Tax = (Gross - Insurance - 11M personal deduction - 4.4M dependents) * progressive rate
     const PERSONAL_DEDUCTION = 11000000; // 11M VND
     const DEPENDENT_DEDUCTION = 4400000; // 4.4M VND per dependent (assume 0 for now)
-    const taxableIncome = grossIncome - insuranceDeduction - PERSONAL_DEDUCTION - DEPENDENT_DEDUCTION;
+    const taxableIncome =
+      grossIncome - insuranceDeduction - PERSONAL_DEDUCTION - DEPENDENT_DEDUCTION;
     const tax = this.calculatePersonalIncomeTax(taxableIncome);
 
     const totalDeduction = insuranceDeduction + tax;
@@ -385,18 +442,21 @@ class SalaryService {
     const attendanceReport = await attendanceService.getMonthlyReport(month, userId);
     const userAttendance = attendanceReport.users.find((u: any) => u.user.id === userId);
     const overtimeHours = userAttendance?.summary.totalOvertimeHours ?? 0;
-    const overtimePay = (Number(basicSalary) / STANDARD_WORK_HOURS_PER_MONTH) * overtimeHours * OVERTIME_RATE;
+    const overtimePay =
+      (Number(basicSalary) / STANDARD_WORK_HOURS_PER_MONTH) * overtimeHours * OVERTIME_RATE;
 
     // 2. Recalculate commission
     const salesRevenue = await this.getUserSalesRevenue(userId, month);
     const commission = salesRevenue * COMMISSION_RATE;
 
     // 3. Recalculate deductions
-    const grossIncome = Number(basicSalary) + Number(allowance) + overtimePay + Number(bonus) + commission;
+    const grossIncome =
+      Number(basicSalary) + Number(allowance) + overtimePay + Number(bonus) + commission;
     const insuranceDeduction = Number(basicSalary) * TOTAL_INSURANCE_RATE;
     const PERSONAL_DEDUCTION = 11000000;
     const DEPENDENT_DEDUCTION = 4400000;
-    const taxableIncome = grossIncome - insuranceDeduction - PERSONAL_DEDUCTION - DEPENDENT_DEDUCTION;
+    const taxableIncome =
+      grossIncome - insuranceDeduction - PERSONAL_DEDUCTION - DEPENDENT_DEDUCTION;
     const tax = this.calculatePersonalIncomeTax(taxableIncome);
     const totalDeduction = insuranceDeduction + tax;
 
