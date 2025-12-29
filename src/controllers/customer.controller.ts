@@ -5,7 +5,16 @@ import customerService from '@services/customer.service';
 class CustomerController {
   // GET /api/customers - Get all customers
   async getAll(req: AuthRequest, res: Response) {
-    const result = await customerService.getAll(req.query as any);
+
+    //ép kiểu và set giá trị mặc định cho page và limit
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const params = {
+        ...req.query,
+        page,
+        limit
+    };
+    const result = await customerService.getAll(params as any);
 
     res.status(200).json({
       success: true,
