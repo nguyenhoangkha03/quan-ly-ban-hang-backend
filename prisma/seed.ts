@@ -199,7 +199,6 @@ async function main() {
     { key: 'create_product', name: 'Tạo sản phẩm', module: 'products' },
     { key: 'update_product', name: 'Cập nhật sản phẩm', module: 'products' },
     { key: 'delete_product', name: 'Xóa sản phẩm', module: 'products' },
-    { key: 'manage_product_prices', name: 'Quản lý giá sản phẩm (Vốn/Bán)', module: 'products' },
 
     // Categories (NEW)
     { key: 'view_categories', name: 'Xem danh mục', module: 'products' },
@@ -270,8 +269,6 @@ async function main() {
     { key: 'cancel_promotion', name: 'Hủy khuyến mãi', module: 'sales' },
     { key: 'manage_promotions', name: 'Quản lý khuyến mãi', module: 'sales' },
 
-    { key: 'approve_credit_limit_override', name: 'Phê duyệt bán vượt hạn mức', module: 'sales' },
-
     // ============================================================
     // FINANCIAL MANAGEMENT
     // ============================================================
@@ -306,11 +303,6 @@ async function main() {
     { key: 'confirm_debt_reconciliation', name: 'Xác nhận đối chiếu', module: 'finance' },
     { key: 'send_debt_reconciliation_email', name: 'Gửi email đối chiếu', module: 'finance' },
 
-    // Cash Fund (Quỹ tiền mặt)
-    { key: 'view_cash_fund', name: 'Xem quỹ tiền mặt', module: 'finance' },
-    { key: 'reconcile_cash_fund', name: 'Đối chiếu/Kiểm kê quỹ', module: 'finance' }, // Dành cho Kế toán
-    { key: 'approve_cash_fund', name: 'Phê duyệt/Khóa sổ quỹ', module: 'finance' }, // Dành cho Admin/Kế toán trưởng
-
     // ============================================================
     // HR MANAGEMENT
     // ============================================================
@@ -320,13 +312,9 @@ async function main() {
     { key: 'update_attendance', name: 'Cập nhật chấm công', module: 'hr' },
     { key: 'delete_attendance', name: 'Xóa chấm công', module: 'hr' },
 
-    // Leave
-    { key: 'approve_leave', name: 'Phê duyệt nghiệp vụ', module: 'hr' },
-
     // Salary
     { key: 'view_salary', name: 'Xem lương', module: 'hr' },
     { key: 'manage_salary', name: 'Quản lý lương', module: 'hr' },
-    { key: 'create_salary', name: 'Tạo lương', module: 'hr' },
     { key: 'update_salary', name: 'Cập nhật lương', module: 'hr' },
     { key: 'delete_salary', name: 'Xóa lương', module: 'hr' },
     { key: 'calculate_salary', name: 'Tính lương', module: 'hr' },
@@ -339,11 +327,6 @@ async function main() {
     { key: 'view_dashboard', name: 'Xem dashboard', module: 'reports' },
     { key: 'view_reports', name: 'Xem báo cáo', module: 'reports' },
     { key: 'export_reports', name: 'Xuất báo cáo', module: 'reports' },
-
-    // ============================================================
-    // SYSTEM
-    // ============================================================
-    { key: 'view_activity_logs', name: 'Xem nhật ký hoạt động hệ thống', module: 'system' },
 
     // ============================================================
     // SETTINGS

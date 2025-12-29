@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function main() {
+export async function main() {
   console.log('🚀 Bắt đầu seed dữ liệu Stock Transactions & Transfers');
 
   // Xóa dữ liệu cũ

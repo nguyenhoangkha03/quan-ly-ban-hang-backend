@@ -58,7 +58,9 @@ class DebtReconciliationService {
       sortOrder = 'desc',
     } = params;
 
-    const skip = (page - 1) * limit;
+    const pageNumber = Number(page) || 1;
+    const limitNumber = Number(limit) || 20;
+    const skip = (pageNumber - 1) * limit;
 
     const where: Prisma.DebtReconciliationWhereInput = {};
 
@@ -71,11 +73,11 @@ class DebtReconciliationService {
     }
 
     if (customerId) {
-      where.customerId = customerId;
+      where.customerId = Number(customerId);
     }
 
     if (supplierId) {
-      where.supplierId = supplierId;
+      where.supplierId = Number(supplierId);
     }
 
     if (reconciliationType) {
@@ -104,7 +106,7 @@ class DebtReconciliationService {
       prisma.debtReconciliation.findMany({
         where,
         skip,
-        take: limit,
+        take: limitNumber,
         orderBy: { [sortBy]: sortOrder },
         include: {
           customer: {
@@ -148,8 +150,8 @@ class DebtReconciliationService {
       data: reconciliations,
       meta: {
         total,
-        page,
-        limit,
+        pageNumber,
+        limitNumber,
         totalPages: Math.ceil(total / limit),
       },
     };
@@ -220,7 +222,7 @@ class DebtReconciliationService {
       FROM sales_orders
       WHERE customer_id = ${customerId}
         AND order_date < ${startDate}
-        AND status != 'cancelled'
+        AND order_status != 'cancelled'
     `;
     const openingBalance = Number(openingBalanceResult[0]?.debt || 0);
 
@@ -230,7 +232,7 @@ class DebtReconciliationService {
       WHERE customer_id = ${customerId}
         AND order_date >= ${startDate}
         AND order_date <= ${endDate}
-        AND status != 'cancelled'
+        AND order_status != 'cancelled'
     `;
     const transactionsAmount = Number(transactionsResult[0]?.amount || 0);
 
@@ -238,8 +240,8 @@ class DebtReconciliationService {
       SELECT COALESCE(SUM(amount), 0) as amount
       FROM payment_receipts
       WHERE customer_id = ${customerId}
-        AND payment_date >= ${startDate}
-        AND payment_date <= ${endDate}
+        AND receipt_date >= ${startDate}
+        AND receipt_date <= ${endDate}
         AND receipt_type = 'debt_payment'
         AND is_posted = true
     `;
@@ -267,7 +269,7 @@ class DebtReconciliationService {
       FROM purchase_orders
       WHERE supplier_id = ${supplierId}
         AND order_date < ${startDate}
-        AND status != 'cancelled'
+        AND order_status != 'cancelled'
     `;
     const openingBalance = Number(openingBalanceResult[0]?.debt || 0);
 
@@ -277,7 +279,7 @@ class DebtReconciliationService {
       WHERE supplier_id = ${supplierId}
         AND order_date >= ${startDate}
         AND order_date <= ${endDate}
-        AND status != 'cancelled'
+        AND order_status != 'cancelled'
     `;
     const transactionsAmount = Number(transactionsResult[0]?.amount || 0);
 
@@ -285,8 +287,8 @@ class DebtReconciliationService {
       SELECT COALESCE(SUM(amount), 0) as amount
       FROM payment_vouchers
       WHERE supplier_id = ${supplierId}
-        AND payment_date >= ${startDate}
-        AND payment_date <= ${endDate}
+        AND receipt_date >= ${startDate}
+        AND receipt_date <= ${endDate}
         AND voucher_type = 'supplier_payment'
         AND is_posted = true
     `;

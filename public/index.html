@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tạo Đơn Hàng (Customer)</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --bg: #f8fafc;
+            --card: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: #334155;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--card);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        h1, h2 { margin-top: 0; color: #1e293b; }
+        
+        /* Form Elements */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        
+        .row { display: flex; gap: 20px; }
+        .col { flex: 1; }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #f1f5f9; }
+        
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; width: 100%; font-size: 16px; }
+        .btn-primary:hover { background: #1d4ed8; }
+        
+        .btn-add { background: var(--success); color: white; margin-top: 10px; }
+        .btn-remove { background: #fee2e2; color: var(--danger); padding: 5px 10px; }
+        
+        /* Response Area */
+        #responseArea { 
+            display: none; 
+            margin-top: 20px; 
+            border-top: 2px solid #e2e8f0; 
+            padding-top: 20px; 
+        }
+        .success-box { background: #dcfce7; color: #166534; padding: 15px; border-radius: 6px; }
+        .error-box { background: #fee2e2; color: #991b1b; padding: 15px; border-radius: 6px; }
+        
+        .qr-container {
+            text-align: center;
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff;
+            border: 1px dashed #cbd5e1;
+            display: inline-block;
+        }
+        .qr-container img { max-width: 200px; }
+        
+        pre { background: #1e293b; color: #cbd5e1; padding: 15px; border-radius: 6px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h2>🔐 Xác thực</h2>
+        <div class="form-group">
+            <label>Access Token (Dán token từ Postman vào đây):</label>
+            <textarea id="accessToken" rows="3" placeholder="eyJhbGciOiJIUzI1Ni..."></textarea>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📝 Thông tin đơn hàng</h2>
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label>Kho Hàng (Warehouses):</label>
+                    <select id="warehouseSelect">
+                        </select>
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label>Địa chỉ giao hàng:</label>
+                    <input type="text" id="deliveryAddress" value="123 Đường Demo, Ninh Kiều, Cần Thơ">
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label>Phương thức thanh toán:</label>
+                    <select id="paymentMethod" onchange="togglePaymentDetail()">
+                        <option value="transfer">Chuyển khoản (Online)</option>
+                        <option value="cash">Tiền mặt (COD)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col" id="paymentDetailGroup">
+                <div class="form-group">
+                    <label>Cổng thanh toán (QR):</label>
+                    <select id="paymentMethodDetail">
+                        <option value="MBBANK_QR">MB Bank (VietQR)</option>
+                        <option value="MOMO_QR">Ví MoMo</option>
+                        <option value="BANK_TRANSFER">Ngân hàng khác</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🛒 Sản phẩm</h2>
+        <table id="itemsTable">
+            <thead>
+                <tr>
+                    <th width="50%">Sản phẩm</th>
+                    <th width="15%">Số lượng</th>
+                    <th width="25%">Ghi chú</th>
+                    <th width="10%">Xóa</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+        <button type="button" class="btn btn-add" onclick="addItemRow()">+ Thêm sản phẩm</button>
+    </div>
+
+    <button type="button" class="btn btn-primary" onclick="submitOrder()">🚀 GỬI ĐƠN HÀNG</button>
+
+    <div id="responseArea" class="card">
+        <h2 id="resTitle">Kết quả</h2>
+        <div id="resMessage"></div>
+        
+        <div id="qrDisplay" style="display:none; text-align: center;">
+            <h3>👇 Quét mã để thanh toán 👇</h3>
+            <div class="qr-container">
+                <img id="qrImage" src="" alt="QR Code" />
+                <p id="qrContent" style="margin-top: 10px; font-weight: bold;"></p>
+                <p id="qrAmount" style="color: var(--danger); font-size: 1.2em;"></p>
+            </div>
+        </div>
+
+        <h3>Raw Response (JSON):</h3>
+        <pre id="jsonOutput"></pre>
+    </div>
+
+
+    <div class="card" style="margin-top: 20px; border: 1px solid #fee2e2;">
+        <h2 style="color: var(--danger)">❌ Hủy Đơn Hàng</h2>
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label>ID Đơn hàng (Nhập số ID):</label>
+                    <input type="number" id="cancelOrderId" placeholder="Ví dụ: 5">
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label>Lý do hủy:</label>
+                    <input type="text" id="cancelReason" placeholder="Tôi không muốn mua nữa...">
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-remove" style="width: 100%;" onclick="cancelOrder()">💣 HỦY ĐƠN NGAY</button>
+    </div>
+    <div id="responseArea" class="card">
+</div>
+
+<script src="./script-order.js"></script>
+
+</body>
+</html>

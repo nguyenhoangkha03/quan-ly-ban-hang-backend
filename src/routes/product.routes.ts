@@ -10,6 +10,7 @@ import {
   updateProductSchema,
   productQuerySchema,
   productIdSchema,
+  updateFeaturedSchema,
 } from '@validators/product.validator';
 import { logActivityMiddleware } from '@middlewares/logger';
 
@@ -79,7 +80,57 @@ router.post(
   asyncHandler(productController.create.bind(productController))
 );
 
-// PUT /api/products/:id
+router.put(
+  '/banner-status', 
+  authorize('update_product'),
+  validate(updateFeaturedSchema, 'body'), // Validate Action & ProductIds
+  asyncHandler(productController.updateBannerStatus.bind(productController))
+);
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   put:
+ *     summary: Update product
+ *     tags: [Products]
+ *     description: Update an existing product
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               productName:
+ *                 type: string
+ *               productType:
+ *                 type: string
+ *                 enum: [raw_material, packaging, finished_product, goods]
+ *               categoryId:
+ *                 type: integer
+ *               supplierId:
+ *                 type: integer
+ *               purchasePrice:
+ *                 type: number
+ *               sellingPriceRetail:
+ *                 type: number
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive, discontinued]
+ *     responses:
+ *       200:
+ *         description: Product updated successfully
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
 router.put(
   '/:id',
   authorize('update_product'),

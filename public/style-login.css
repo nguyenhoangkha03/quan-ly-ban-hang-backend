@@ -1,0 +1,60 @@
+/* style.css */
+body {
+    background-color: #f0f2f5;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.container-box {
+    max-width: 480px;
+    width: 100%;
+}
+
+.card {
+    border: none;
+    shadow: 0 8px 24px rgba(0,0,0,0.12);
+    border-radius: 16px;
+    overflow: hidden;
+    background: white;
+}
+
+.btn-google { background-color: #db4437; color: white; }
+.btn-google:hover { background-color: #c53929; color: white; }
+
+.btn-facebook { background-color: #4267B2; color: white; }
+.btn-facebook:hover { background-color: #365899; color: white; }
+
+.hidden { display: none !important; }
+
+/* Tabs chuyển đổi OTP/Password */
+.auth-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.auth-tab {
+    flex: 1;
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 600;
+    color: #6c757d;
+    transition: all 0.2s;
+}
+
+.auth-tab.active {
+    color: #0d6efd;
+    border-bottom: 2px solid #0d6efd;
+}
+
+.otp-input-style {
+    letter-spacing: 8px;
+    font-weight: bold;
+    font-size: 1.2rem;
+    text-align: center;
+}

@@ -13,7 +13,17 @@ const redis = RedisService.getInstance();
 const INVENTORY_CACHE_TTL = parseInt(process.env.CACHE_TTL_INVENTORY || '300');
 
 class InventoryService {
-  async getAll(query: InventoryQueryInput) {
+
+  // Lấy danh sách tồn kho với các bộ lọc tùy chọn
+  async getAll(params: {
+    warehouseId?: number;
+    productId?: number;
+    productType?: string;
+    categoryId?: number;
+    lowStock?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) {
     const {
       page = '1',
       limit = '20',
@@ -276,6 +286,7 @@ class InventoryService {
       throw new NotFoundError('Warehouse');
     }
 
+    // Lấy toàn bộ inventory cho warehouse
     const inventory = await prisma.inventory.findMany({
       where: { warehouseId },
       include: {
@@ -319,6 +330,8 @@ class InventoryService {
     return result;
   }
 
+
+  // Lấy tồn kho theo sản phẩm (trên tất cả kho)
   async getByProduct(productId: number) {
     const cacheKey = `${CachePrefix.INVENTORY}product:${productId}`;
 
