@@ -12,6 +12,7 @@ import {
   paymentVoucherQuerySchema,
 } from '@validators/payment-voucher.validator';
 
+import { logActivityMiddleware } from '@middlewares/logger';
 const router = Router();
 
 // All routes require authentication
@@ -42,7 +43,7 @@ router.get(
 router.get(
   '/',
   authorize('view_payment_vouchers'),
-  validate(paymentVoucherQuerySchema),
+  validate(paymentVoucherQuerySchema, "query"),
   asyncHandler(paymentVoucherController.getAll.bind(paymentVoucherController))
 );
 
@@ -58,7 +59,17 @@ router.post(
   '/',
   authorize('create_payment_voucher'),
   validate(createPaymentVoucherSchema),
+  logActivityMiddleware('create', 'payment_voucher'),
   asyncHandler(paymentVoucherController.create.bind(paymentVoucherController))
+);
+
+// PUT /api/payment-vouchers/:id/approve - Approve voucher
+router.put(
+  '/:id/approve',
+  authorize('approve_payment'),
+  validate(approveVoucherSchema),
+  logActivityMiddleware('approve', 'payment_voucher'),
+  asyncHandler(paymentVoucherController.approve.bind(paymentVoucherController))
 );
 
 // PUT /api/payment-vouchers/:id - Update payment voucher
@@ -66,16 +77,10 @@ router.put(
   '/:id',
   authorize('update_payment_voucher'),
   validate(updatePaymentVoucherSchema),
+  logActivityMiddleware('update', 'payment_voucher'),
   asyncHandler(paymentVoucherController.update.bind(paymentVoucherController))
 );
 
-// PUT /api/payment-vouchers/:id/approve - Approve voucher
-router.put(
-  '/:id/approve',
-  authorize('approve_payment_voucher'),
-  validate(approveVoucherSchema),
-  asyncHandler(paymentVoucherController.approve.bind(paymentVoucherController))
-);
 
 // POST /api/payment-vouchers/:id/post - Post voucher to accounting
 router.post(
@@ -89,6 +94,7 @@ router.post(
 router.delete(
   '/:id',
   authorize('delete_payment_voucher'),
+  logActivityMiddleware('delete', 'payment_voucher'),
   asyncHandler(paymentVoucherController.delete.bind(paymentVoucherController))
 );
 
