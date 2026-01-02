@@ -6,13 +6,25 @@ import { ApiResponse } from '@custom-types/common.type';
 class InventoryController {
   // GET /api/inventory - Get all inventory
   async getAll(req: AuthRequest, res: Response) {
-    const result = await inventoryService.getAll(req.query as any);
+    const { warehouseId, productId, productType, categoryId, lowStock, sortBy, sortOrder } =
+      req.query as any;
+
+    const inventory = await inventoryService.getAll({
+      warehouseId: warehouseId ? parseInt(warehouseId) : undefined,
+      productId: productId ? parseInt(productId) : undefined,
+      productType,
+      categoryId: categoryId ? parseInt(categoryId) : undefined,
+      lowStock: lowStock === 'true',
+      sortBy,
+      sortOrder,
+    });
 
     const response: ApiResponse = {
       success: true,
-      data: result.data,
-      meta: result.meta,
-      message: result.message,
+      data: inventory,
+      meta: {
+        total: inventory.length,
+      },
       timestamp: new Date().toISOString(),
     };
 
@@ -46,7 +58,6 @@ class InventoryController {
     const response: ApiResponse = {
       success: true,
       data: inventory,
-      message: 'Lấy tồn kho theo sản phẩm thành công',
       timestamp: new Date().toISOString(),
     };
 
@@ -141,13 +152,15 @@ class InventoryController {
 
   // GET /api/inventory/alerts - Get inventory alerts
   async getAlerts(req: AuthRequest, res: Response) {
-    const result = await inventoryService.getAlerts(req.query as any);
+    const { warehouseId } = req.query;
+
+    const alerts = await inventoryService.getAlerts(
+      warehouseId ? parseInt(warehouseId as string) : undefined
+    );
 
     const response: ApiResponse = {
       success: true,
-      data: result.data,
-      meta: result.meta,
-      message: result.message,
+      data: alerts,
       timestamp: new Date().toISOString(),
     };
 
@@ -165,23 +178,6 @@ class InventoryController {
     const response: ApiResponse = {
       success: true,
       data: report,
-      timestamp: new Date().toISOString(),
-    };
-
-    res.status(200).json(response);
-  }
-
-  // GET /api/inventory/stats - Get inventory statistics (not affected by pagination)
-  async getStats(req: AuthRequest, res: Response) {
-    const { warehouseType } = req.query;
-
-    const stats = await inventoryService.getStats({
-      warehouseType: warehouseType as string | undefined,
-    });
-
-    const response: ApiResponse = {
-      success: true,
-      data: stats,
       timestamp: new Date().toISOString(),
     };
 

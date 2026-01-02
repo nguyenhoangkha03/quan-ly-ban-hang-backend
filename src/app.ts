@@ -38,7 +38,7 @@ import salesOrderRoutes from '@routes/sales-order.routes';
 import deliveryRoutes from '@routes/delivery.routes';
 import paymentReceiptRoutes from '@routes/payment-receipt.routes';
 import paymentVoucherRoutes from '@routes/payment-voucher.routes';
-import debtReconciliationRoutes from '@routes/debt-reconciliation.routes';
+// import debtReconciliationRoutes from '@routes/debt-reconciliation.routes';
 import cashFundRoutes from '@routes/cash-fund.routes';
 import promotionRoutes from '@routes/promotion.routes';
 import attendanceRoutes from '@routes/attendance.routes';
@@ -47,6 +47,8 @@ import notificationRoutes from '@routes/notification.routes';
 import reportRoutes from '@routes/report.routes';
 import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
+
+import smartDebtRoutes from '@routes/smart-debt.routes';
 
 
 
@@ -202,7 +204,7 @@ app.use('/api/sales-orders', salesOrderRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/payment-receipts', paymentReceiptRoutes);
 app.use('/api/payment-vouchers', paymentVoucherRoutes);
-app.use('/api/debt-reconciliation', debtReconciliationRoutes);
+// app.use('/api/debt-reconciliation', debtReconciliationRoutes);
 app.use('/api/cash-fund', cashFundRoutes);
 app.use('/api/promotions', promotionRoutes);
 app.use('/api/attendance', attendanceRoutes);
@@ -211,6 +213,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/security', securityRoutes);
+
+// Smart Debt routes
+app.use('/api/smart-debt', smartDebtRoutes);
 
 
 //custommer service routes

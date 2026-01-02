@@ -167,7 +167,7 @@ class SupplierService {
             products: true,
             purchaseOrders: true,
             paymentVouchers: true,
-            debtReconciliations: true,
+            // debtReconciliations: true,
           },
         },
       },
