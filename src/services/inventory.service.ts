@@ -763,20 +763,23 @@ class InventoryService {
     const totalPotentialValue = report.reduce((sum, item) => sum + item.potentialValue, 0);
     const totalPotentialProfit = report.reduce((sum, item) => sum + item.potentialProfit, 0);
 
-    const byProductType = report.reduce((acc, item) => {
-      const type = item.product.productType;
-      if (!acc[type]) {
-        acc[type] = {
-          count: 0,
-          purchaseValue: 0,
-          potentialValue: 0,
-        };
-      }
-      acc[type].count++;
-      acc[type].purchaseValue += item.purchaseValue;
-      acc[type].potentialValue += item.potentialValue;
-      return acc;
-    }, {} as Record<string, any>);
+    const byProductType = report.reduce(
+      (acc, item) => {
+        const type = item.product.productType;
+        if (!acc[type]) {
+          acc[type] = {
+            count: 0,
+            purchaseValue: 0,
+            potentialValue: 0,
+          };
+        }
+        acc[type].count++;
+        acc[type].purchaseValue += item.purchaseValue;
+        acc[type].potentialValue += item.potentialValue;
+        return acc;
+      },
+      {} as Record<string, any>
+    );
 
     return {
       items: report,
