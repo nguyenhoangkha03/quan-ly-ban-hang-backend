@@ -13,6 +13,7 @@ class PurchaseOrderController {
       data: result.data,
       meta: result.meta,
       message: result.message,
+      cards: result.cards,
       timestamp: new Date().toISOString(),
     };
 

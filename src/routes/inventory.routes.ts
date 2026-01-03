@@ -15,6 +15,7 @@ import {
   releaseReservedSchema,
   alertInventoryQuerySchema,
 } from '@validators/inventory.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -27,13 +28,6 @@ router.get(
   authorize('view_inventory'),
   validate(alertInventoryQuerySchema, 'query'),
   asyncHandler(inventoryController.getAlerts.bind(inventoryController))
-);
-
-// GET /api/inventory/stats - Get inventory statistics (not affected by pagination)
-router.get(
-  '/stats',
-  authorize('view_inventory'),
-  asyncHandler(inventoryController.getStats.bind(inventoryController))
 );
 
 // GET /api/inventory/value-report - Get inventory value report
@@ -64,6 +58,7 @@ router.post(
   '/check',
   authorize('view_inventory'),
   validate(checkInventorySchema, 'body'),
+  logActivityMiddleware('check', 'inventory'),
   asyncHandler(inventoryController.checkAvailability.bind(inventoryController))
 );
 
@@ -72,6 +67,7 @@ router.post(
   '/reserve',
   authorize('manage_inventory', 'create_sales_orders', 'create_production_orders'),
   validate(reserveInventorySchema, 'body'),
+  logActivityMiddleware('reserve', 'inventory'),
   asyncHandler(inventoryController.reserve.bind(inventoryController))
 );
 
@@ -80,6 +76,7 @@ router.post(
   '/release-reserved',
   authorize('manage_inventory', 'cancel_sales_orders', 'cancel_production_orders'),
   validate(releaseReservedSchema, 'body'),
+  logActivityMiddleware('reserve reserved', 'inventory'),
   asyncHandler(inventoryController.releaseReserved.bind(inventoryController))
 );
 
@@ -88,6 +85,7 @@ router.put(
   '/update',
   authorize('manage_inventory'),
   validate(updateInventorySchema, 'body'),
+  logActivityMiddleware('update', 'inventory'),
   asyncHandler(inventoryController.update.bind(inventoryController))
 );
 
@@ -96,6 +94,7 @@ router.post(
   '/adjust',
   authorize('manage_inventory'),
   validate(adjustInventorySchema, 'body'),
+  logActivityMiddleware('adjust', 'inventory'),
   asyncHandler(inventoryController.adjust.bind(inventoryController))
 );
 

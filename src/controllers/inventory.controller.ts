@@ -12,6 +12,7 @@ class InventoryController {
       success: true,
       data: result.data,
       meta: result.meta,
+      cards: result.cards,
       message: result.message,
       timestamp: new Date().toISOString(),
     };
@@ -162,23 +163,6 @@ class InventoryController {
     const response: ApiResponse = {
       success: true,
       data: report,
-      timestamp: new Date().toISOString(),
-    };
-
-    res.status(200).json(response);
-  }
-
-  // GET /api/inventory/stats - Get inventory statistics (not affected by pagination)
-  async getStats(req: AuthRequest, res: Response) {
-    const { warehouseType } = req.query;
-
-    const stats = await inventoryService.getStats({
-      warehouseType: warehouseType as string | undefined,
-    });
-
-    const response: ApiResponse = {
-      success: true,
-      data: stats,
       timestamp: new Date().toISOString(),
     };
 

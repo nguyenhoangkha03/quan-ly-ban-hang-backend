@@ -76,6 +76,7 @@ class ProductService {
     console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.ProductWhereInput = {
+      deletedAt: null,
       ...(search && {
         OR: [
           { productName: { contains: search } },
@@ -323,7 +324,7 @@ class ProductService {
       newValue: product,
     });
 
-    await this.invalidateCache();
+    await redis.flushPattern('product:*');
 
     return product;
   }
@@ -404,7 +405,7 @@ class ProductService {
       newValue: product,
     });
 
-    await this.invalidateCache(id);
+    await redis.flushPattern('product:*');
 
     return product;
   }
@@ -539,18 +540,22 @@ class ProductService {
       );
     }
 
-    // Delete all image files
-    for (const image of product.images) {
-      await uploadService.deleteFile(image.imageUrl);
-    }
+    // // Delete all image files
+    // for (const image of product.images) {
+    //   await uploadService.deleteFile(image.imageUrl);
+    // }
 
-    // Delete all video files
-    for (const video of product.videos) {
-      await uploadService.deleteFile(video.videoUrl);
-    }
+    // // Delete all video files
+    // for (const video of product.videos) {
+    //   await uploadService.deleteFile(video.videoUrl);
+    // }
 
-    await prisma.product.delete({
+    // soft delete
+    await prisma.product.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
 
     logActivity('delete', userId, 'products', {
@@ -558,7 +563,7 @@ class ProductService {
       oldValue: product,
     });
 
-    await this.invalidateCache(id);
+    await redis.flushPattern('product:*');
 
     return { message: 'Product deleted successfully' };
   }
@@ -687,7 +692,7 @@ class ProductService {
       newValue: uploadedImages,
     });
 
-    await this.invalidateCache(productId);
+    await redis.flushPattern('product:*');
 
     return uploadedImages;
   }
@@ -764,7 +769,7 @@ class ProductService {
       oldValue: image,
     });
 
-    await this.invalidateCache(productId);
+    await redis.flushPattern('product:*');
 
     return { message: 'Image deleted successfully' };
   }
@@ -810,7 +815,7 @@ class ProductService {
       newValue: { imageId },
     });
 
-    await this.invalidateCache(productId);
+    await redis.flushPattern('product:*');
 
     return updatedImage;
   }
@@ -941,7 +946,7 @@ class ProductService {
       newValue: serializedVideos,
     });
 
-    await this.invalidateCache(productId);
+    await redis.flushPattern('product:*');
 
     return serializedVideos;
   }
@@ -982,7 +987,7 @@ class ProductService {
       oldValue: video,
     });
 
-    await this.invalidateCache(productId);
+    await redis.flushPattern('product:*');
 
     return { message: 'Video deleted successfully' };
   }
@@ -1032,7 +1037,7 @@ class ProductService {
       newValue: { videoId },
     });
 
-    await this.invalidateCache(productId);
+    await redis.flushPattern('product:*');
 
     // Convert BigInt to String for JSON serialization
     return serializeBigInt(updatedVideo);
@@ -1233,14 +1238,74 @@ class ProductService {
     return stats;
   }
 
-  private async invalidateCache(productId?: number) {
-    if (productId) {
-      await redis.del(`${CachePrefix.PRODUCT}${productId}`);
+  async getGoodsStats() {
+    const cacheKey = 'product:stats:goods';
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Có cache ${cacheKey}`);
+      return cached;
+    }
+    console.log(`❌ Không có cache ${cacheKey}, truy vấn database...`);
+
+    // Get all goods with inventory info
+    const goods = await prisma.product.findMany({
+      where: {
+        productType: 'goods',
+      },
+      include: {
+        inventory: true,
+      },
+    });
+
+    // Calculate statistics
+    const totalGoods = goods.length;
+    const activeCount = goods.filter((p) => p.status === 'active').length;
+    const inactiveCount = goods.filter((p) => p.status === 'inactive').length;
+    const discontinuedCount = goods.filter((p) => p.status === 'discontinued').length;
+
+    // Count low stock (quantity < minStockLevel)
+    let lowStockCount = 0;
+    for (const good of goods) {
+      const totalInventory = good.inventory.reduce((sum, inv) => sum + Number(inv.quantity), 0);
+      if (totalInventory < Number(good.minStockLevel)) {
+        lowStockCount++;
+      }
     }
 
-    await redis.flushPattern(`${CachePrefix.PRODUCT}list:*`);
-    await redis.del('product:stats');
-    await redis.del('product:stats:raw-materials');
+    // Count expiring soon (7 days from now)
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    let expiringCount = 0;
+    for (const good of goods) {
+      if (good.expiryDate && new Date(good.expiryDate) <= sevenDaysFromNow) {
+        expiringCount++;
+      }
+    }
+
+    // Calculate total inventory value (Tồn kho × Giá nhập)
+    let totalInventoryValue = 0;
+    for (const good of goods) {
+      const totalQuantity = good.inventory.reduce((sum, inv) => sum + Number(inv.quantity), 0);
+      const purchasePrice = Number(good.purchasePrice) || 0;
+      totalInventoryValue += totalQuantity * purchasePrice;
+    }
+
+    const stats = {
+      totalPackaging: totalGoods,
+      byStatus: {
+        active: activeCount,
+        inactive: inactiveCount,
+        discontinued: discontinuedCount,
+      },
+      lowStockCount,
+      expiringCount,
+      discontinuedCount,
+      totalInventoryValue,
+    };
+
+    await redis.set(cacheKey, stats, PRODUCT_CACHE_TTL);
+
+    return stats;
   }
 }
 

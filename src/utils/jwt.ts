@@ -52,12 +52,3 @@ export const verifyRefreshToken = (token: string): JwtPayload => {
     throw new AuthenticationError('Refresh token verification failed');
   }
 };
-
-// Decode token without verification (for debugging)
-export const decodeToken = (token: string): JwtPayload | null => {
-  try {
-    return jwt.decode(token) as JwtPayload;
-  } catch {
-    return null;
-  }
-};

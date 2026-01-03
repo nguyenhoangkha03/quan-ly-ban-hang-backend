@@ -102,6 +102,56 @@ class WarehouseService {
       prisma.warehouse.count({ where }),
     ]);
 
+    // Cards
+    const [activeWarehouses, warehousesCreatedThisMonth, allInventory] = await Promise.all([
+      // Active warehouses
+      prisma.warehouse.count({
+        where: {
+          status: 'active',
+          ...where,
+        },
+      }),
+
+      // Created this month
+      prisma.warehouse.count({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+            lt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+          },
+          ...where,
+        },
+      }),
+
+      // All inventory to calculate total value (filtered by warehouse conditions)
+      prisma.inventory.findMany({
+        where: {
+          warehouse: where,
+        },
+        select: {
+          quantity: true,
+          product: {
+            select: {
+              purchasePrice: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    // Calculate total inventory value (quantity * price)
+    const totalInventoryValue = allInventory.reduce((sum, item) => {
+      const quantity =
+        typeof item.quantity === 'object' ? item.quantity.toNumber() : Number(item.quantity);
+      const price = item.product?.purchasePrice
+        ? typeof item.product.purchasePrice === 'object'
+          ? item.product.purchasePrice.toNumber()
+          : Number(item.product.purchasePrice)
+        : 0;
+      const value = quantity * price;
+      return sum + value;
+    }, 0);
+
     const result = {
       data: warehouses,
       meta: {
@@ -109,6 +159,12 @@ class WarehouseService {
         limit: limitNum,
         total,
         totalPages: Math.ceil(total / limitNum),
+      },
+      cards: {
+        totalWarehouses: total,
+        activeWarehouses,
+        createdThisMonth: warehousesCreatedThisMonth,
+        totalInventoryValue,
       },
       message: 'Lấy danh sách kho thành công',
     };
@@ -468,76 +524,6 @@ class WarehouseService {
     });
 
     return !!warehouse;
-  }
-
-  async getWarehouseCards() {
-    const cacheKey = 'warehouse:cards';
-
-    const cached = await redis.get(cacheKey);
-
-    if (cached) {
-      console.log(`✅ Có Cache: ${cacheKey}`);
-      return cached;
-    }
-
-    console.log(`❌ Không có Cache: ${cacheKey}, truy vấn database...`);
-
-    const [totalWarehouses, activeWarehouses, warehousesCreatedThisMonth, allInventory] =
-      await Promise.all([
-        // Total warehouses
-        prisma.warehouse.count(),
-
-        // Active warehouses
-        prisma.warehouse.count({
-          where: { status: 'active' },
-        }),
-
-        // Created this month
-        prisma.warehouse.count({
-          where: {
-            createdAt: {
-              gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-              lt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
-            },
-          },
-        }),
-
-        // All inventory to calculate total value
-        prisma.inventory.findMany({
-          select: {
-            quantity: true,
-            product: {
-              select: {
-                sellingPriceRetail: true,
-              },
-            },
-          },
-        }),
-      ]);
-
-    // Calculate total inventory value (quantity * price)
-    const totalInventoryValue = allInventory.reduce((sum, item) => {
-      const quantity =
-        typeof item.quantity === 'object' ? item.quantity.toNumber() : Number(item.quantity);
-      const price = item.product?.sellingPriceRetail
-        ? typeof item.product.sellingPriceRetail === 'object'
-          ? item.product.sellingPriceRetail.toNumber()
-          : Number(item.product.sellingPriceRetail)
-        : 0;
-      const value = quantity * price;
-      return sum + value;
-    }, 0);
-
-    const result = {
-      totalWarehouses,
-      activeWarehouses,
-      createdThisMonth: warehousesCreatedThisMonth,
-      totalInventoryValue,
-    };
-
-    await redis.set(cacheKey, result, 300); // Cache for 5 minutes
-
-    return result;
   }
 }
 

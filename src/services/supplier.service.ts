@@ -7,6 +7,7 @@ import type {
   UpdateSupplierInput,
   QuerySuppliersInput,
 } from '@validators/supplier.validator';
+import { sortedQuery } from '@utils/redis';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
@@ -30,9 +31,10 @@ class SupplierService {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    const cacheKey = `supplier:list:${JSON.stringify(query)}`;
-    const cached = await redis.get(cacheKey);
+    // Tạo khóa cache cho nhất quán
+    const cacheKey = `supplier:list:${JSON.stringify(sortedQuery(query))}`;
 
+    const cached = await redis.get(cacheKey);
     if (cached) {
       console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
@@ -41,6 +43,7 @@ class SupplierService {
     console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.SupplierWhereInput = {
+      deletedAt: null,
       ...(search && {
         OR: [
           { supplierName: { contains: search } },
@@ -69,24 +72,11 @@ class SupplierService {
           contactName: true,
           phone: true,
           email: true,
-          address: true,
           taxCode: true,
           totalPayable: true,
           paymentTerms: true,
-          notes: true,
           status: true,
-          createdBy: true,
-          updatedBy: true,
           payableUpdatedAt: true,
-          createdAt: true,
-          updatedAt: true,
-          creator: {
-            select: {
-              id: true,
-              employeeCode: true,
-              fullName: true,
-            },
-          },
           _count: {
             select: {
               products: true,
@@ -98,6 +88,18 @@ class SupplierService {
       prisma.supplier.count({ where }),
     ]);
 
+    // Stat Cards
+    const totalSuppliers = total;
+    const activeSuppliers = await prisma.supplier.count({
+      where: {
+        ...where,
+        status: 'active',
+      },
+    });
+    const totalDebt = suppliers.reduce((total, supplier) => {
+      return total + Number(supplier.totalPayable);
+    }, 0);
+
     const result = {
       data: suppliers,
       meta: {
@@ -105,6 +107,11 @@ class SupplierService {
         limit: limitNum,
         total,
         totalPages: Math.ceil(total / limitNum),
+      },
+      cards: {
+        totalSuppliers,
+        activeSuppliers,
+        totalDebt,
       },
     };
 
@@ -126,7 +133,10 @@ class SupplierService {
     console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const supplier = await prisma.supplier.findUnique({
-      where: { id },
+      where: {
+        id,
+        deletedAt: null,
+      },
       select: {
         id: true,
         supplierCode: true,
@@ -239,14 +249,14 @@ class SupplierService {
       newValue: supplier,
     });
 
-    await this.invalidateListCache();
+    await redis.flushPattern(`supplier:list:*`);
 
     return supplier;
   }
 
   async updateSupplier(id: number, data: UpdateSupplierInput, updatedBy: number) {
     const existingSupplier = await prisma.supplier.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
     });
 
     if (!existingSupplier) {
@@ -314,14 +324,17 @@ class SupplierService {
     });
 
     await redis.del(`supplier:${id}`);
-    await this.invalidateListCache();
+    await redis.flushPattern(`supplier:list:*`);
 
     return updatedSupplier;
   }
 
   async deleteSupplier(id: number, deletedBy: number) {
     const supplier = await prisma.supplier.findUnique({
-      where: { id },
+      where: {
+        id,
+        deletedAt: null,
+      },
       include: {
         _count: {
           select: {
@@ -344,8 +357,12 @@ class SupplierService {
       throw new ValidationError('Không thể xóa nhà cung cấp có đơn hàng tồn tại');
     }
 
-    await prisma.supplier.delete({
+    // soft delete
+    await prisma.supplier.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
 
     logActivity('delete', deletedBy, 'suppliers', {
@@ -354,55 +371,9 @@ class SupplierService {
     });
 
     await redis.del(`supplier:${id}`);
-    await this.invalidateListCache();
+    await redis.flushPattern(`supplier:list:*`);
 
     return { message: 'Xóa nhà cung cấp thành công' };
-  }
-
-  async getSupplierStatistics(id: number) {
-    const supplier = await prisma.supplier.findUnique({
-      where: { id },
-    });
-
-    if (!supplier) {
-      throw new NotFoundError('Nhà cung cấp không tồn tại');
-    }
-
-    const purchaseOrderStats = await prisma.purchaseOrder.aggregate({
-      where: { supplierId: id },
-      _count: { id: true },
-      _sum: { totalAmount: true },
-    });
-
-    const productsCount = await prisma.product.count({
-      where: { supplierId: id },
-    });
-
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
-    const recentOrdersCount = await prisma.purchaseOrder.count({
-      where: {
-        supplierId: id,
-        orderDate: {
-          gte: sixMonthsAgo,
-        },
-      },
-    });
-
-    const stats = {
-      supplierId: id,
-      supplierName: supplier.supplierName,
-      supplierType: supplier.supplierType,
-      totalPurchaseOrders: purchaseOrderStats._count.id || 0,
-      totalPurchaseAmount: purchaseOrderStats._sum.totalAmount || 0,
-      productsSupplied: productsCount,
-      recentOrders: {
-        last6Months: recentOrdersCount,
-      },
-    };
-
-    return stats;
   }
 
   async checkSupplierCodeExists(code: string, excludeId?: number): Promise<boolean> {
@@ -425,13 +396,6 @@ class SupplierService {
     });
 
     return !!supplier;
-  }
-
-  private async invalidateListCache() {
-    const keys = await redis.keys('supplier:list:*');
-    if (keys.length > 0) {
-      await redis.del(keys);
-    }
   }
 }
 

@@ -13,6 +13,7 @@ import {
   completeTransferSchema,
   cancelTransferSchema,
 } from '@validators/stock-transfer.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.put(
     params: transferIdSchema,
     body: approveTransferSchema,
   }),
+  logActivityMiddleware('approve', 'stock_transfers'),
   asyncHandler(stockTransferController.approve.bind(stockTransferController))
 );
 
@@ -38,6 +40,7 @@ router.put(
     params: transferIdSchema,
     body: completeTransferSchema,
   }),
+  logActivityMiddleware('complete', 'stock_transfers'),
   asyncHandler(stockTransferController.complete.bind(stockTransferController))
 );
 
@@ -49,6 +52,7 @@ router.put(
     params: transferIdSchema,
     body: cancelTransferSchema,
   }),
+  logActivityMiddleware('cancel', 'stock_transfers'),
   asyncHandler(stockTransferController.cancel.bind(stockTransferController))
 );
 
@@ -68,6 +72,7 @@ router.put(
     params: transferIdSchema,
     body: updateTransferSchema,
   }),
+  logActivityMiddleware('update', 'stock_transfers'),
   asyncHandler(stockTransferController.update.bind(stockTransferController))
 );
 
@@ -76,6 +81,7 @@ router.delete(
   '/:id',
   authorize('delete_stock_transfers', 'manage_inventory'),
   validate(transferIdSchema, 'params'),
+  logActivityMiddleware('delete', 'stock_transfers'),
   asyncHandler(stockTransferController.delete.bind(stockTransferController))
 );
 
@@ -92,6 +98,7 @@ router.post(
   '/',
   authorize('create_stock_transfers', 'manage_inventory'),
   validate(createTransferSchema, 'body'),
+  logActivityMiddleware('create', 'stock_transfers'),
   asyncHandler(stockTransferController.create.bind(stockTransferController))
 );
 

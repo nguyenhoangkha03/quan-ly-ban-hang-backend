@@ -29,17 +29,6 @@ router.get(
 );
 
 /**
- * GET /api/warehouses/cards/view
- * Get dashboard statistics (total warehouses, active, created this month, total inventory value)
- * Permission: view_warehouses
- */
-router.get(
-  '/cards/view',
-  authorize('view_warehouses'),
-  asyncHandler(warehouseController.getWarehouseCards.bind(warehouseController))
-);
-
-/**
  * GET /api/warehouses/:id
  * Get warehouse by ID with details
  * Permission: view_warehouses

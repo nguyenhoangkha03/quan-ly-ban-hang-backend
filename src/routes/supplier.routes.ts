@@ -9,6 +9,7 @@ import {
   updateSupplierSchema,
   querySuppliersSchema,
 } from '@validators/supplier.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.use(authentication);
 // GET /api/suppliers
 router.get(
   '/',
-  authorize('view_products'),
+  authorize('view_suppliers'),
   validate(querySuppliersSchema, 'query'),
   asyncHandler(supplierController.getAllSuppliers.bind(supplierController))
 );
@@ -26,38 +27,34 @@ router.get(
 // GET /api/suppliers/:id
 router.get(
   '/:id',
-  authorize('view_products'),
+  authorize('view_suppliers'),
   asyncHandler(supplierController.getSupplierById.bind(supplierController))
 );
 
 // POST /api/suppliers
 router.post(
   '/',
-  authorize('create_product'),
+  authorize('create_supplier'),
   validate(createSupplierSchema),
+  logActivityMiddleware('create', 'supplier'),
   asyncHandler(supplierController.createSupplier.bind(supplierController))
 );
 
 // PUT /api/suppliers/:id
 router.put(
   '/:id',
-  authorize('update_product'),
+  authorize('update_supplier'),
   validate(updateSupplierSchema),
+  logActivityMiddleware('update', 'supplier'),
   asyncHandler(supplierController.updateSupplier.bind(supplierController))
 );
 
-// DELETE /api/suppliers/:id
+// SOFT DELETE /api/suppliers/:id
 router.delete(
   '/:id',
-  authorize('delete_product'),
+  authorize('delete_supplier'),
+  logActivityMiddleware('delete', 'supplier'),
   asyncHandler(supplierController.deleteSupplier.bind(supplierController))
-);
-
-// GET /api/suppliers/:id/statistics
-router.get(
-  '/:id/statistics',
-  authorize('view_products'),
-  asyncHandler(supplierController.getSupplierStatistics.bind(supplierController))
 );
 
 export default router;

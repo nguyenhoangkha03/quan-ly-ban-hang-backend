@@ -107,6 +107,15 @@ export const cancelTransactionSchema = z.object({
   reason: z.string().min(1, 'Lý do là bắt buộc cho việc hủy bỏ').max(500),
 });
 
+export const quickAdjustInventorySchema = z.object({
+  warehouseId: z.number().int().positive('Id kho không hợp lệ'),
+  productId: z.number().int().positive('Id sản phẩm không hợp lệ'),
+  adjustmentType: z.enum(['disposal', 'stocktake']),
+  quantity: z.number().min(0, 'Số lượng phải không âm'),
+  actualQuantity: z.number().min(0, 'Số lượng thực tế phải không âm').optional(),
+  reason: z.string().min(1, 'Lý do là bắt buộc').max(255),
+});
+
 export type CreateImportInput = z.infer<typeof createImportSchema>;
 export type CreateExportInput = z.infer<typeof createExportSchema>;
 export type CreateTransferInput = z.infer<typeof createTransferSchema>;
@@ -116,3 +125,4 @@ export type TransactionQueryInput = z.infer<typeof transactionQuerySchema>;
 export type TransactionIdInput = z.infer<typeof transactionIdSchema>;
 export type ApproveTransactionInput = z.infer<typeof approveTransactionSchema>;
 export type CancelTransactionInput = z.infer<typeof cancelTransactionSchema>;
+export type QuickAdjustInventoryInput = z.infer<typeof quickAdjustInventorySchema>;

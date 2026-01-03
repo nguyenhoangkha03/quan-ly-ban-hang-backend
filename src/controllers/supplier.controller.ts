@@ -12,6 +12,7 @@ class SupplierController {
       success: true,
       data: result.data,
       meta: result.meta,
+      cards: result.cards,
       timestamp: new Date().toISOString(),
     };
 
@@ -73,20 +74,6 @@ class SupplierController {
     const response: ApiResponse = {
       success: true,
       data: result,
-      timestamp: new Date().toISOString(),
-    };
-
-    res.status(200).json(response);
-  }
-
-  // GET /api/suppliers/:id/statistics
-  async getSupplierStatistics(req: AuthRequest, res: Response) {
-    const id = parseInt(req.params.id);
-    const stats = await supplierService.getSupplierStatistics(id);
-
-    const response: ApiResponse = {
-      success: true,
-      data: stats,
       timestamp: new Date().toISOString(),
     };
 

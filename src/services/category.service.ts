@@ -7,6 +7,7 @@ import type {
   UpdateCategoryInput,
   QueryCategoriesInput,
 } from '@validators/category.validator';
+import { sortedQuery } from '@utils/redis';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
@@ -31,8 +32,7 @@ class CategoryService {
     const skip = (pageNum - 1) * limitNum;
 
     // Tạo khóa cache cho nhất quán
-    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
-    const cacheKey = `category:list:${queryString}`;
+    const cacheKey = `category:list:${JSON.stringify(sortedQuery(query))}`;
 
     const cached = await redis.get(cacheKey);
 
@@ -386,9 +386,12 @@ class CategoryService {
       throw new ValidationError('Không thể xóa danh mục có sản phẩm');
     }
 
-    // Hard delete - xóa thật khỏi database
-    await prisma.category.delete({
+    // soft delete
+    await prisma.category.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
 
     logActivity('delete', deletedBy, 'categories', {

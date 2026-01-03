@@ -155,6 +155,45 @@ class StockTransactionController {
 
     res.status(200).json(response);
   }
+
+  // GET /api/stock-transactions/card/:warehouseId/:productId
+  async getStockCard(req: AuthRequest, res: Response) {
+    const { warehouseId, productId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    const stockCard = await stockTransactionService.getStockCard(
+      parseInt(warehouseId),
+      parseInt(productId),
+      startDate as string,
+      endDate as string
+    );
+
+    const response: ApiResponse = {
+      success: true,
+      data: stockCard,
+      message: 'Success',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // POST /api/stock-transactions/quick-adjust
+  async quickAdjustInventory(req: AuthRequest, res: Response) {
+    const userId = req.user!.id;
+    const data = req.body;
+
+    const result = await stockTransactionService.quickAdjustInventory(data, userId);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Điều chỉnh tồn kho thành công',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(201).json(response);
+  }
 }
 
 export default new StockTransactionController();

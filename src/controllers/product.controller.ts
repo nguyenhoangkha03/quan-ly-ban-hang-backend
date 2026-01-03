@@ -345,6 +345,19 @@ class ProductController {
 
     res.status(200).json(response);
   }
+
+  // GET /api/products/stats/goods
+  async getGoodsStats(_req: AuthRequest, res: Response) {
+    const stats = await productService.getGoodsStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
 }
 
 export default new ProductController();

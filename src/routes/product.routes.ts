@@ -41,6 +41,13 @@ router.get(
   asyncHandler(productController.getPackagingStats.bind(productController))
 );
 
+// GET /api/products/stats/goods
+router.get(
+  '/stats/goods',
+  authorize('view_products'),
+  asyncHandler(productController.getGoodsStats.bind(productController))
+);
+
 // GET /api/products/low-stock
 router.get(
   '/low-stock',
