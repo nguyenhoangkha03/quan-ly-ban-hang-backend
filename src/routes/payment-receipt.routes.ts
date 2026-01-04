@@ -11,6 +11,7 @@ import {
   postReceiptSchema,
   paymentReceiptQuerySchema,
 } from '@validators/payment-receipt.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ router.get(
 router.get(
   '/',
   authorize('view_payment_receipts'),
-  validate(paymentReceiptQuerySchema),
+  validate(paymentReceiptQuerySchema, 'query'),
   asyncHandler(paymentReceiptController.getAll.bind(paymentReceiptController))
 );
 
@@ -65,9 +66,17 @@ router.put(
 // PUT /api/payment-receipts/:id/approve - Approve receipt
 router.put(
   '/:id/approve',
-  authorize('approve_payment_receipt'),
+  authorize('approve_payment'),
   validate(approveReceiptSchema),
   asyncHandler(paymentReceiptController.approve.bind(paymentReceiptController))
+);
+
+
+router.put(
+  '/:id/receive',
+  authorize('receive_payment_receipt'),
+  logActivityMiddleware('receive', 'payment_recepit'),
+  asyncHandler(paymentReceiptController.receive.bind(paymentReceiptController))
 );
 
 // POST /api/payment-receipts/:id/post - Post receipt to accounting

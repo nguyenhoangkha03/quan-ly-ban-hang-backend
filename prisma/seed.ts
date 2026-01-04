@@ -284,6 +284,8 @@ async function main() {
     { key: 'update_payment_receipt', name: 'Cập nhật phiếu thu', module: 'finance' },
     { key: 'delete_payment_receipt', name: 'Xóa phiếu thu', module: 'finance' },
     { key: 'post_payment_receipt', name: 'Hạch toán phiếu thu', module: 'finance' },
+    { key: 'approve_payment_receipt', name: 'Duyệt phiếu thu', module: 'finance' },
+    { key: 'receive_payment_receipt', name: 'Nhận tiền', module: 'procurement' },
 
     // Payment Vouchers
     { key: 'create_payment_voucher', name: 'Tạo phiếu chi', module: 'finance' },
@@ -721,7 +723,137 @@ async function main() {
         createdBy: adminUser.id,
       },
     }),
+
+
   ]);
+  // =====================================================
+  // 9. SEED PAYMENT RECEIPTS
+  // =====================================================
+  console.log('📝 Seeding payment receipts...');
+
+  const accountantUser =
+    additionalUsers.find(u => u.email === 'accountant@company.com') || adminUser;
+
+  const customer = await prisma.customer.findFirst();
+  const order = await prisma.salesOrder.findFirst();
+
+  if (!customer) {
+    console.log('⚠️  No customer found. Skip seeding payment receipts.\n');
+  } else {
+    await Promise.all([
+      prisma.paymentReceipt.upsert({
+        where: { receiptCode: 'PT-20240101-001' },
+        update: {},
+        create: {
+          receiptCode: 'PT-20240101-001',
+          receiptType: 'debt_collection',
+          customerId: customer.id,
+          amount: 2_000_000,
+          paymentMethod: 'transfer',
+          bankName: 'Vietcombank',
+          transactionReference: 'VIB123456789',
+          receiptDate: new Date('2024-01-01'),
+          isPosted: true,
+          notes: 'Khách hàng thanh toán công nợ tháng 12',
+          createdBy: accountantUser.id,
+          approvedBy: adminUser.id,
+          approvedAt: new Date('2024-01-02'),
+        },
+      }),
+
+      prisma.paymentReceipt.upsert({
+        where: { receiptCode: 'PT-20240102-002' },
+        update: {},
+        create: {
+          receiptCode: 'PT-20240102-002',
+          receiptType: 'sales',
+          customerId: customer.id,
+          orderId: order?.id ?? null,
+          amount: 500_000,
+          paymentMethod: 'cash',
+          receiptDate: new Date('2024-01-02'),
+          isPosted: false,
+          notes: 'Thu tiền mặt tại quầy',
+          createdBy: accountantUser.id,
+        },
+      }),
+    ]);
+
+    console.log('✅ Payment receipts seeded\n');
+  }
+
+  // =====================================================
+  // 10. SEED PAYMENT VOUCHERS
+  // =====================================================
+  console.log('📝 Seeding payment vouchers...');
+
+  const supplier = suppliers[0];
+
+  await Promise.all([
+    // Chi trả nhà cung cấp
+    prisma.paymentVoucher.upsert({
+      where: { voucherCode: 'PC-20240101-001' },
+      update: {},
+      create: {
+        voucherCode: 'PC-20240101-001',
+        voucherType: 'supplier_payment',
+        supplierId: supplier.id,
+        expenseAccount: '331',
+        amount: 15_000_000,
+        paymentMethod: 'transfer',
+        bankName: 'Vietcombank',
+        paymentDate: new Date('2024-01-05'),
+        isPosted: true,
+        notes: 'Thanh toán tiền nguyên liệu đợt 1 tháng 01',
+        createdBy: accountantUser.id,
+        approvedBy: adminUser.id,
+        approvedAt: new Date('2024-01-05T09:00:00Z'),
+      },
+    }),
+
+    // Chi lương nhân viên
+    prisma.paymentVoucher.upsert({
+      where: { voucherCode: 'PC-20240115-002' },
+      update: {},
+      create: {
+        voucherCode: 'PC-20240115-002',
+        voucherType: 'salary',
+        supplierId: null,
+        expenseAccount: '6422',
+        amount: 50_000_000,
+        paymentMethod: 'transfer',
+        bankName: 'MB Bank',
+        paymentDate: new Date('2024-01-15'),
+        isPosted: true,
+        notes: 'Chi trả lương nhân viên tháng 01/2024',
+        createdBy: accountantUser.id,
+        approvedBy: adminUser.id,
+        approvedAt: new Date('2024-01-15T10:30:00Z'),
+      },
+    }),
+
+    // Chi phí vận hành
+    prisma.paymentVoucher.upsert({
+      where: { voucherCode: 'PC-20240120-003' },
+      update: {},
+      create: {
+        voucherCode: 'PC-20240120-003',
+        voucherType: 'operating_cost',
+        supplierId: null,
+        expenseAccount: '6271',
+        amount: 3_500_000,
+        paymentMethod: 'cash',
+        paymentDate: new Date('2024-01-20'),
+        isPosted: false,
+        notes: 'Thanh toán tiền điện kho trung tâm',
+        createdBy: accountantUser.id,
+      },
+    }),
+  ]);
+
+  console.log('✅ Payment vouchers seeded\n');
+
+
 
   console.log(`✅ Created ${suppliers.length} suppliers\n`);
 

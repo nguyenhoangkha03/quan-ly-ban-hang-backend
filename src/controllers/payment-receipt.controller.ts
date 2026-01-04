@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthRequest } from '@custom-types/common.type';
+import { ApiResponse, AuthRequest } from '@custom-types/common.type';
 import paymentReceiptService from '@services/payment-receipt.service';
 
 class PaymentReceiptController {
@@ -93,6 +93,23 @@ class PaymentReceiptController {
       message: 'Payment receipt approved successfully',
       timestamp: new Date().toISOString(),
     });
+  }
+
+  async receive(req: AuthRequest, res: Response) {
+    const { id } = req.params;
+    // const userId = req.user!.id;
+    const data = req.body;
+
+    const result = await paymentReceiptService.receive(parseInt(id), data);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: 'Đã Thu Tiền Thành Công',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
   }
 
   // POST /api/payment-receipts/:id/post - Post receipt to accounting

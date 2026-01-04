@@ -76,11 +76,11 @@ class PurchaseOrderService {
       ...(warehouseId && { warehouseId: parseInt(warehouseId) }),
       ...(fromDate &&
         toDate && {
-          orderDate: {
-            gte: new Date(fromDate),
-            lte: new Date(toDate),
-          },
-        }),
+        orderDate: {
+          gte: new Date(fromDate),
+          lte: new Date(toDate),
+        },
+      }),
     };
 
     const total = await prisma.purchaseOrder.count({ where });
@@ -645,7 +645,7 @@ class PurchaseOrderService {
 
     //   const newPayable = (supplier ? Number(supplier.totalPayable) || 0 : 0) + Number(purchaseOrder.totalAmount);
 
-    //   await tx.supplier.update({
+    //   await tx.suxpplier.update({
     //     where: { id: purchaseOrder.supplierId },
     //     data: {
     //       totalPayable: newPayable,

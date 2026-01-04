@@ -8,7 +8,9 @@ import {
   ApproveReceiptInput,
   PostReceiptInput,
   PaymentReceiptQueryInput,
+  CurrentAmountSchema,
 } from '@validators/payment-receipt.validator';
+
 
 const prisma = new PrismaClient();
 
@@ -63,11 +65,11 @@ class PaymentReceiptService {
       }),
       ...(fromDate &&
         toDate && {
-          receiptDate: {
-            gte: new Date(fromDate),
-            lte: new Date(toDate),
-          },
-        }),
+        receiptDate: {
+          gte: new Date(fromDate),
+          lte: new Date(toDate),
+        },
+      }),
     };
 
     const [receipts, total] = await Promise.all([
@@ -367,7 +369,10 @@ class PaymentReceiptService {
       where: { id },
     });
 
+    const amount = parseInt(receipt?.amount as unknown as string)
+
     if (!receipt) {
+
       throw new NotFoundError('Payment receipt not found');
     }
 
@@ -378,6 +383,32 @@ class PaymentReceiptService {
     if (receipt.approvedBy) {
       throw new ValidationError('Receipt is already approved');
     }
+
+    await prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findUnique({
+        where: {
+          id: receipt.id
+        }
+      })
+
+      if (!customer) {
+        throw new Error("Không tìm thấy khách hàng");
+      }
+      const debt = parseFloat(customer?.currentDebt as unknown as string) || 0
+
+      const debtCurrent = debt + amount
+
+      await tx.customer.update({
+        where: {
+          id: customer?.id
+        },
+        data: {
+          currentDebt: debtCurrent
+        }
+      })
+    })
+
+
 
     const updatedReceipt = await prisma.paymentReceipt.update({
       where: { id },
@@ -401,8 +432,74 @@ class PaymentReceiptService {
     });
 
     return updatedReceipt;
+    // return false
   }
 
+
+  async receive(id: number, data?: CurrentAmountSchema) {
+    const receipt = await prisma.paymentReceipt.findUnique({
+      where: { id },
+    });
+
+
+    const amount = data?.amount || 0
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const end = new Date()
+    end.setHours(23, 59, 59, 999)
+    if (!receipt) {
+
+      throw new NotFoundError('Payment receipt not found');
+    }
+
+    if (receipt.isPosted) {
+      throw new ValidationError('Cannot approve posted receipt');
+    }
+
+
+
+    const receviePaymentReceipt = await prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findUnique({
+        where: {
+          id: receipt.id
+        }
+      })
+
+      const cashFund = await tx.cashFund.findFirst({
+        where: {
+          fundDate: {
+            gte: start,
+            lte: end
+          }
+        }
+      });
+
+      const debt = parseFloat(customer?.currentDebt as unknown as string) || 0
+      const debtCurrent = debt - amount > 0 ? debt - amount : 0
+      const newTotalReceipts = Number(cashFund?.totalReceipts) + amount
+      const newClosingBalance = Number(cashFund?.openingBalance) + newTotalReceipts - Number(cashFund?.totalPayments)
+      await tx.customer.update({
+        where: {
+          id: customer?.id
+        },
+        data: {
+          currentDebt: debtCurrent
+        }
+      })
+
+      await tx.cashFund.update({
+        where: {
+          id: cashFund?.id
+        },
+        data: {
+          totalReceipts: newTotalReceipts,
+          closingBalance: newClosingBalance
+        }
+      })
+    })
+
+    return receviePaymentReceipt
+  }
   async post(id: number, userId: number, data?: PostReceiptInput) {
     const receipt = await prisma.paymentReceipt.findUnique({
       where: { id },
@@ -612,11 +709,11 @@ class PaymentReceiptService {
       isPosted: true,
       ...(fromDate &&
         toDate && {
-          receiptDate: {
-            gte: new Date(fromDate),
-            lte: new Date(toDate),
-          },
-        }),
+        receiptDate: {
+          gte: new Date(fromDate),
+          lte: new Date(toDate),
+        },
+      }),
     };
 
     const receipts = await prisma.paymentReceipt.findMany({
