@@ -278,8 +278,11 @@ class PaymentVoucherService {
     });
 
 
-    const start = new Date('2025-12-30T00:00:00+07:00');
-    const end   = new Date('2025-12-30T23:59:59+07:00');
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
 
     if (!voucher) {
       throw new NotFoundError('Payment voucher not found');
@@ -327,11 +330,11 @@ class PaymentVoucherService {
         data:{
           totalPayments: newTotalPayments,
           closingBalance: newClosingBalance,
-          approvedBy: userId
         }
       })
+    })
 
-       await prisma.paymentVoucher.update({
+    const updatedPayment = await prisma.paymentVoucher.update({
         where: { id },
         data: {
           approvedBy: userId,
@@ -344,16 +347,13 @@ class PaymentVoucherService {
           approver: true,
         },
       });
-    })
 
     logActivity('update', userId, 'payment_vouchers', {
       recordId: id,
       action: 'approve_voucher',
       voucherCode: voucher.voucherCode,
     });
-    return {
-      message: "Đã duyệt thành công"
-    }
+    return updatedPayment
   }
 
   async post(id: number, userId: number, data?: PostVoucherInput) {
