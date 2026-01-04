@@ -1283,7 +1283,7 @@ class ReportService {
 
     const employeeIds = salesByEmployee.map((s) => s.createdBy);
     const employees = await prisma.user.findMany({
-      where: { id: { in: employeeIds } },
+      where: { id: { in: employeeIds as any[] } },
       select: {
         id: true,
         fullName: true,

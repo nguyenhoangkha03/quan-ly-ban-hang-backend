@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '@custom-types/common.type';
 import productService from '@services/product.service';
 import { ApiResponse } from '@custom-types/common.type';
+import { UpdateFeaturedInput } from '@validators/product.validator';
 
 class ProductController {
   // GET /api/products
@@ -30,6 +31,7 @@ class ProductController {
       status,
       sortBy,
       sortOrder,
+      isFeatured: req.query.isFeatured === 'true' ? true : req.query.isFeatured === 'false' ? false : undefined,
     });
 
     const response: ApiResponse = {
@@ -86,6 +88,36 @@ class ProductController {
       success: true,
       data: product,
       message: 'Product updated successfully',
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  async updateBannerStatus(req: AuthRequest, res: Response) {
+    const userId = req.user!.id; 
+    const { action, productIds } = req.body as UpdateFeaturedInput;
+
+    const result = await productService.updateBannerStatus(action, userId, productIds);
+
+    // Tạo message phản hồi linh động cho dễ hiểu
+    let message = '';
+    switch (action) {
+      case 'set_featured':
+        message = `Đã thêm ${result.updatedCount} sản phẩm vào banner nổi bật`;
+        break;
+      case 'unset_featured':
+        message = `Đã gỡ ${result.updatedCount} sản phẩm khỏi banner nổi bật`;
+        break;
+      case 'reset_all':
+        message = `Đã reset toàn bộ banner (Tắt ${result.updatedCount} sản phẩm)`;
+        break;
+    }
+
+    const response: ApiResponse = {
+      success: true,
+      data: result, // Trả về object { success, action, updatedCount, affectedIds }
+      message: message,
       timestamp: new Date().toISOString(),
     };
 

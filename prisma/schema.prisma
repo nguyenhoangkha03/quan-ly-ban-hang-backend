@@ -9,8 +9,8 @@ generator client {
 }
 
 datasource db {
-    provider = "mysql"
-    url      = env("DATABASE_URL")
+  provider = "mysql"              
+  url      = env("DATABASE_URL")  
 }
 
 // 1 USER MANAGEMENT & PERMISSIONS
@@ -343,6 +343,7 @@ model Product {
     minStockLevel         Decimal        @default(0) @map("min_stock_level") @db.Decimal(15, 2)
     expiryDate            DateTime?      @map("expiry_date") @db.Date
     status                ProductStatus  @default(active)
+    isFeatured            Boolean        @default(false) @map("is_featured")
     createdBy             Int?           @map("created_by")
     updatedBy             Int?           @map("updated_by")
     createdAt             DateTime       @default(now()) @map("created_at")
@@ -373,6 +374,7 @@ model Product {
     @@index([productType])
     @@index([status])
     @@index([productName])
+    @@index([isFeatured])
     @@map("products")
 }
 
@@ -677,6 +679,8 @@ model Customer {
     updatedBy      Int?                   @map("updated_by")
     createdAt      DateTime               @default(now()) @map("created_at")
     updatedAt      DateTime               @updatedAt @map("updated_at")
+    phoneVerifiedAt DateTime?              @map("phone_verified_at")
+
 
     creator User? @relation("CustomerCreator", fields: [createdBy], references: [id], onDelete: SetNull)
     updater User? @relation("CustomerUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
@@ -684,6 +688,7 @@ model Customer {
     salesOrders         SalesOrder[]
     paymentReceipts     PaymentReceipt[]
     debtReconciliations DebtReconciliation[]
+    customerAccount CustomerAccount[]
 
     @@index([customerCode])
     @@index([phone])
@@ -694,6 +699,30 @@ model Customer {
     @@map("customers")
 }
 
+model CustomerAccount {
+  id                Int      @id @default(autoincrement())
+  
+  customerId        Int      @unique @map("customer_id")
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  // Với Phone: lưu UID của Supabase. Với Social: cũng lưu UID Supabase.
+  accountIdentifier String   @unique @map("account_identifier") @db.VarChar(255)
+
+  authProvider      AuthProvider @default(PHONE) @map("auth_provider")
+  
+  passwordHash      String?  @map("password_hash") @db.VarChar(255)
+  refreshToken      String?  @map("refresh_token") @db.Text
+  
+  isVerified        Boolean  @default(false) @map("is_verified") // Supabase đã verify thì cái này auto true
+  isActive          Boolean  @default(true) @map("is_active")
+  lastLogin         DateTime? @map("last_login")
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([accountIdentifier])
+  @@map("customer_accounts")
+}
 // =====================================================
 // 5. SALES MANAGEMENT
 // =====================================================
@@ -715,7 +744,7 @@ model SalesOrder {
     orderStatus     OrderStatus   @default(pending) @map("order_status")
     deliveryAddress String?       @map("delivery_address") @db.VarChar(255)
     notes           String?       @db.VarChar(255)
-    createdBy       Int           @map("created_by")
+    createdBy       Int?          @map("created_by")
     approvedBy      Int?          @map("approved_by")
     cancelledBy     Int?          @map("cancelled_by")
     createdAt       DateTime      @default(now()) @map("created_at")
@@ -726,7 +755,7 @@ model SalesOrder {
 
     customer  Customer   @relation(fields: [customerId], references: [id])
     warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
-    creator   User       @relation("SalesCreator", fields: [createdBy], references: [id])
+    creator   User?       @relation("SalesCreator", fields: [createdBy], references: [id])
     approver  User?      @relation("SalesApprover", fields: [approvedBy], references: [id])
     canceller User?      @relation("SalesCanceller", fields: [cancelledBy], references: [id])
 
@@ -813,6 +842,7 @@ model PaymentReceipt {
     approvedBy           Int?                 @map("approved_by")
     approvedAt           DateTime?            @map("approved_at")
     isPosted             Boolean              @default(false) @map("is_posted")
+    isVerified           Boolean              @default(false) @map("is_verified")
     notes                String?              @db.VarChar(255)
     createdBy            Int                  @map("created_by")
     createdAt            DateTime             @default(now()) @map("created_at")
@@ -1246,29 +1276,35 @@ enum CustomerStatus {
 }
 
 enum SalesChannel {
-    retail
-    wholesale
-    online
-    distributor
+    retail // bán lẻ
+    wholesale      // bán sỉ
+    online         // bán trực tuyến
+    distributor   // phân phối
+}
+
+enum AuthProvider {
+  PHONE     // SĐT
+  GOOGLE    // Gmail
+  FACEBOOK
 }
 
 enum PaymentMethod {
-    cash
+    cash  // tiền mặt
     transfer
-    installment
+    installment // trả góp
     credit
 }
 
 enum PaymentStatus {
-    unpaid
-    partial
+    unpaid // chưa thanh toán
+    partial // thanh toán một phần
     paid
 }
 
 enum OrderStatus {
     pending
-    preparing
-    delivering
+    preparing  // đang chuẩn bị
+    delivering  // đang giao hàng
     completed
     cancelled
 }

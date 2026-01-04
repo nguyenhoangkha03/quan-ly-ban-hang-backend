@@ -36,7 +36,7 @@ class SalesOrderService {
       page = 1,
       limit = 20,
       search,
-      customerId,
+      customerId ,
       orderStatus,
       paymentStatus,
       salesChannel,

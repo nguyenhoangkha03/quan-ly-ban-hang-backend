@@ -6,6 +6,8 @@ class DebtReconciliationController {
   // GET /api/debt-reconciliation - Get all reconciliations
   async getAll(req: AuthRequest, res: Response) {
     const result = await debtReconciliationService.getAll(req.query as any);
+    console.log('🔥 [BE-DEBUG] Data trả về cho FE:', result);
+
 
     res.status(200).json({
       success: true,
@@ -19,6 +21,7 @@ class DebtReconciliationController {
   async getById(req: AuthRequest, res: Response) {
     const id = parseInt(req.params.id);
     const reconciliation = await debtReconciliationService.getById(id);
+    console.log('🔥 [BE-DEBUG] Data trả về cho FE:', reconciliation);
 
     res.status(200).json({
       success: true,
@@ -184,7 +187,7 @@ class DebtReconciliationController {
     res.status(200).json({
       success: true,
       data: reconciliation,
-      message: 'PDF export functionality to be implemented',
+      message: 'Đã gửi thông tin để xuất PDF',
       timestamp: new Date().toISOString(),
     });
   }
