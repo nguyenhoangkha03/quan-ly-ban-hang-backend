@@ -2,15 +2,16 @@ import { Router } from 'express';
 import customerController from '@controllers/customer.controller';
 import { authentication } from '@middlewares/auth';
 import { authorize } from '@middlewares/authorize';
-import { validateNested } from '@middlewares/validate';
+import { validate } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
 import {
   createCustomerSchema,
   updateCustomerSchema,
   updateCreditLimitSchema,
   updateStatusSchema,
-  customerQuerySchema,
+  queryCustomersSchema,
 } from '@validators/customer.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -28,7 +29,7 @@ router.get(
 router.get(
   '/',
   authorize('view_customers'),
-  validateNested(customerQuerySchema),
+  validate(queryCustomersSchema, 'query'),
   asyncHandler(customerController.getAll.bind(customerController))
 );
 
@@ -43,7 +44,8 @@ router.get(
 router.post(
   '/',
   authorize('create_customer'),
-  validateNested(createCustomerSchema),
+  validate(createCustomerSchema),
+  logActivityMiddleware('create', 'customer'),
   asyncHandler(customerController.create.bind(customerController))
 );
 
@@ -51,7 +53,8 @@ router.post(
 router.put(
   '/:id',
   authorize('update_customer'),
-  validateNested(updateCustomerSchema),
+  validate(updateCustomerSchema),
+  logActivityMiddleware('update', 'customer'),
   asyncHandler(customerController.update.bind(customerController))
 );
 
@@ -59,7 +62,8 @@ router.put(
 router.put(
   '/:id/credit-limit',
   authorize('update_customer_credit_limit'),
-  validateNested(updateCreditLimitSchema),
+  validate(updateCreditLimitSchema),
+  logActivityMiddleware('update_credit_limit', 'customer'),
   asyncHandler(customerController.updateCreditLimit.bind(customerController))
 );
 
@@ -67,7 +71,8 @@ router.put(
 router.patch(
   '/:id/status',
   authorize('update_customer_status'),
-  validateNested(updateStatusSchema),
+  validate(updateStatusSchema),
+  logActivityMiddleware('update_status', 'customer'),
   asyncHandler(customerController.updateStatus.bind(customerController))
 );
 
@@ -89,6 +94,7 @@ router.get(
 router.delete(
   '/:id',
   authorize('delete_customer'),
+  logActivityMiddleware('delete', 'customer'),
   asyncHandler(customerController.delete.bind(customerController))
 );
 

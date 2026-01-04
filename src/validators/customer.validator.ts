@@ -1,86 +1,113 @@
 import { z } from 'zod';
 
 export const createCustomerSchema = z.object({
-  body: z.object({
-    customerCode: z.string().min(1).max(50, 'Customer code must be at most 50 characters'),
-    customerName: z.string().min(1).max(200, 'Customer name must be at most 200 characters'),
-    customerType: z.enum(['individual', 'company']),
-    classification: z.enum(['retail', 'wholesale', 'vip', 'distributor']).optional(),
-    gender: z.enum(['male', 'female', 'other']).optional(),
-    contactPerson: z.string().max(100).optional(),
-    phone: z
-      .string()
-      .min(10, 'Phone must be at least 10 characters')
-      .max(20, 'Phone must be at most 20 characters')
-      .regex(/^[0-9+\-\s()]+$/, 'Invalid phone format'),
-    email: z.string().email('Invalid email format').max(100).optional().or(z.literal('')),
-    address: z.string().max(255).optional(),
-    province: z.string().max(100).optional(),
-    district: z.string().max(100).optional(),
-    taxCode: z.string().max(50).optional(),
-    creditLimit: z.number().min(0, 'Credit limit must be non-negative').optional(),
-    notes: z.string().max(255).optional(),
-  }),
+  customerCode: z
+    .string()
+    .min(1, 'Mã khách hàng không được để trống')
+    .max(50, 'Mã khách hàng tối đa 50 ký tự'),
+  customerName: z
+    .string()
+    .min(1, 'Tên khách hàng không được để trống')
+    .max(200, 'Tên khách hàng tối đa 200 ký tự'),
+  customerType: z.enum(['individual', 'company'], { message: 'Loại khách hàng không hợp lệ' }),
+  classification: z
+    .enum(['retail', 'wholesale', 'vip', 'distributor'], { message: 'Phân loại không hợp lệ' })
+    .optional(),
+  gender: z.enum(['male', 'female', 'other'], { message: 'Giới tính không hợp lệ' }).optional(),
+  contactPerson: z.string().max(100, 'Người liên hệ tối đa 100 ký tự').optional(),
+  phone: z
+    .string()
+    .min(10, 'Số điện thoại phải có ít nhất 10 ký tự')
+    .max(20, 'Số điện thoại tối đa 20 ký tự')
+    .regex(/^[0-9+\-\s()]+$/, 'Định dạng số điện thoại không hợp lệ'),
+  email: z
+    .string()
+    .email('Định dạng email không hợp lệ')
+    .max(100, 'Email tối đa 100 ký tự')
+    .optional()
+    .or(z.literal('')),
+  address: z.string().max(255, 'Địa chỉ tối đa 255 ký tự').optional(),
+  province: z.string().max(100, 'Tỉnh/Thành phố tối đa 100 ký tự').optional(),
+  district: z.string().max(100, 'Quận/Huyện tối đa 100 ký tự').optional(),
+  taxCode: z.string().max(50, 'Mã số thuế tối đa 50 ký tự').optional(),
+  creditLimit: z.number().min(0, 'Hạn mức tín dụng phải lớn hơn hoặc bằng 0').optional(),
+  notes: z.string().max(255, 'Ghi chú tối đa 255 ký tự').optional(),
 });
 
 export const updateCustomerSchema = z.object({
-  body: z.object({
-    customerName: z.string().min(1).max(200).optional(),
-    customerType: z.enum(['individual', 'company']).optional(),
-    classification: z.enum(['retail', 'wholesale', 'vip', 'distributor']).optional(),
-    gender: z.enum(['male', 'female', 'other']).optional(),
-    contactPerson: z.string().max(100).optional(),
-    phone: z
-      .string()
-      .min(10)
-      .max(20)
-      .regex(/^[0-9+\-\s()]+$/, 'Invalid phone format')
-      .optional(),
-    email: z.string().email().max(100).optional().or(z.literal('')),
-    address: z.string().max(255).optional(),
-    province: z.string().max(100).optional(),
-    district: z.string().max(100).optional(),
-    taxCode: z.string().max(50).optional(),
-    creditLimit: z.number().min(0).optional(),
-    notes: z.string().max(255).optional(),
-  }),
+  customerName: z
+    .string()
+    .min(1, 'Tên khách hàng không được để trống')
+    .max(200, 'Tên khách hàng tối đa 200 ký tự')
+    .optional(),
+  customerType: z
+    .enum(['individual', 'company'], { message: 'Loại khách hàng không hợp lệ' })
+    .optional(),
+  classification: z
+    .enum(['retail', 'wholesale', 'vip', 'distributor'], { message: 'Phân loại không hợp lệ' })
+    .optional(),
+  gender: z.enum(['male', 'female', 'other'], { message: 'Giới tính không hợp lệ' }).optional(),
+  contactPerson: z.string().max(100, 'Người liên hệ tối đa 100 ký tự').optional(),
+  phone: z
+    .string()
+    .min(10, 'Số điện thoại phải có ít nhất 10 ký tự')
+    .max(20, 'Số điện thoại tối đa 20 ký tự')
+    .regex(/^[0-9+\-\s()]+$/, 'Định dạng số điện thoại không hợp lệ')
+    .optional(),
+  email: z
+    .string()
+    .email('Định dạng email không hợp lệ')
+    .max(100, 'Email tối đa 100 ký tự')
+    .optional()
+    .or(z.literal('')),
+  address: z.string().max(255, 'Địa chỉ tối đa 255 ký tự').optional(),
+  province: z.string().max(100, 'Tỉnh/Thành phố tối đa 100 ký tự').optional(),
+  district: z.string().max(100, 'Quận/Huyện tối đa 100 ký tự').optional(),
+  taxCode: z.string().max(50, 'Mã số thuế tối đa 50 ký tự').optional(),
+  creditLimit: z.number().min(0, 'Hạn mức tín dụng phải lớn hơn hoặc bằng 0').optional(),
+  notes: z.string().max(255, 'Ghi chú tối đa 255 ký tự').optional(),
 });
 
 export const updateCreditLimitSchema = z.object({
-  body: z.object({
-    creditLimit: z.number().min(0, 'Credit limit must be non-negative'),
-    reason: z.string().min(10, 'Reason must be at least 10 characters').max(255),
-  }),
+  creditLimit: z.number().min(0, 'Hạn mức tín dụng phải lớn hơn hoặc bằng 0'),
+  reason: z.string().min(10, 'Lý do phải có ít nhất 10 ký tự').max(255, 'Lý do tối đa 255 ký tự'),
 });
 
 export const updateStatusSchema = z.object({
-  body: z.object({
-    status: z.enum(['active', 'inactive', 'blacklisted']),
-    reason: z.string().min(10, 'Reason must be at least 10 characters').max(255).optional(),
-  }),
+  status: z.enum(['active', 'inactive', 'blacklisted'], { message: 'Trạng thái không hợp lệ' }),
+  reason: z
+    .string()
+    .min(10, 'Lý do phải có ít nhất 10 ký tự')
+    .max(255, 'Lý do tối đa 255 ký tự')
+    .optional(),
 });
 
-export const customerQuerySchema = z.object({
-  query: z.object({
-    page: z.string().regex(/^\d+$/).transform(Number).optional(),
-    limit: z.string().regex(/^\d+$/).transform(Number).optional(),
-    search: z.string().optional(),
-    customerType: z.enum(['individual', 'company']).optional(),
-    classification: z.enum(['retail', 'wholesale', 'vip', 'distributor']).optional(),
-    status: z.enum(['active', 'inactive', 'blacklisted']).optional(),
-    province: z.string().optional(),
-    district: z.string().optional(),
-    hasOverdueDebt: z
-      .string()
-      .transform((val) => val === 'true')
-      .optional(),
-    sortBy: z.string().optional(),
-    sortOrder: z.enum(['asc', 'desc']).optional(),
-  }),
+export const queryCustomersSchema = z.object({
+  page: z.string().regex(/^\d+$/, 'Số trang phải là số nguyên dương').transform(Number).optional(),
+  limit: z.string().regex(/^\d+$/, 'Giới hạn phải là số nguyên dương').transform(Number).optional(),
+  search: z.string().optional(),
+  customerType: z
+    .enum(['individual', 'company'], { message: 'Loại khách hàng không hợp lệ' })
+    .optional(),
+  classification: z
+    .enum(['retail', 'wholesale', 'vip', 'distributor'], { message: 'Phân loại không hợp lệ' })
+    .optional(),
+  status: z
+    .enum(['active', 'inactive', 'blacklisted'], { message: 'Trạng thái không hợp lệ' })
+    .optional(),
+  province: z.string().optional(),
+  district: z.string().optional(),
+  debtStatus: z
+    .enum(['with-debt', 'no-debt', 'over-limit'], {
+      message: 'Trạng thái khách hàng khóa tín dụng không hợp lệ',
+    })
+    .optional(),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(['asc', 'desc'], { message: 'Thứ tự sắp xếp không hợp lệ' }).optional(),
 });
 
-export type CreateCustomerInput = z.infer<typeof createCustomerSchema>['body'];
-export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>['body'];
-export type UpdateCreditLimitInput = z.infer<typeof updateCreditLimitSchema>['body'];
-export type UpdateStatusInput = z.infer<typeof updateStatusSchema>['body'];
-export type CustomerQueryInput = z.infer<typeof customerQuerySchema>['query'];
+export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
+export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
+export type UpdateCreditLimitInput = z.infer<typeof updateCreditLimitSchema>;
+export type UpdateStatusInput = z.infer<typeof updateStatusSchema>;
+export type CustomerQueryInput = z.infer<typeof queryCustomersSchema>;
