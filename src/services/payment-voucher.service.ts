@@ -9,6 +9,8 @@ import {
   PaymentVoucherQueryInput,
 } from '@validators/payment-voucher.validator';
 
+
+
 const prisma = new PrismaClient();
 
 class PaymentVoucherService {
@@ -275,6 +277,10 @@ class PaymentVoucherService {
       where: { id },
     });
 
+
+    const start = new Date('2025-12-30T00:00:00+07:00');
+    const end   = new Date('2025-12-30T23:59:59+07:00');
+
     if (!voucher) {
       throw new NotFoundError('Payment voucher not found');
     }
@@ -287,27 +293,67 @@ class PaymentVoucherService {
       throw new ValidationError('Voucher is already approved');
     }
 
-    const updatedVoucher = await prisma.paymentVoucher.update({
-      where: { id },
-      data: {
-        approvedBy: userId,
-        approvedAt: new Date(),
-        notes: data?.notes ? `${voucher.notes || ''}\n${data.notes}` : voucher.notes,
-      },
-      include: {
-        supplier: true,
-        creator: true,
-        approver: true,
-      },
-    });
+
+    await prisma.$transaction(async (tx) => {
+      const cashFund = await tx.cashFund.findFirst({
+        where: {
+          fundDate: {
+            gte: start,
+            lte: end,
+          },
+        },
+      });
+      
+      if (!cashFund) {
+        throw new ValidationError('Chưa mở quỹ cho ngày hôm nay');
+      }
+
+      if (cashFund.isLocked) {
+        throw new ValidationError('Quỹ đã khóa, không thể chi tiền');
+      }
+      const amount = Number(voucher.amount)
+      const newTotalPayments = Number(cashFund?.totalPayments || 0) + amount
+      const newClosingBalance = Number(cashFund?.openingBalance || 0) + Number(cashFund?.totalReceipts || 0) - newTotalPayments;
+
+      if (newClosingBalance < 0) {
+        throw new ValidationError('Số dư quỹ không đủ');
+      }
+
+      await tx.cashFund.update({
+        where:{
+          id: cashFund.id
+          // id: 1
+        },
+        data:{
+          totalPayments: newTotalPayments,
+          closingBalance: newClosingBalance,
+          approvedBy: userId
+        }
+      })
+
+       await prisma.paymentVoucher.update({
+        where: { id },
+        data: {
+          approvedBy: userId,
+          approvedAt: new Date(),
+          notes: data?.notes ? `${voucher.notes || ''}\n${data.notes}` : voucher.notes,
+        },
+        include: {
+          supplier: true,
+          creator: true,
+          approver: true,
+        },
+      });
+    })
 
     logActivity('update', userId, 'payment_vouchers', {
       recordId: id,
       action: 'approve_voucher',
       voucherCode: voucher.voucherCode,
     });
-
-    return updatedVoucher;
+    return {
+      message: "Đã duyệt thành công"
+    }
   }
 
   async post(id: number, userId: number, data?: PostVoucherInput) {

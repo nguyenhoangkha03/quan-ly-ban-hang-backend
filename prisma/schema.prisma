@@ -925,6 +925,7 @@ model CashFund {
     id             Int       @id @default(autoincrement())
     fundDate       DateTime  @unique @map("fund_date") @db.Date
     openingBalance Decimal   @default(0) @map("opening_balance") @db.Decimal(15, 2)
+    closingBalance Decimal   @default(0) @map("closing_balance") @db.Decimal(15, 2)
     totalReceipts  Decimal   @default(0) @map("total_receipts") @db.Decimal(15, 2)
     totalPayments  Decimal   @default(0) @map("total_payments") @db.Decimal(15, 2)
     isLocked       Boolean   @default(false) @map("is_locked")
