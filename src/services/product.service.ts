@@ -410,7 +410,6 @@ class ProductService {
     return product;
   }
 
-
   /**
    * Cập nhật trạng thái Banner (IsFeatured) cho nhiều sản phẩm
    * Hỗ trợ 3 action: 'set_featured' | 'unset_featured' | 'reset_all'
@@ -426,36 +425,35 @@ class ProductService {
     // 1. Xử lý logic dựa trên Action
     if (action === 'reset_all') {
       // CASE 3: Tắt TẤT CẢ sản phẩm đang là banner -> về thường
-      
+
       // (Optional) Tìm các ID đang là featured để invalidate cache sau này
       const currentFeatured = await prisma.product.findMany({
         where: { isFeatured: true },
-        select: { id: true }
+        select: { id: true },
       });
-      affectedIds = currentFeatured.map(p => p.id);
+      affectedIds = currentFeatured.map((p) => p.id);
 
       if (affectedIds.length > 0) {
         const result = await prisma.product.updateMany({
           where: { isFeatured: true },
-          data: { 
+          data: {
             isFeatured: false,
             updatedBy: userId,
-            updatedAt: new Date() // Cập nhật thời gian sửa
+            updatedAt: new Date(), // Cập nhật thời gian sửa
           },
         });
         updatedCount = result.count;
       }
-
     } else {
       // CASE 1 & 2: Cập nhật theo danh sách ID gửi lên
-      
+
       if (!productIds || productIds.length === 0) {
-        throw new Error('Danh sách sản phẩm không được để trống'); 
+        throw new Error('Danh sách sản phẩm không được để trống');
       }
 
       // Kiểm tra xem các ID này có tồn tại không (Optional - tùy nhu cầu chặt chẽ)
       const countExist = await prisma.product.count({
-        where: { id: { in: productIds } }
+        where: { id: { in: productIds } },
       });
       if (countExist !== productIds.length) {
         throw new Error('Some product IDs do not exist');
@@ -465,10 +463,10 @@ class ProductService {
 
       const result = await prisma.product.updateMany({
         where: { id: { in: productIds } },
-        data: { 
+        data: {
           isFeatured: isFeaturedValue,
           updatedBy: userId,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         },
       });
 
@@ -482,14 +480,14 @@ class ProductService {
       action: action,
       count: updatedCount,
       targetIds: affectedIds,
-      description: `Banner status updated: ${action}`
+      description: `Banner status updated: ${action}`,
     });
 
     // 3. Xóa Cache (Invalidate Cache)
     // Vì update nhiều sản phẩm, ta cần xóa cache của tất cả sản phẩm bị ảnh hưởng
     if (affectedIds.length > 0) {
       // Dùng Promise.all để xóa cache song song cho nhanh
-      await Promise.all(affectedIds.map(id => this.invalidateCache(id)));
+      await Promise.all(affectedIds.map((id) => redis.del(`product:${id}`)));
     }
 
     // Trả về kết quả tóm tắt
@@ -497,7 +495,7 @@ class ProductService {
       success: true,
       action,
       updatedCount,
-      affectedIds
+      affectedIds,
     };
   }
 

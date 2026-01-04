@@ -10,15 +10,7 @@ const prisma = new PrismaClient();
 
 class InventoryService {
   // Lấy danh sách tồn kho với các bộ lọc tùy chọn
-  async getAll(params: {
-    warehouseId?: number;
-    productId?: number;
-    productType?: string;
-    categoryId?: number;
-    lowStock?: boolean;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
+  async getAll(query: InventoryQueryInput) {
     const {
       page = '1',
       limit = '20',
