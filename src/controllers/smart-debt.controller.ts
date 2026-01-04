@@ -1,27 +1,43 @@
 import { Request, Response, NextFunction } from 'express';
-import debtService from '../services/smart-debt.service'; 
-import { ValidationError } from '../utils/errors'; 
+import debtService from '../services/smart-debt.service'; // Đảm bảo import đúng đường dẫn
+import { ValidationError } from '../utils/errors'; // Hoặc class Error tùy chỉnh của bạn
 
-// Interface cho Request có User (tùy chỉnh theo dự án của bạn)
+// Interface cho Request có User (Middleware auth sẽ gắn vào)
 export interface AuthRequest extends Request {
   user?: {
     id: number;
     roleId: number;
+    // ... các field khác
   };
 }
 
 class SmartDebtController {
-  
+
   // =========================================================================
-  // 1. NHÓM READ (Lấy dữ liệu)
+  // 1. NHÓM READ (Lấy dữ liệu hiển thị)
   // =========================================================================
 
   // GET /api/smart-debt
-  // Lấy danh sách, hỗ trợ lọc và phân trang
+  // Lấy danh sách công nợ (có phân trang, lọc theo năm/khách hàng)
+  // GET /api/smart-debt
+  // Lấy danh sách công nợ (Master View kèm thông tin kỳ mới nhất)
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
-      // Truyền toàn bộ query params xuống service để xử lý
-      const result = await debtService.getAll(req.query);
+      // Lấy thêm các tham số mới
+      const { page, limit, search, status, year, assignedUserId, province, type } = req.query;
+
+      const result = await debtService.getAll({
+        page: Number(page) || 1,
+        limit: Number(limit) || 20,
+        search: search as string,
+        status: status as any,
+        year: year ? Number(year) : undefined,
+        
+        // ✅ Truyền tham số mới
+        assignedUserId: assignedUserId ? Number(assignedUserId) : undefined,
+        province: province as string,
+        type: type as 'customer' | 'supplier'
+      });
       
       res.status(200).json({
         success: true,
@@ -29,140 +45,168 @@ class SmartDebtController {
         meta: result.meta,
         timestamp: new Date().toISOString(),
       });
+      console.log('Fetched smart debt list successfully with data:', result.data);
     } catch (error) {
       next(error);
     }
   }
 
-  // GET /api/smart-debt/:id
-  // Lấy chi tiết một biên bản đối chiếu
+  // URL: /api/smart-debt/123?year=2025
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-      const data = await debtService.getById(Number(id));
+      const { id } = req.params;  // Đây là MasterID (ID khách hàng trong bảng công nợ)
+      const { year } = req.query; // Năm muốn xem chi tiết
+
+      // Gọi hàm getDetail mới (thay vì getById cũ)
+      const data = await debtService.getDetail(
+          Number(id), 
+          year ? Number(year) : undefined
+      );
       
       res.status(200).json({
         success: true,
         data: data,
         timestamp: new Date().toISOString(),
       });
+
+      console.log(`Fetched smart debt detail for ID ${id} successfully with data:`, data);
     } catch (error) {
       next(error);
     }
   }
 
   // =========================================================================
-  // 2. NHÓM ACTION (Tác động dữ liệu - Logic Mới)
+  // 2. NHÓM SYNC - SINGLE (Xử lý 1 khách hàng)
   // =========================================================================
 
-  // POST /api/smart-debt/calculate
-  // [QUAN TRỌNG] Hàm này thay thế cho create cũ.
-  // Nhiệm vụ: Tạo mới hoặc Tính toán lại số liệu công nợ cho khách hàng/NCC trong năm chỉ định.
-  // async createOrSync(req: AuthRequest, res: Response, next: NextFunction) {
-  //   try {
-  //     // const userId = req.user?.id;
-      
-  //     // Lấy dữ liệu từ Body
-  //     const { customerId, supplierId, notes, period, assignedUserId } = req.body;
-  //     console.log('Assigned User ID:', assignedUserId);
-
-  //     if (!customerId && !supplierId) {
-  //       throw new ValidationError('Vui lòng chọn Khách hàng hoặc Nhà cung cấp');
-  //     }
-
-  //     // Xử lý logic năm: Frontend gửi "2025" -> Backend lấy số 2025
-  //     // Nếu không gửi period, mặc định lấy năm hiện tại
-  //     let year = new Date().getFullYear();
-  //     if (period) {
-  //         // Nếu period dạng "2025", "202512" -> Cố gắng lấy 4 ký tự đầu làm năm
-  //         const yearString = String(period).substring(0, 4);
-  //         if (!isNaN(Number(yearString))) {
-  //             year = Number(yearString);
-  //         }
-  //     }
-
-  //     // Gọi Service logic mới
-  //     const data = await debtService.syncDebt({
-  //       customerId: customerId ? Number(customerId) : undefined,
-  //       supplierId: supplierId ? Number(supplierId) : undefined,
-  //       notes: notes,
-  //       year: year,
-  //       assignedUserId: assignedUserId ? Number(assignedUserId) : undefined
-  //     },);
-
-  //     res.status(200).json({
-  //       success: true,
-  //       message: `Đã cập nhật số liệu công nợ năm ${year}`,
-  //       data: data,
-  //       timestamp: new Date().toISOString(),
-  //     });
-  //   } catch (error) {
-  //     next(error);
-  //   }
-  // }
-
-  async createOrSync(req: AuthRequest, res: Response, next: NextFunction) {
+  /**
+   * POST /api/smart-debt/sync-snap
+   * Chế độ: NHANH (Snapshot)
+   * Dùng khi: Tạo đơn hàng, Thu tiền, bấm nút "Làm mới" trên UI
+   */
+  async syncSnap(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      // 1. LẤY NGƯỜI TẠO (Created By)
-      // Nếu DB yêu cầu created_by, bạn BẮT BUỘC phải có dòng này.
-      // Nếu req.user chưa có, hãy kiểm tra lại Middleware Auth.
-      const currentUserId = req.user?.id; 
+      const { customerId, supplierId, notes, year, assignedUserId } = req.body;
+      const targetYear = year || new Date().getFullYear();
 
-      if (!currentUserId) {
-          // Tùy logic, nếu bắt buộc phải đăng nhập mới tạo được:
-          // throw new UnauthorizedError("Không tìm thấy thông tin người dùng");
-          console.warn("⚠️ Warning: Creating debt without logged-in user ID");
+      // Validate cơ bản
+      if (!customerId && !supplierId) {
+        throw new ValidationError('Vui lòng chọn Khách hàng hoặc Nhà cung cấp');
       }
 
-      // 2. Lấy dữ liệu từ Body
-      const { customerId, supplierId, notes, period, assignedUserId } = req.body;
-      
-      console.log('📦 Body received:', req.body);
-      console.log('👤 Assigned User ID (Raw):', assignedUserId);
+      // Gọi Service (Có await vì syncSnap chạy nhanh, user đợi được)
+      const data = await debtService.syncSnap({
+        customerId: customerId ? Number(customerId) : undefined,
+        supplierId: supplierId ? Number(supplierId) : undefined,
+        year: Number(targetYear),
+        notes,
+        assignedUserId: assignedUserId ? Number(assignedUserId) : undefined
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Đã cập nhật nhanh số liệu năm ${targetYear}`,
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/smart-debt/sync-full
+   * Chế độ: CHẬM (Full History)
+   * Dùng khi: Sửa lỗi dữ liệu, khởi tạo dữ liệu cũ, nút "Đồng bộ sâu"
+   */
+  async syncFull(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { customerId, supplierId, notes, year, assignedUserId } = req.body;
+      const targetYear = year || new Date().getFullYear();
 
       if (!customerId && !supplierId) {
         throw new ValidationError('Vui lòng chọn Khách hàng hoặc Nhà cung cấp');
       }
 
-      // 3. Xử lý Year
-      let year = new Date().getFullYear();
-      if (period) {
-          const yearString = String(period).substring(0, 4);
-          if (!isNaN(Number(yearString))) {
-              year = Number(yearString);
-          }
-      }
-
-      // 4. Xử lý Assigned User ID an toàn
-      // Chuyển về Number nếu nó là string, bỏ qua nếu là null/undefined/0
-      const parsedAssignedUserId = assignedUserId ? Number(assignedUserId) : undefined;
-
-      // Gọi Service
-      const data = await debtService.syncDebt({
+      // 🚀 FIRE & FORGET (Chạy nền để tránh timeout)
+      debtService.syncFull({
         customerId: customerId ? Number(customerId) : undefined,
         supplierId: supplierId ? Number(supplierId) : undefined,
-        notes: notes,
-        year: year,
-        assignedUserId: parsedAssignedUserId, // Người được giao việc
-        // createdBy: currentUserId // <--- BỔ SUNG NẾU SERVICE CẦN
-      });
+        year: Number(targetYear),
+        notes,
+        assignedUserId: assignedUserId ? Number(assignedUserId) : undefined
+      })
+      .then(() => console.log(`✅ [Background] SyncFull hoàn tất cho ID ${customerId || supplierId}`))
+      .catch((err) => console.error(`❌ [Background] Lỗi SyncFull:`, err));
 
-      res.status(200).json({
+      // Trả về ngay lập tức
+      res.status(202).json({
         success: true,
-        message: `Đã cập nhật số liệu công nợ năm ${year}`,
-        data: data,
+        message: "Hệ thống đang xử lý đồng bộ sâu trong nền. Vui lòng kiểm tra lại sau ít phút.",
+        background: true
       });
     } catch (error) {
       next(error);
     }
-}
+  }
 
   // =========================================================================
-  // 3. TÍNH NĂNG MỞ RỘNG (Utility)
+  // 3. NHÓM SYNC - BATCH (Xử lý hàng loạt)
+  // =========================================================================
+
+  /**
+   * POST /api/smart-debt/sync-snap-batch
+   * Chế độ: NHANH TOÀN BỘ (Snapshot All)
+   * Dùng khi: Chốt sổ cuối ngày, bấm nút "Làm mới tất cả"
+   */
+  async syncSnapBatch(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const year = req.body.year || new Date().getFullYear();
+
+      // 🚀 FIRE & FORGET
+      debtService.syncSnapAll(Number(year))
+        .then((r) => console.log(`✅ [Batch Snap] Hoàn tất: ${r.success}/${r.totalChecked}`))
+        .catch((e) => console.error(`❌ [Batch Snap] Lỗi:`, e));
+
+      res.status(202).json({
+        success: true,
+        message: `Đã kích hoạt đồng bộ nhanh toàn hệ thống năm ${year}.`,
+        background: true
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /api/smart-debt/sync-full-batch
+   * Chế độ: CHẬM TOÀN BỘ (Full All - Maintenance)
+   * Dùng khi: Bảo trì hệ thống định kỳ
+   */
+  async syncFullBatch(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const year = req.body.year || new Date().getFullYear();
+
+      // 🚀 FIRE & FORGET
+      debtService.syncFullAll(Number(year))
+        .then((r) => console.log(`✅ [Batch Full] Hoàn tất: ${r.success}/${r.totalChecked}`))
+        .catch((e) => console.error(`❌ [Batch Full] Lỗi:`, e));
+
+      res.status(202).json({
+        success: true,
+        message: `Đã kích hoạt chế độ BẢO TRÌ hệ thống năm ${year}. Quá trình này có thể mất nhiều thời gian.`,
+        background: true
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // =========================================================================
+  // 4. TIỆN ÍCH KHÁC (Check Integrity, PDF...)
   // =========================================================================
 
   // GET /api/smart-debt/check-integrity
-  // Kiểm tra sai lệch dữ liệu giữa các năm (Dành cho Admin/Kế toán)
+  // Kiểm tra sai lệch dữ liệu
   async checkIntegrity(req: Request, res: Response, next: NextFunction) {
     try {
         const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
@@ -182,46 +226,65 @@ class SmartDebtController {
     }
   }
 
-  // POST /api/smart-debt/:id/email
-  // Gửi email (Giữ lại nếu bạn vẫn muốn dùng tính năng này)
+  /**
+   * POST /api/smart-debt/:id/email
+   * Gửi biên bản đối chiếu qua email cho khách hàng/NCC.
+   * Yêu cầu: Đăng nhập (để lấy userId ghi log).
+   */
   async sendEmail(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-        const { id } = req.params;
-        const userId = req.user!.id;
-        
-        // Lưu ý: Cần đảm bảo Service có hàm sendEmail (nếu bạn chưa xóa nó ở bước trước)
-        // Nếu đã xóa, bạn cần thêm lại vào Service hoặc comment đoạn này
-        if (typeof debtService.sendEmail === 'function') {
-            const result = await debtService.sendEmail(Number(id), req.body, userId);
-            res.status(200).json({
-                success: true,
-                message: result.message,
-                data: result,
-            });
-        } else {
-            res.status(501).json({ message: "Tính năng gửi email chưa được kích hoạt trong Service mới" });
-        }
+      const { id } = req.params;
+      const emailData = req.body; // Dữ liệu: { recipientEmail, recipientName, message... }
+      
+      // Lấy ID nhân viên đang thực hiện thao tác (từ token)
+      const userId = req.user?.id; 
+
+      if (!userId) {
+        // Trường hợp hiếm: Middleware auth lọt lưới hoặc user bị null
+        res.status(401).json({ success: false, message: "Không xác định được người gửi." });
+        return;
+      }
+
+      // Gọi Service xử lý logic gửi & ghi log
+      const result = await debtService.sendEmail(Number(id), emailData, userId);
+
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
-        next(error);
+      next(error);
     }
   }
 
   // GET /api/smart-debt/:id/pdf
+  // Xuất dữ liệu để in ấn (Theo Master ID + Năm)
+  // URL ví dụ: /api/smart-debt/10/pdf?year=2025
   async exportPdf(req: Request, res: Response, next: NextFunction) {
     try {
-        const { id } = req.params;
-        const data = await debtService.getById(Number(id));
+        const { id } = req.params;  // Đây là Master ID
+        const { year } = req.query; // Năm cần in
+
+        // ✅ Gọi hàm getDetail mới (Thay vì getById cũ)
+        // Hàm này đã trả về đủ thông tin: Khách, Hàng hóa, Thanh toán...
+        const data = await debtService.getDetail(
+            Number(id), 
+            year ? Number(year) : undefined
+        );
         
+        // Nếu muốn Backend tự generate PDF file (Buffer/Stream) thì gọi service khác
+        // Còn nếu Frontend tự render (như code cũ của bạn) thì chỉ cần trả data về
         res.status(200).json({
             success: true,
             data: data,
             message: 'Ready for frontend printing',
-            timestamp: new Date().toISOString(),
         });
     } catch (error) {
         next(error);
     }
   }
+
 }
 
 export default new SmartDebtController();
