@@ -47,6 +47,7 @@ export interface ApiResponse<T = any> {
     total?: number;
     totalPage?: number;
   };
+  cards?: any;
   error?: {
     code: string;
     message: string;

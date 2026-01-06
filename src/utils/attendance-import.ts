@@ -87,9 +87,7 @@ function normalizeDate(dateStr: any): string | null {
   return null;
 }
 
-/**
- * Validate and normalize time string (HH:MM or HH:MM:SS)
- */
+// Validate and normalize time string (HH:MM or HH:MM:SS)
 function normalizeTime(timeStr: any): string | null {
   if (!timeStr) return null;
 
@@ -116,9 +114,7 @@ function normalizeTime(timeStr: any): string | null {
   return null;
 }
 
-/**
- * Validate attendance status
- */
+// Validate attendance status
 function validateStatus(status: any): string | null {
   if (!status) return null;
 
@@ -148,9 +144,7 @@ function validateStatus(status: any): string | null {
   return vietnameseMap[statusString] || null;
 }
 
-/**
- * Validate leave type
- */
+// Validate leave type
 function validateLeaveType(leaveType: any): string | null {
   if (!leaveType) return 'none';
 
@@ -178,9 +172,7 @@ function validateLeaveType(leaveType: any): string | null {
   return vietnameseMap[typeString] || null;
 }
 
-/**
- * Map Excel columns to attendance properties
- */
+// Map Excel columns to attendance properties
 function mapColumns(row: AttendanceImportRow): {
   employeeCode: string;
   date: string;
@@ -281,9 +273,7 @@ function mapColumns(row: AttendanceImportRow): {
   return result;
 }
 
-/**
- * Process imported attendance data
- */
+// Process imported attendance data
 export function processImportData(rows: AttendanceImportRow[]): {
   valid: ImportedAttendance[];
   invalid: ImportedAttendance[];
@@ -327,9 +317,7 @@ export function processImportData(rows: AttendanceImportRow[]): {
   return { valid, invalid };
 }
 
-/**
- * Main import function
- */
+// Main import function
 export async function importAttendanceFromFile(filePath: string): Promise<{
   valid: ImportedAttendance[];
   invalid: ImportedAttendance[];

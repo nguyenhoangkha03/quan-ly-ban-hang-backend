@@ -1,7 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import { logActivity } from '@utils/logger';
-import RedisService, { CachePrefix } from './redis.service';
+import RedisService from './redis.service';
 import {
   CreateCustomerInput,
   UpdateCustomerInput,
@@ -9,31 +9,47 @@ import {
   UpdateStatusInput,
   CustomerQueryInput,
 } from '@validators/customer.validator';
+import { sortedQuery } from '@utils/redis';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
 
 const CUSTOMER_CACHE_TTL = 3600;
+const CUSTOMER_LIST_CACHE_TTL = 600;
 
 class CustomerService {
-  async getAll(params: CustomerQueryInput) {
+  async getAll(query: CustomerQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
       search,
       customerType,
       classification,
       status,
       province,
       district,
-      hasOverdueDebt,
+      debtStatus,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-    } = params;
+    } = query;
 
-    const offset = (page - 1) * limit;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Tạo khóa cache cho nhất quán
+    const cacheKey = `customer:list:${JSON.stringify(sortedQuery(query))}`;
+
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.CustomerWhereInput = {
+      deletedAt: null,
       ...(status && { status }),
       ...(customerType && { customerType }),
       ...(classification && { classification }),
@@ -48,10 +64,14 @@ class CustomerService {
           { taxCode: { contains: search } },
         ],
       }),
-      ...(hasOverdueDebt && {
-        currentDebt: {
-          gt: 0,
-        },
+      // Handle debt status filter
+      ...(debtStatus === 'with-debt' && { currentDebt: { gt: 0 } }),
+      ...(debtStatus === 'no-debt' && { currentDebt: 0 }),
+      ...(debtStatus === 'over-limit' && {
+        AND: [
+          { currentDebt: { gt: 0 } },
+          { currentDebt: { gt: prisma.customer.fields.creditLimit } },
+        ],
       }),
     };
 
@@ -80,7 +100,7 @@ class CustomerService {
           },
         },
         skip: offset,
-        take: limit,
+        take: limitNum,
         orderBy: { [sortBy]: sortOrder },
       }),
       prisma.customer.count({ where }),
@@ -105,23 +125,57 @@ class CustomerService {
       };
     });
 
-    return {
-      data: customersWithDebtInfo,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+    const customerNoLimit = await prisma.customer.findMany({
+      where,
+    });
+
+    const thisMonth = new Date();
+    thisMonth.setDate(1);
+    const cards = {
+      newThisMonth: customerNoLimit.filter((c) => new Date(c.createdAt) >= thisMonth).length,
+      total: total,
+      totalDebt: customerNoLimit.reduce(
+        (total, customer) => total + Number(customer.currentDebt),
+        0
+      ),
+      overLimit: customerNoLimit.filter(
+        (customer) => Number(customer.currentDebt) > Number(customer.creditLimit)
+      ).length,
+      byClassification: {
+        retail: customerNoLimit.filter((customer) => customer.classification === 'retail').length,
+        wholesale: customerNoLimit.filter((customer) => customer.classification === 'wholesale')
+          .length,
+        vip: customerNoLimit.filter((customer) => customer.classification === 'vip').length,
+        distributor: customerNoLimit.filter((customer) => customer.classification === 'distributor')
+          .length,
       },
     };
+
+    const result = {
+      data: customersWithDebtInfo,
+      cards,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    };
+
+    await redis.set(cacheKey, result, CUSTOMER_LIST_CACHE_TTL);
+
+    return result;
   }
 
   async getById(id: number) {
-    const cacheKey = `${CachePrefix.USER}customer:${id}`;
+    const cacheKey = `customer:${id}`;
     const cached = await redis.get(cacheKey);
     if (cached) {
+      console.log(`✅ Có cache: ${cacheKey}`);
       return cached;
     }
+
+    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const customer = await prisma.customer.findUnique({
       where: { id },
@@ -161,7 +215,7 @@ class CustomerService {
     });
 
     if (!customer) {
-      throw new NotFoundError('Customer not found');
+      throw new NotFoundError('Không tìm thấy khách hàng');
     }
 
     const debtPercentage =
@@ -193,7 +247,7 @@ class CustomerService {
     });
 
     if (existingCustomer) {
-      throw new ConflictError('Customer code already exists');
+      throw new ConflictError('Mã khách hàng đã tồn tại');
     }
 
     const existingPhone = await prisma.customer.findFirst({
@@ -201,7 +255,7 @@ class CustomerService {
     });
 
     if (existingPhone) {
-      throw new ConflictError('Phone number already exists');
+      throw new ConflictError('Số điện thoại đã tồn tại');
     }
 
     if (data.email) {
@@ -210,7 +264,7 @@ class CustomerService {
       });
 
       if (existingEmail) {
-        throw new ConflictError('Email already exists');
+        throw new ConflictError('Email đã tồn tại');
       }
     }
 
@@ -220,7 +274,7 @@ class CustomerService {
       });
 
       if (existingTaxCode) {
-        throw new ConflictError('Tax code already exists');
+        throw new ConflictError('Mã số thuế đã tồn tại');
       }
     }
 
@@ -260,6 +314,8 @@ class CustomerService {
       customerCode: customer.customerCode,
     });
 
+    await redis.flushPattern('customer:list:*');
+
     return customer;
   }
 
@@ -269,7 +325,7 @@ class CustomerService {
     });
 
     if (!customer) {
-      throw new NotFoundError('Customer not found');
+      throw new NotFoundError('Không tìm thấy khách hàng');
     }
 
     if (data.phone && data.phone !== customer.phone) {
@@ -281,7 +337,7 @@ class CustomerService {
       });
 
       if (existingPhone) {
-        throw new ConflictError('Phone number already exists');
+        throw new ConflictError('Số điện thoại đã tồn tại');
       }
     }
 
@@ -294,7 +350,7 @@ class CustomerService {
       });
 
       if (existingEmail) {
-        throw new ConflictError('Email already exists');
+        throw new ConflictError('Email đã tồn tại');
       }
     }
 
@@ -307,7 +363,7 @@ class CustomerService {
       });
 
       if (existingTaxCode) {
-        throw new ConflictError('Tax code already exists');
+        throw new ConflictError('Mã số thuế đã tồn tại');
       }
     }
 
@@ -335,13 +391,14 @@ class CustomerService {
       },
     });
 
-    await redis.del(`${CachePrefix.USER}customer:${id}`);
-
     logActivity('update', userId, 'customers', {
       recordId: id,
       customerCode: customer.customerCode,
       changes: data,
     });
+
+    await redis.del(`customer:${id}`);
+    await redis.flushPattern('customer:list:*');
 
     return updatedCustomer;
   }
@@ -352,12 +409,12 @@ class CustomerService {
     });
 
     if (!customer) {
-      throw new NotFoundError('Customer not found');
+      throw new NotFoundError('Không tìm thấy khách hàng');
     }
 
     if (data.creditLimit < Number(customer.currentDebt)) {
       throw new ValidationError(
-        `Credit limit cannot be less than current debt (${customer.currentDebt})`
+        `Hạn mức tín dụng không được nhỏ hơn công nợ hiện tại (${customer.currentDebt})`
       );
     }
 
@@ -366,13 +423,11 @@ class CustomerService {
       data: {
         creditLimit: data.creditLimit,
         notes: customer.notes
-          ? `${customer.notes}\n[Credit Limit Update] ${data.reason}`
-          : `[Credit Limit Update] ${data.reason}`,
+          ? `${customer.notes}\n[Cập nhật hạn mức] ${data.reason}`
+          : `[Cập nhật hạn mức] ${data.reason}`,
         updatedBy: userId,
       },
     });
-
-    await redis.del(`${CachePrefix.USER}customer:${id}`);
 
     logActivity('update', userId, 'customers', {
       recordId: id,
@@ -381,6 +436,9 @@ class CustomerService {
       newValue: { creditLimit: data.creditLimit },
       reason: data.reason,
     });
+
+    await redis.del(`customer:${id}`);
+    await redis.flushPattern('customer:list:*');
 
     return updatedCustomer;
   }
@@ -391,11 +449,11 @@ class CustomerService {
     });
 
     if (!customer) {
-      throw new NotFoundError('Customer not found');
+      throw new NotFoundError('Không tìm thấy khách hàng');
     }
 
     if (data.status === 'blacklisted' && Number(customer.currentDebt) > 0) {
-      throw new ValidationError('Cannot blacklist customer with outstanding debt');
+      throw new ValidationError('Không thể đưa khách hàng vào danh sách đen khi còn công nợ');
     }
 
     const updatedCustomer = await prisma.customer.update({
@@ -411,8 +469,6 @@ class CustomerService {
       },
     });
 
-    await redis.del(`${CachePrefix.USER}customer:${id}`);
-
     logActivity('update', userId, 'customers', {
       recordId: id,
       action: 'update_status',
@@ -420,6 +476,9 @@ class CustomerService {
       newValue: { status: data.status },
       reason: data.reason,
     });
+
+    await redis.del(`customer:${id}`);
+    await redis.flushPattern('customer:list:*');
 
     return updatedCustomer;
   }
@@ -457,7 +516,7 @@ class CustomerService {
     });
 
     if (!customer) {
-      throw new NotFoundError('Customer not found');
+      throw new NotFoundError('Không tìm thấy khách hàng');
     }
 
     const unpaidOrders = customer.salesOrders.map((order) => ({
@@ -551,7 +610,7 @@ class CustomerService {
     });
 
     if (!customer) {
-      throw new NotFoundError('Customer not found');
+      throw new NotFoundError('Không tìm thấy khách hàng');
     }
 
     const offset = (page - 1) * limit;
@@ -607,31 +666,36 @@ class CustomerService {
     });
 
     if (!customer) {
-      throw new NotFoundError('Customer not found');
+      throw new NotFoundError('Không tìm thấy khách hàng');
     }
 
     if (Number(customer.currentDebt) > 0) {
-      throw new ValidationError('Cannot delete customer with outstanding debt');
+      throw new ValidationError('Không thể xóa khách hàng khi còn công nợ');
     }
 
     if (customer.salesOrders.length > 0) {
       throw new ValidationError(
-        'Cannot delete customer with order history. Set status to inactive instead.'
+        'Không thể xóa khách hàng có lịch sử đơn hàng. Hãy thay đổi trạng thái thành không hoạt động.'
       );
     }
 
-    await prisma.customer.delete({
+    // soft delete
+    await prisma.customer.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
-
-    await redis.del(`${CachePrefix.USER}customer:${id}`);
 
     logActivity('delete', userId, 'customers', {
       recordId: id,
       customerCode: customer.customerCode,
     });
 
-    return { message: 'Customer deleted successfully' };
+    await redis.del(`customer:${id}`);
+    await redis.flushPattern('customer:list:*');
+
+    return { message: 'Xóa khách hàng thành công' };
   }
 }
 

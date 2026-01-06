@@ -53,6 +53,7 @@ export const updateTransferSchema = z
 export const transferQuerySchema = z.object({
   page: z.string().optional().default('1').transform(Number),
   limit: z.string().optional().default('20').transform(Number),
+  search: z.string().trim().optional(),
   fromWarehouseId: z.string().optional().transform(Number),
   toWarehouseId: z.string().optional().transform(Number),
   status: z.enum(['pending', 'in_transit', 'completed', 'cancelled']).optional(),

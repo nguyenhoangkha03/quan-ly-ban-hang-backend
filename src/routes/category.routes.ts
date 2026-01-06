@@ -19,11 +19,11 @@ router.use(authentication);
 /**
  * GET /api/categories
  * Get all categories with pagination, filters, and search
- * Permission: view_products
+ * Permission: view_categories
  */
 router.get(
   '/',
-  authorize('view_products'),
+  authorize('view_categories'),
   validate(queryCategoriesSchema, 'query'),
   asyncHandler(categoryController.getAllCategories.bind(categoryController))
 );
@@ -31,44 +31,44 @@ router.get(
 /**
  * GET /api/categories/stats/overview
  * Get category statistics (total, active, inactive, top categories)
- * Permission: view_products
+ * Permission: view_categories
  */
 router.get(
   '/stats/overview',
-  authorize('view_products'),
+  authorize('view_categories'),
   asyncHandler(categoryController.getCategoryStats.bind(categoryController))
 );
 
 /**
  * GET /api/categories/tree
  * Get category tree structure (hierarchical)
- * Permission: view_products
+ * Permission: view_categories
  */
 router.get(
   '/tree',
-  authorize('view_products'),
+  authorize('view_categories'),
   asyncHandler(categoryController.getCategoryTree.bind(categoryController))
 );
 
 /**
  * GET /api/categories/:id
  * Get category by ID with details
- * Permission: view_products
+ * Permission: view_categories
  */
 router.get(
   '/:id',
-  authorize('view_products'),
+  authorize('view_categories'),
   asyncHandler(categoryController.getCategoryById.bind(categoryController))
 );
 
 /**
  * POST /api/categories
  * Create new category
- * Permission: create_product
+ * Permission: create_category
  */
 router.post(
   '/',
-  authorize('create_product'),
+  authorize('create_category'),
   validate(createCategorySchema),
   logActivityMiddleware('create', 'category'),
   asyncHandler(categoryController.createCategory.bind(categoryController))
@@ -77,11 +77,11 @@ router.post(
 /**
  * PUT /api/categories/:id
  * Update category
- * Permission: update_product
+ * Permission: update_category
  */
 router.put(
   '/:id',
-  authorize('update_product'),
+  authorize('update_category'),
   validate(updateCategorySchema),
   logActivityMiddleware('update', 'category'),
   asyncHandler(categoryController.updateCategory.bind(categoryController))
@@ -90,11 +90,11 @@ router.put(
 /**
  * DELETE /api/categories/:id
  * Delete category (soft delete - set inactive)
- * Permission: delete_product
+ * Permission: delete_category
  */
 router.delete(
   '/:id',
-  authorize('delete_product'),
+  authorize('delete_category'),
   logActivityMiddleware('delete', 'category'),
   asyncHandler(categoryController.deleteCategory.bind(categoryController))
 );

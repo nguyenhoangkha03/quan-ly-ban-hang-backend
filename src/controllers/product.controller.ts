@@ -12,6 +12,7 @@ class ProductController {
       limit,
       search,
       productType,
+      packagingType,
       categoryId,
       warehouseId,
       supplierId,
@@ -25,6 +26,7 @@ class ProductController {
       limit: parseInt(limit) || 20,
       search,
       productType,
+      packagingType,
       categoryId: categoryId ? parseInt(categoryId) : undefined,
       supplierId: supplierId ? parseInt(supplierId) : undefined,
       warehouseId: warehouseId ? parseInt(warehouseId) : undefined,
@@ -321,6 +323,32 @@ class ProductController {
   // GET /api/products/stats/raw-materials
   async getRawMaterialStats(_req: AuthRequest, res: Response) {
     const stats = await productService.getRawMaterialStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/stats/packaging
+  async getPackagingStats(_req: AuthRequest, res: Response) {
+    const stats = await productService.getPackagingStats();
+
+    const response: ApiResponse = {
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json(response);
+  }
+
+  // GET /api/products/stats/goods
+  async getGoodsStats(_req: AuthRequest, res: Response) {
+    const stats = await productService.getGoodsStats();
 
     const response: ApiResponse = {
       success: true,

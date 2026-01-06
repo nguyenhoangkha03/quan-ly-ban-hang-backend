@@ -25,16 +25,12 @@ const TRACK_MEMORY = process.env.TRACK_MEMORY === 'true';
 const performanceMetrics: PerformanceMetrics[] = [];
 const MAX_METRICS_STORAGE = 1000;
 
-/**
- * Generate unique request ID
- */
+// Generate unique request ID
 function generateRequestId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-/**
- * Get current memory usage
- */
+// Get current memory usage
 function getMemoryUsage() {
   const usage = process.memoryUsage();
   return {
@@ -44,9 +40,7 @@ function getMemoryUsage() {
   };
 }
 
-/**
- * Store metrics in memory
- */
+// Store metrics in memory
 function storeMetrics(metrics: PerformanceMetrics): void {
   performanceMetrics.push(metrics);
 
@@ -56,9 +50,7 @@ function storeMetrics(metrics: PerformanceMetrics): void {
   }
 }
 
-/**
- * Performance Monitoring Middleware
- */
+// Performance Monitoring Middleware
 export function performanceMonitor(req: Request, res: Response, next: NextFunction): void {
   const requestId = generateRequestId();
   const startTime = Date.now();
@@ -87,7 +79,7 @@ export function performanceMonitor(req: Request, res: Response, next: NextFuncti
 
     // Log slow requests
     if (responseTime > SLOW_REQUEST_THRESHOLD) {
-      logger.warn('Slow request detected', {
+      logger.warn('Phát hiện yêu cầu chậm', {
         ...metrics,
         threshold: SLOW_REQUEST_THRESHOLD,
         userAgent: req.headers['user-agent'],
@@ -97,7 +89,7 @@ export function performanceMonitor(req: Request, res: Response, next: NextFuncti
 
     // Log all requests if enabled
     if (LOG_ALL_REQUESTS) {
-      logger.info('Request completed', metrics);
+      logger.info('Hoàn thành yêu cầu', metrics);
     }
 
     // Store metrics
@@ -108,7 +100,7 @@ export function performanceMonitor(req: Request, res: Response, next: NextFuncti
       const heapGrowth = metrics.memoryUsage.heapUsed - startMemory.heapUsed;
       if (heapGrowth > 100) {
         // More than 100MB growth
-        logger.warn('Large memory growth detected', {
+        logger.warn('Phát hiện tăng trưởng bộ nhớ lớn', {
           requestId,
           url: req.originalUrl,
           heapGrowth: `${heapGrowth}MB`,
@@ -124,23 +116,17 @@ export function performanceMonitor(req: Request, res: Response, next: NextFuncti
   next();
 }
 
-/**
- * Get recent performance metrics
- */
+// Get recent performance metrics
 export function getRecentMetrics(limit: number = 100): PerformanceMetrics[] {
   return performanceMetrics.slice(-limit);
 }
 
-/**
- * Get slow requests
- */
+// Get slow requests
 export function getSlowRequests(threshold: number = SLOW_REQUEST_THRESHOLD): PerformanceMetrics[] {
   return performanceMetrics.filter((m) => m.responseTime > threshold);
 }
 
-/**
- * Get average response time
- */
+// Get average response time
 export function getAverageResponseTime(): number {
   if (performanceMetrics.length === 0) return 0;
 
@@ -148,9 +134,7 @@ export function getAverageResponseTime(): number {
   return Math.round(total / performanceMetrics.length);
 }
 
-/**
- * Get metrics summary
- */
+// Get metrics summary
 export function getMetricsSummary() {
   const totalRequests = performanceMetrics.length;
   const slowRequests = getSlowRequests();
@@ -195,9 +179,7 @@ export function getMetricsSummary() {
   };
 }
 
-/**
- * Clear metrics (useful for testing or resetting)
- */
+// Clear metrics (useful for testing or resetting)
 export function clearMetrics(): void {
   performanceMetrics.length = 0;
 }

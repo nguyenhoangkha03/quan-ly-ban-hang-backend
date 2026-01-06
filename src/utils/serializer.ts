@@ -1,8 +1,4 @@
-/**
- * Serialize BigInt values to strings for JSON compatibility
- * @param obj - Object to serialize
- * @returns Object with BigInt values converted to strings
- */
+// Serialize BigInt values to strings for JSON compatibility
 export function serializeBigInt<T>(obj: T): T {
   if (obj === null || obj === undefined) {
     return obj;
@@ -37,13 +33,3 @@ export function serializeBigInt<T>(obj: T): T {
 
   return obj;
 }
-
-/**
- * JSON.stringify replacer for BigInt values
- */
-export const bigIntReplacer = (_key: string, value: any) => {
-  if (typeof value === 'bigint') {
-    return value.toString();
-  }
-  return value;
-};

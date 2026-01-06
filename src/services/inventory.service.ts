@@ -1,6 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
-import RedisService, { CachePrefix } from './redis.service';
 import { logActivity } from '@utils/logger';
 import {
   type AlertInventoryQueryInput,
@@ -8,22 +7,10 @@ import {
 } from '@validators/inventory.validator';
 
 const prisma = new PrismaClient();
-const redis = RedisService.getInstance();
-
-const INVENTORY_CACHE_TTL = parseInt(process.env.CACHE_TTL_INVENTORY || '300');
 
 class InventoryService {
-
   // Lấy danh sách tồn kho với các bộ lọc tùy chọn
-  async getAll(params: {
-    warehouseId?: number;
-    productId?: number;
-    productType?: string;
-    categoryId?: number;
-    lowStock?: boolean;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
+  async getAll(query: InventoryQueryInput) {
     const {
       page = '1',
       limit = '20',
@@ -42,18 +29,6 @@ class InventoryService {
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
-
-    // Tạo khóa cache cho nhất quán
-    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
-    const cacheKey = `inventory:list:${queryString}`;
-
-    const cache = await redis.get(cacheKey);
-    if (cache) {
-      console.log(`✅ Có cache: ${cacheKey}`);
-      return cache;
-    }
-
-    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.InventoryWhereInput = {
       ...(search && {
@@ -92,14 +67,11 @@ class InventoryService {
           id: true,
           quantity: true,
           reservedQuantity: true,
-          warehouseId: true,
-          productId: true,
           warehouse: {
             select: {
               id: true,
               warehouseName: true,
               warehouseCode: true,
-              warehouseType: true,
             },
           },
           product: {
@@ -107,18 +79,10 @@ class InventoryService {
               id: true,
               sku: true,
               productName: true,
-              productType: true,
+              expiryDate: true,
               unit: true,
               minStockLevel: true,
-              sellingPriceRetail: true,
-              status: true,
-              category: {
-                select: {
-                  id: true,
-                  categoryName: true,
-                  categoryCode: true,
-                },
-              },
+              purchasePrice: true,
             },
           },
         },
@@ -146,6 +110,27 @@ class InventoryService {
       availableQuantity: Number(inv.quantity) - Number(inv.reservedQuantity),
     }));
 
+    // Stas
+    const totalValue = inventories.reduce((sum, item) => {
+      const value = Number(item.quantity) * Number(item.product?.purchasePrice || 0);
+      return sum + value;
+    }, 0);
+    const lowStockItems = inventories.filter((item) => {
+      const available = Number(item.quantity) - Number(item.reservedQuantity);
+      const minLevel = Number(item.product?.minStockLevel || 0);
+      return available < minLevel;
+    }).length;
+    const reservedQuantity = inventories.reduce(
+      (sum, item) => sum + Number(item.reservedQuantity),
+      0
+    );
+    const expiredQuantity = inventories.reduce((sum, item) => {
+      if (item.product?.expiryDate && item.product.expiryDate < new Date()) {
+        return sum + Number(item.quantity);
+      }
+      return sum;
+    }, 0);
+
     const result = {
       data: inventoryWithCalc,
       meta: {
@@ -154,10 +139,14 @@ class InventoryService {
         total,
         totalPages: Math.ceil(total / limitNum),
       },
-      message: 'Success',
+      cards: {
+        totalValue,
+        lowStockItems,
+        reservedQuantity,
+        expiredQuantity,
+      },
+      message: 'Lấy danh sách tồn kho thành công',
     };
-
-    await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
 
     return result;
   }
@@ -168,18 +157,6 @@ class InventoryService {
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
-
-    // Tạo khóa cache cho nhất quán
-    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
-    const cacheKey = `alertInventory:list:${queryString}`;
-
-    const cache = await redis.get(cacheKey);
-    if (cache) {
-      console.log(`✅ Có cache: ${cacheKey}`);
-      return cache;
-    }
-
-    console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.InventoryWhereInput = {
       ...(search && {
@@ -264,90 +241,58 @@ class InventoryService {
         total: allAlerts.length,
         totalPages: Math.ceil(allAlerts.length / limitNum),
       },
-      message: 'Success',
+      message: 'Lấy cảnh báo tồn kho thành công',
     };
-
-    await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
 
     return result;
   }
 
   async getByWarehouse(warehouseId: number) {
-    const cacheKey = `${CachePrefix.INVENTORY}warehouse:${warehouseId}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
     const warehouse = await prisma.warehouse.findUnique({
       where: { id: warehouseId },
     });
+
     if (!warehouse) {
-      throw new NotFoundError('Warehouse');
+      throw new NotFoundError('Không tìm thấy kho này');
     }
 
-    // Lấy toàn bộ inventory cho warehouse
-    const inventory = await prisma.inventory.findMany({
+    let inventory = await prisma.inventory.findMany({
       where: { warehouseId },
-      include: {
+      select: {
+        quantity: true,
+        reservedQuantity: true,
+        warehouseId: true,
+        productId: true,
         product: {
           select: {
-            id: true,
+            minStockLevel: true,
             sku: true,
             productName: true,
-            productType: true,
-            packagingType: true,
-            unit: true,
-            minStockLevel: true,
-            purchasePrice: true,
-            status: true,
-            category: {
-              select: {
-                id: true,
-                categoryName: true,
-              },
-            },
-            images: {
-              where: { isPrimary: true },
-              select: {
-                imageUrl: true,
-                altText: true,
-              },
-            },
           },
         },
       },
       orderBy: { productId: 'asc' },
     });
 
-    const result = inventory.map((inv) => ({
+    inventory = inventory.map((inv) => ({
       ...inv,
       availableQuantity: Number(inv.quantity) - Number(inv.reservedQuantity),
     }));
 
-    await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
+    const result = {
+      data: inventory,
+    };
 
     return result;
   }
 
-
   // Lấy tồn kho theo sản phẩm (trên tất cả kho)
   async getByProduct(productId: number) {
-    const cacheKey = `${CachePrefix.INVENTORY}product:${productId}`;
-
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      console.log(`✅ Có cache ${cacheKey}`);
-      return cached;
-    }
-
-    console.log(`❌ Không có cache ${cacheKey}, truy vấn database...`);
-
     const product = await prisma.product.findUnique({
       where: { id: productId },
     });
     if (!product) {
-      throw new NotFoundError('Product');
+      throw new NotFoundError('Không tìm thấy sản phẩm này');
     }
 
     const inventory = await prisma.inventory.findMany({
@@ -417,8 +362,6 @@ class InventoryService {
       },
     };
 
-    await redis.set(cacheKey, result, INVENTORY_CACHE_TTL);
-
     return result;
   }
 
@@ -465,7 +408,7 @@ class InventoryService {
           requestedQuantity: item.quantity,
           availableQuantity: 0,
           isAvailable: false,
-          message: 'Product not found in warehouse',
+          message: 'Sản phẩm không tồn tại trong kho này',
         });
         continue;
       }
@@ -485,8 +428,8 @@ class InventoryService {
         shortfall: Math.max(0, item.quantity - availableQty),
         message:
           availableQty >= item.quantity
-            ? 'Available'
-            : `Insufficient stock. Need ${item.quantity - availableQty} more`,
+            ? 'Có sẵn'
+            : `Không đủ hàng. Cần thêm ${item.quantity - availableQty}`,
       });
     }
 
@@ -517,14 +460,14 @@ class InventoryService {
       where: { id: data.warehouseId },
     });
     if (!warehouse) {
-      throw new NotFoundError('Warehouse');
+      throw new NotFoundError('Không tìm thấy kho này');
     }
 
     const product = await prisma.product.findUnique({
       where: { id: data.productId },
     });
     if (!product) {
-      throw new NotFoundError('Product');
+      throw new NotFoundError('Không tìm thấy sản phẩm này');
     }
 
     const existing = await prisma.inventory.findUnique({
@@ -568,8 +511,6 @@ class InventoryService {
       reason: data.reason,
     });
 
-    await this.invalidateCache(data.warehouseId, data.productId);
-
     return {
       ...inventory,
       availableQuantity: Number(inventory.quantity) - Number(inventory.reservedQuantity),
@@ -595,13 +536,13 @@ class InventoryService {
     });
 
     if (!current) {
-      throw new NotFoundError('Inventory record');
+      throw new NotFoundError('Không tìm thấy bản ghi tồn kho');
     }
 
     const newQuantity = Number(current.quantity) + data.adjustment;
 
     if (newQuantity < 0) {
-      throw new ValidationError('Adjustment would result in negative inventory');
+      throw new ValidationError('Điều chỉnh sẽ làm cho số lượng âm');
     }
 
     return this.update(
@@ -627,7 +568,7 @@ class InventoryService {
   ) {
     const availabilityCheck = await this.checkAvailability(items);
     if (!availabilityCheck.allAvailable) {
-      throw new ValidationError('Insufficient inventory', {
+      throw new ValidationError('Không đủ hàng tồn kho', {
         unavailableItems: availabilityCheck.items.filter((i) => !i.isAvailable),
       });
     }
@@ -644,7 +585,7 @@ class InventoryService {
       });
 
       if (!current) {
-        throw new NotFoundError('Inventory record');
+        throw new NotFoundError('Không tìm thấy bản ghi tồn kho');
       }
 
       const newReserved = Number(current.reservedQuantity) + item.quantity;
@@ -682,8 +623,6 @@ class InventoryService {
         reservedAmount: item.quantity,
         availableQuantity: Number(updated.quantity) - Number(updated.reservedQuantity),
       });
-
-      await this.invalidateCache(item.warehouseId, item.productId);
     }
 
     logActivity('update', userId, 'inventory', {
@@ -694,7 +633,7 @@ class InventoryService {
     });
 
     return {
-      message: 'Inventory reserved successfully',
+      message: 'Đặt chỗ tồn kho thành công',
       items: reserved,
     };
   }
@@ -722,7 +661,7 @@ class InventoryService {
       });
 
       if (!current) {
-        throw new NotFoundError('Inventory record');
+        throw new NotFoundError('Không tìm thấy bản ghi tồn kho');
       }
 
       const newReserved = Math.max(0, Number(current.reservedQuantity) - item.quantity);
@@ -760,8 +699,6 @@ class InventoryService {
         releasedAmount: item.quantity,
         availableQuantity: Number(updated.quantity) - Number(updated.reservedQuantity),
       });
-
-      await this.invalidateCache(item.warehouseId, item.productId);
     }
 
     logActivity('update', userId, 'inventory', {
@@ -772,55 +709,8 @@ class InventoryService {
     });
 
     return {
-      message: 'Reserved inventory released successfully',
+      message: 'Giải phóng tồn kho đã đặt chỗ thành công',
       items: released,
-    };
-  }
-
-  async getStats(filters?: { warehouseType?: string }) {
-    const where: Prisma.InventoryWhereInput = {
-      ...(filters?.warehouseType && {
-        warehouse: {
-          warehouseType: filters.warehouseType as any,
-        },
-      }),
-    };
-
-    const allInventory = await prisma.inventory.findMany({
-      where,
-      include: {
-        product: {
-          select: {
-            minStockLevel: true,
-            sellingPriceRetail: true,
-          },
-        },
-      },
-    });
-
-    const totalItems = allInventory.length;
-
-    const totalValue = allInventory.reduce((sum, item) => {
-      const value = Number(item.quantity) * Number(item.product?.sellingPriceRetail || 0);
-      return sum + value;
-    }, 0);
-
-    const lowStockItems = allInventory.filter((item) => {
-      const available = Number(item.quantity) - Number(item.reservedQuantity);
-      const minLevel = Number(item.product?.minStockLevel || 0);
-      return available < minLevel;
-    }).length;
-
-    const outOfStockItems = allInventory.filter((item) => {
-      const available = Number(item.quantity) - Number(item.reservedQuantity);
-      return available === 0;
-    }).length;
-
-    return {
-      totalItems,
-      totalValue,
-      lowStockItems,
-      outOfStockItems,
     };
   }
 
@@ -902,16 +792,6 @@ class InventoryService {
       },
       byProductType,
     };
-  }
-
-  private async invalidateCache(warehouseId?: number, productId?: number) {
-    if (warehouseId) {
-      await redis.del(`${CachePrefix.INVENTORY}warehouse:${warehouseId}`);
-    }
-    if (productId) {
-      await redis.del(`${CachePrefix.INVENTORY}product:${productId}`);
-    }
-    await redis.flushPattern(`${CachePrefix.DASHBOARD}*`);
   }
 }
 

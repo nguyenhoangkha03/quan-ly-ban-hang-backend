@@ -288,6 +288,7 @@ async function main() {
     { key: 'update_payment_voucher', name: 'Cập nhật phiếu chi', module: 'finance' },
     { key: 'delete_payment_voucher', name: 'Xóa phiếu chi', module: 'finance' },
     { key: 'post_payment_voucher', name: 'Hạch toán phiếu chi', module: 'finance' },
+    { key: 'approve_payment_voucher', name:'Phê duyệt phiếu chi', module: 'finance'},
 
     // Payment
     { key: 'approve_payment', name: 'Phê duyệt thu chi', module: 'finance' },
@@ -705,6 +706,8 @@ async function main() {
       },
     }),
   ]);
+
+  
 
   console.log(`✅ Created ${suppliers.length} suppliers\n`);
 

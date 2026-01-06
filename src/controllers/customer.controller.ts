@@ -20,6 +20,7 @@ class CustomerController {
       success: true,
       data: result.data,
       meta: result.meta,
+      cards: result.cards,
       timestamp: new Date().toISOString(),
     });
   }

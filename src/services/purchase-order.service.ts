@@ -9,6 +9,7 @@ import {
   type UpdatePurchaseOrderInput,
 } from '@validators/purchase-order.validator';
 import sendPurchaseOrderEmail from './email.service';
+import { sortedQuery } from '@utils/redis';
 
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
@@ -53,8 +54,7 @@ class PurchaseOrderService {
     const skip = (pageNum - 1) * limitNum;
 
     // Cache key
-    const queryString = Object.keys(query).length > 0 ? JSON.stringify(query) : 'default';
-    const cacheKey = `purchase-order:list:${queryString}`;
+    const cacheKey = `purchase-order:list:${JSON.stringify(sortedQuery(query))}`;
 
     const cache = await redis.get(cacheKey);
     if (cache) {
@@ -65,6 +65,7 @@ class PurchaseOrderService {
     console.log(`❌ Không có cache: ${cacheKey}, truy vấn database...`);
 
     const where: Prisma.PurchaseOrderWhereInput = {
+      deletedAt: null,
       ...(search && {
         OR: [
           { poCode: { contains: search } },
@@ -87,7 +88,16 @@ class PurchaseOrderService {
 
     const purchaseOrders = await prisma.purchaseOrder.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        poCode: true,
+        orderDate: true,
+        expectedDeliveryDate: true,
+        totalAmount: true,
+        status: true,
+        notes: true,
+        subTotal: true,
+        taxRate: true,
         supplier: {
           select: {
             id: true,
@@ -102,7 +112,6 @@ class PurchaseOrderService {
             id: true,
             warehouseName: true,
             warehouseCode: true,
-            warehouseType: true,
           },
         },
         creator: {
@@ -116,7 +125,6 @@ class PurchaseOrderService {
           select: {
             id: true,
             fullName: true,
-            employeeCode: true,
           },
         },
         _count: {
@@ -130,6 +138,14 @@ class PurchaseOrderService {
       take: limitNum,
     });
 
+    // Stat Cards
+    const cards = {
+      pending: await prisma.purchaseOrder.count({ where: { ...where, status: 'pending' } }),
+      approved: await prisma.purchaseOrder.count({ where: { ...where, status: 'approved' } }),
+      received: await prisma.purchaseOrder.count({ where: { ...where, status: 'received' } }),
+      cancelled: await prisma.purchaseOrder.count({ where: { ...where, status: 'cancelled' } }),
+    };
+
     const result = {
       data: purchaseOrders,
       meta: {
@@ -138,6 +154,7 @@ class PurchaseOrderService {
         total,
         totalPages: Math.ceil(total / limitNum),
       },
+      cards,
       message: 'Success',
     };
 
@@ -763,7 +780,13 @@ class PurchaseOrderService {
       throw new ValidationError('Chỉ những đơn đặt hàng đang chờ xử lý mới có thể bị xóa.');
     }
 
-    await prisma.purchaseOrder.delete({ where: { id } });
+    // Soft delete
+    await prisma.purchaseOrder.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
 
     // Invalidate cache
     await redis.del(`purchase-order:${id}`);

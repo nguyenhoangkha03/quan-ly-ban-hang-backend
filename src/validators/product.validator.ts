@@ -3,42 +3,42 @@ import { z } from 'zod';
 export const createProductSchema = z.object({
   sku: z
     .string()
-    .min(1, 'SKU is required')
-    .max(50, 'SKU too long')
-    .regex(/^[A-Z0-9-]+$/, 'SKU must be alphanumeric uppercase with hyphens')
+    .min(1, 'SKU là bắt buộc')
+    .max(50, 'SKU quá dài')
+    .regex(/^[A-Z0-9-]+$/, 'SKU phải là chữ hoa, số và dấu gạch ngang')
     .trim()
     .optional(),
   productName: z
     .string()
-    .min(1, 'Product name is required')
-    .max(200, 'Product name too long')
+    .min(1, 'Tên sản phẩm là bắt buộc')
+    .max(200, 'Tên sản phẩm quá dài')
     .trim(),
   productType: z
     .enum(['raw_material', 'packaging', 'finished_product', 'goods'])
-    .refine((val) => !!val, { message: 'Invalid product type' }),
+    .refine((val) => !!val, { message: 'Loại sản phẩm không hợp lệ' }),
   packagingType: z
     .enum(['bottle', 'box', 'bag', 'label', 'other'])
-    .refine((val) => !!val, { message: 'Invalid packaging type' })
+    .refine((val) => !!val, { message: 'Loại bao bì không hợp lệ' })
     .optional()
     .default('other'),
-  categoryId: z.number().int().positive('Invalid category ID').optional(),
-  supplierId: z.number().int().positive('Invalid supplier ID').optional(),
-  unit: z.string().min(1, 'Unit is required').max(50, 'Unit too long').trim(),
-  barcode: z.string().max(100, 'Barcode too long').optional(),
-  weight: z.number().positive('Weight must be positive').optional(),
-  dimensions: z.string().max(100, 'Dimensions too long').optional(),
-  description: z.string().max(500, 'Description too long').optional(),
-  purchasePrice: z.number().min(0, 'Purchase price cannot be negative').optional(),
-  sellingPriceRetail: z.number().min(0, 'Retail price cannot be negative').optional(),
-  sellingPriceWholesale: z.number().min(0, 'Wholesale price cannot be negative').optional(),
-  sellingPriceVip: z.number().min(0, 'VIP price cannot be negative').optional(),
+  categoryId: z.number().int().positive('ID danh mục không hợp lệ').optional(),
+  supplierId: z.number().int().positive('ID nhà cung cấp không hợp lệ').optional(),
+  unit: z.string().min(1, 'Đơn vị là bắt buộc').max(50, 'Đơn vị quá dài').trim(),
+  barcode: z.string().max(100, 'Mã vạch quá dài').optional(),
+  weight: z.number().positive('Trọng lượng phải dương').optional(),
+  dimensions: z.string().max(100, 'Kích thước quá dài').optional(),
+  description: z.string().max(500, 'Mô tả quá dài').optional(),
+  purchasePrice: z.number().min(0, 'Giá mua không thể âm').optional(),
+  sellingPriceRetail: z.number().min(0, 'Giá bán lẻ không thể âm').optional(),
+  sellingPriceWholesale: z.number().min(0, 'Giá bán sỉ không thể âm').optional(),
+  sellingPriceVip: z.number().min(0, 'Giá VIP không thể âm').optional(),
   taxRate: z
     .number()
-    .min(0, 'Tax rate cannot be negative')
-    .max(100, 'Tax rate cannot exceed 100%')
+    .min(0, 'Thuế suất không thể âm')
+    .max(100, 'Thuế suất không thể vượt quá 100%')
     .optional()
     .default(0),
-  minStockLevel: z.number().min(0, 'Min stock level cannot be negative').optional().default(0),
+  minStockLevel: z.number().min(0, 'Tồn kho tối thiểu không thể âm').optional().default(0),
   expiryDate: z
     .string()
     .optional()
@@ -53,35 +53,31 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z.object({
   sku: z
     .string()
-    .min(1, 'SKU cannot be empty')
-    .max(50, 'SKU too long')
-    .regex(/^[A-Z0-9-]+$/, 'SKU must be alphanumeric uppercase with hyphens')
+    .min(1, 'SKU không thể trống')
+    .max(50, 'SKU quá dài')
+    .regex(/^[A-Z0-9-]+$/, 'SKU phải là chữ hoa, số và dấu gạch ngang')
     .trim()
     .optional(),
-  productName: z.string().min(1, 'Product name cannot be empty').max(200).trim().optional(),
+  productName: z.string().min(1, 'Tên sản phẩm không thể trống').max(200).trim().optional(),
   productType: z
     .enum(['raw_material', 'packaging', 'finished_product', 'goods'])
-    .refine((val) => !!val, { message: 'Invalid product type' })
+    .refine((val) => !!val, { message: 'Loại sản phẩm không hợp lệ' })
     .optional(),
   packagingType: z
     .enum(['bottle', 'box', 'bag', 'label', 'other'])
-    .refine((val) => !!val, { message: 'Invalid packaging type' })
+    .refine((val) => !!val, { message: 'Loại bao bì không hợp lệ' })
     .optional(),
-  categoryId: z.number().int().positive('Invalid category ID').nullable().optional(),
-  supplierId: z.number().int().positive('Invalid supplier ID').nullable().optional(),
-  unit: z.string().min(1, 'Unit cannot be empty').max(50, 'Unit too long').trim().optional(),
+  categoryId: z.number().int().positive('ID danh mục không hợp lệ').nullable().optional(),
+  supplierId: z.number().int().positive('ID nhà cung cấp không hợp lệ').nullable().optional(),
+  unit: z.string().min(1, 'Đơn vị không thể trống').max(50, 'Đơn vị quá dài').trim().optional(),
   barcode: z.string().max(100).nullable().optional(),
-  weight: z.number().positive('Weight must be positive').nullable().optional(),
+  weight: z.number().positive('Trọng lượng phải dương').nullable().optional(),
   dimensions: z.string().max(100).nullable().optional(),
   description: z.string().max(500).nullable().optional(),
-  purchasePrice: z.number().min(0, 'Purchase price cannot be negative').nullable().optional(),
-  sellingPriceRetail: z.number().min(0, 'Retail price cannot be negative').nullable().optional(),
-  sellingPriceWholesale: z
-    .number()
-    .min(0, 'Wholesale price cannot be negative')
-    .nullable()
-    .optional(),
-  sellingPriceVip: z.number().min(0, 'Giá VIP không thể số âm!').nullable().optional(),
+  purchasePrice: z.number().min(0, 'Giá mua không thể âm').nullable().optional(),
+  sellingPriceRetail: z.number().min(0, 'Giá bán lẻ không thể âm').nullable().optional(),
+  sellingPriceWholesale: z.number().min(0, 'Giá bán sỉ không thể âm').nullable().optional(),
+  sellingPriceVip: z.number().min(0, 'Giá VIP không thể âm').nullable().optional(),
   taxRate: z.number().min(0).max(100).optional(),
   minStockLevel: z.number().min(0).optional(),
   expiryDate: z
@@ -116,6 +112,10 @@ export const productQuerySchema = z.object({
   productType: z
     .enum(['raw_material', 'packaging', 'finished_product', 'goods'])
     .refine((val) => !!val, { message: 'Loại không hợp lệ!' })
+    .optional(),
+  packagingType: z
+    .enum(['bottle', 'box', 'bag', 'label', 'other'])
+    .refine((val) => !!val, { message: 'Loại bao bì không hợp lệ!' })
     .optional(),
   categoryId: z
     .string()
@@ -155,7 +155,7 @@ export const uploadProductImagesSchema = z.object({
       z.object({
         imageType: z
           .enum(['thumbnail', 'gallery', 'main'])
-          .refine((val) => !!val, { message: 'Invalid image type' })
+          .refine((val) => !!val, { message: 'Loại hình ảnh không hợp lệ' })
           .optional()
           .default('gallery'),
         altText: z.string().max(255).optional(),
@@ -163,8 +163,8 @@ export const uploadProductImagesSchema = z.object({
         displayOrder: z.number().int().min(0).optional().default(0),
       })
     )
-    .min(1, 'At least one image is required')
-    .max(5, 'Maximum 5 images allowed'),
+    .min(1, 'Phải có ít nhất một hình ảnh')
+    .max(5, 'Tối đa 5 hình ảnh'),
 });
 
 export const uploadProductVideosSchema = z.object({
@@ -173,7 +173,7 @@ export const uploadProductVideosSchema = z.object({
       z.object({
         videoType: z
           .enum(['demo', 'tutorial', 'review', 'unboxing', 'promotion', 'other'])
-          .refine((val) => !!val, { message: 'Invalid video type' })
+          .refine((val) => !!val, { message: 'Loại video không hợp lệ' })
           .optional()
           .default('demo'),
         title: z.string().max(255).optional(),
@@ -182,8 +182,8 @@ export const uploadProductVideosSchema = z.object({
         displayOrder: z.number().int().min(0).optional().default(0),
       })
     )
-    .min(1, 'At least one video is required')
-    .max(5, 'Maximum 5 videos allowed'),
+    .min(1, 'Phải có ít nhất một video')
+    .max(5, 'Tối đa 5 video'),
 });
 
 export const deleteImageSchema = z.object({
