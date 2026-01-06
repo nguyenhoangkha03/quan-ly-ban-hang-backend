@@ -18,6 +18,13 @@ const router = Router();
 // All routes require authentication
 router.use(authentication);
 
+// GET /api/payment-vouchers/statistics - Get statistics (must be before /:id)
+router.get(
+  '/statistics',
+  authorize('view_payment_vouchers'),
+  asyncHandler(paymentVoucherController.getStatistics.bind(paymentVoucherController))
+);
+
 // GET /api/payment-vouchers/report/expense - Get expense report (must be before /:id)
 router.get(
   '/report/expense',
@@ -43,7 +50,7 @@ router.get(
 router.get(
   '/',
   authorize('view_payment_vouchers'),
-  validate(paymentVoucherQuerySchema, "query"),
+  validate(paymentVoucherQuerySchema, 'query'),
   asyncHandler(paymentVoucherController.getAll.bind(paymentVoucherController))
 );
 
@@ -81,12 +88,12 @@ router.put(
   asyncHandler(paymentVoucherController.update.bind(paymentVoucherController))
 );
 
-
 // POST /api/payment-vouchers/:id/post - Post voucher to accounting
 router.post(
   '/:id/post',
   authorize('post_payment_voucher'),
   validate(postVoucherSchema),
+  logActivityMiddleware('post', 'payment_voucher'),
   asyncHandler(paymentVoucherController.post.bind(paymentVoucherController))
 );
 

@@ -10,7 +10,7 @@ import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
 import { globalRateLimiter } from '@middlewares/rateLimiter';
 import { sanitizeInput } from '@middlewares/validate';
 import compressionMiddleware from '@middlewares/compression';
-import { httpLogger, requestTimer } from '@middlewares/logger';
+import { requestTimer } from '@middlewares/logger';
 
 // import { performanceMonitor } from '@utils/performance.monitor';
 import RedisService from '@services/redis.service';
@@ -47,8 +47,6 @@ import notificationRoutes from '@routes/notification.routes';
 import reportRoutes from '@routes/report.routes';
 import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
-
-
 
 // Import customer service routes
 import cs_accountRoutes from '@routes/customer_account.routes';
@@ -147,10 +145,10 @@ app.use(
 // Tối ưu hóa hiệu xuất
 app.use(compressionMiddleware); // Nén phản hồi (gzip)
 app.use(requestTimer);
-app.use(httpLogger);
+// app.use(httpLogger);
 
 // Body parsers
-app.use(express.json()); 
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -212,7 +210,6 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/security', securityRoutes);
 
-
 //custommer service routes
 app.use('/api/accounts', cs_accountRoutes);
 app.use('/api/cs/categories', cs_categoryRoutes);
@@ -221,8 +218,6 @@ app.use('/api/cs/inventory', cs_inventoryRoutes);
 app.use('/api/cs/customers', cs_customerRoutes);
 app.use('/api/cs/warehouses', cs_warehouseRoutes);
 app.use('/api/cs/sale-order', cs_salesOrderRoutes);
-
-
 
 // 404 handler
 app.use(notFoundHandler);

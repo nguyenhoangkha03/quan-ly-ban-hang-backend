@@ -11,6 +11,7 @@ class PaymentVoucherController {
       success: true,
       data: result.data,
       meta: result.meta,
+      statistics: result.statistics,
       timestamp: new Date().toISOString(),
     });
   }
@@ -38,6 +39,18 @@ class PaymentVoucherController {
       meta: {
         total: vouchers.length,
       },
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/payment-vouchers/statistics - Get statistics
+  async getStatistics(req: AuthRequest, res: Response) {
+    const { fromDate, toDate } = req.query;
+    const statistics = await paymentVoucherService.getStatistics(fromDate as string, toDate as string);
+
+    res.status(200).json({
+      success: true,
+      data: statistics,
       timestamp: new Date().toISOString(),
     });
   }

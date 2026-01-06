@@ -8,10 +8,14 @@ import {
   PostVoucherInput,
   PaymentVoucherQueryInput,
 } from '@validators/payment-voucher.validator';
-
-
+import RedisService from './redis.service';
+import { sortedQuery } from '@utils/redis';
 
 const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
+
+const PAYMENT_VOUCHER_CACHE_TTL = 3600;
+const PAYMENT_VOUCHER_LIST_CACHE_TTL = 600;
 
 class PaymentVoucherService {
   private async generateVoucherCode(): Promise<string> {
@@ -31,10 +35,10 @@ class PaymentVoucherService {
     return `PC-${dateStr}-${sequence}`;
   }
 
-  async getAll(params: PaymentVoucherQueryInput) {
+  async getAll(query: PaymentVoucherQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
       search,
       supplierId,
       voucherType,
@@ -44,11 +48,25 @@ class PaymentVoucherService {
       toDate,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-    } = params;
+    } = query;
 
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Cache key
+    const cacheKey = `payment-voucher:list:${JSON.stringify(sortedQuery(query))}`;
+
+    const cache = await redis.get(cacheKey);
+    if (cache) {
+      console.log(`✅ Cache tìm thấy: ${cacheKey}`);
+      return cache;
+    }
+
+    console.log(`⚠️ Không có cache: ${cacheKey}, đang truy vấn từ database...`);
 
     const where: Prisma.PaymentVoucherWhereInput = {
+      deletedAt: null,
       ...(supplierId && { supplierId }),
       ...(voucherType && { voucherType }),
       ...(paymentMethod && { paymentMethod }),
@@ -97,24 +115,79 @@ class PaymentVoucherService {
           },
         },
         skip: offset,
-        take: limit,
+        take: limitNum,
         orderBy: { [sortBy]: sortOrder },
       }),
       prisma.paymentVoucher.count({ where }),
     ]);
 
-    return {
+    // Stat Cards
+    const allVouchers = await prisma.paymentVoucher.findMany({
+      where,
+      select: {
+        id: true,
+        amount: true,
+        paymentMethod: true,
+        approvedBy: true,
+        isPosted: true,
+      },
+    });
+
+    const totalAmount = allVouchers.reduce((sum, v) => sum + Number(v.amount), 0);
+    const cashAmount = allVouchers
+      .filter((v) => v.paymentMethod === 'cash')
+      .reduce((sum, v) => sum + Number(v.amount), 0);
+    const transferAmount = allVouchers
+      .filter((v) => v.paymentMethod === 'transfer')
+      .reduce((sum, v) => sum + Number(v.amount), 0);
+
+    const approvedVouchers = allVouchers.filter((v) => v.approvedBy).length;
+    const pendingVouchers = allVouchers.filter((v) => !v.approvedBy).length;
+    const postedVouchers = allVouchers.filter((v) => v.isPosted).length;
+
+    const pendingAmount = allVouchers
+      .filter((v) => !v.approvedBy)
+      .reduce((sum, v) => sum + Number(v.amount), 0);
+
+    const statistics = {
+      totalVouchers: allVouchers.length,
+      totalAmount,
+      cashAmount,
+      transferAmount,
+      approvedVouchers,
+      pendingVouchers,
+      pendingAmount,
+      postedVouchers,
+    };
+
+    const result = {
       data: vouchers,
       meta: {
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limitNum),
       },
+      statistics,
     };
+
+    await redis.set(cacheKey, result, PAYMENT_VOUCHER_LIST_CACHE_TTL);
+
+    return result;
   }
 
   async getById(id: number) {
+    const cacheKey = `payment-voucher:${id}`;
+
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Cache tìm thấy: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`⚠️ Không có cache: ${cacheKey}, đang truy vấn từ database...`);
+
     const voucher = await prisma.paymentVoucher.findUnique({
       where: { id },
       include: {
@@ -149,8 +222,10 @@ class PaymentVoucherService {
     });
 
     if (!voucher) {
-      throw new NotFoundError('Payment voucher not found');
+      throw new NotFoundError('Phiếu chi không tìm thấy');
     }
+
+    await redis.set(cacheKey, voucher, PAYMENT_VOUCHER_CACHE_TTL);
 
     return voucher;
   }
@@ -162,17 +237,17 @@ class PaymentVoucherService {
       });
 
       if (!supplier) {
-        throw new NotFoundError('Supplier not found');
+        throw new NotFoundError('Nhà cung cấp không tìm thấy');
       }
 
       if (supplier.status !== 'active') {
-        throw new ValidationError('Supplier must be active');
+        throw new ValidationError('Nhà cung cấp phải ở trạng thái hoạt động');
       }
     }
 
     if (data.paymentMethod === 'transfer') {
       if (!data.bankName) {
-        throw new ValidationError('Bank name is required for transfer payments');
+        throw new ValidationError('Tên ngân hàng là bắt buộc đối với thanh toán chuyển khoản');
       }
     }
 
@@ -204,6 +279,8 @@ class PaymentVoucherService {
       amount: data.amount,
     });
 
+    await redis.flushPattern('payment-voucher:list:*');
+
     return voucher;
   }
 
@@ -213,15 +290,15 @@ class PaymentVoucherService {
     });
 
     if (!voucher) {
-      throw new NotFoundError('Payment voucher not found');
+      throw new NotFoundError('Phiếu chi không tìm thấy');
     }
 
     if (voucher.isPosted) {
-      throw new ValidationError('Cannot update posted voucher');
+      throw new ValidationError('Không thể cập nhật phiếu chi đã ghi sổ');
     }
 
     if (voucher.approvedBy) {
-      throw new ValidationError('Cannot update approved voucher');
+      throw new ValidationError('Không thể cập nhật phiếu chi đã được duyệt');
     }
 
     // Validate supplier if changed
@@ -231,17 +308,17 @@ class PaymentVoucherService {
       });
 
       if (!supplier) {
-        throw new NotFoundError('Supplier not found');
+        throw new NotFoundError('Nhà cung cấp không tìm thấy');
       }
 
       if (supplier.status !== 'active') {
-        throw new ValidationError('Supplier must be active');
+        throw new ValidationError('Nhà cung cấp phải ở trạng thái hoạt động');
       }
     }
 
     if (data.paymentMethod === 'transfer') {
       if (!data.bankName && !voucher.bankName) {
-        throw new ValidationError('Bank name is required for transfer payments');
+        throw new ValidationError('Tên ngân hàng là bắt buộc đối với thanh toán chuyển khoản');
       }
     }
 
@@ -269,6 +346,9 @@ class PaymentVoucherService {
       changes: data,
     });
 
+    await redis.del(`payment-voucher:${id}`);
+    await redis.flushPattern('payment-voucher:list:*');
+
     return updatedVoucher;
   }
 
@@ -277,7 +357,6 @@ class PaymentVoucherService {
       where: { id },
     });
 
-
     const start = new Date();
     start.setHours(0, 0, 0, 0);
 
@@ -285,17 +364,16 @@ class PaymentVoucherService {
     end.setHours(23, 59, 59, 999);
 
     if (!voucher) {
-      throw new NotFoundError('Payment voucher not found');
+      throw new NotFoundError('Phiếu chi không tìm thấy');
     }
 
     if (voucher.isPosted) {
-      throw new ValidationError('Cannot approve posted voucher');
+      throw new ValidationError('Không thể duyệt phiếu chi đã ghi sổ');
     }
 
     if (voucher.approvedBy) {
-      throw new ValidationError('Voucher is already approved');
+      throw new ValidationError('Phiếu chi đã được duyệt rồi');
     }
-
 
     await prisma.$transaction(async (tx) => {
       const cashFund = await tx.cashFund.findFirst({
@@ -306,7 +384,7 @@ class PaymentVoucherService {
           },
         },
       });
-      
+
       if (!cashFund) {
         throw new ValidationError('Chưa mở quỹ cho ngày hôm nay');
       }
@@ -314,46 +392,53 @@ class PaymentVoucherService {
       if (cashFund.isLocked) {
         throw new ValidationError('Quỹ đã khóa, không thể chi tiền');
       }
-      const amount = Number(voucher.amount)
-      const newTotalPayments = Number(cashFund?.totalPayments || 0) + amount
-      const newClosingBalance = Number(cashFund?.openingBalance || 0) + Number(cashFund?.totalReceipts || 0) - newTotalPayments;
+      const amount = Number(voucher.amount);
+      const newTotalPayments = Number(cashFund?.totalPayments || 0) + amount;
+      const newClosingBalance =
+        Number(cashFund?.openingBalance || 0) +
+        Number(cashFund?.totalReceipts || 0) -
+        newTotalPayments;
 
       if (newClosingBalance < 0) {
         throw new ValidationError('Số dư quỹ không đủ');
       }
 
       await tx.cashFund.update({
-        where:{
-          id: cashFund.id
+        where: {
+          id: cashFund.id,
           // id: 1
         },
-        data:{
+        data: {
           totalPayments: newTotalPayments,
           closingBalance: newClosingBalance,
-        }
-      })
-    })
-
-    const updatedPayment = await prisma.paymentVoucher.update({
-        where: { id },
-        data: {
-          approvedBy: userId,
-          approvedAt: new Date(),
-          notes: data?.notes ? `${voucher.notes || ''}\n${data.notes}` : voucher.notes,
-        },
-        include: {
-          supplier: true,
-          creator: true,
-          approver: true,
         },
       });
+    });
+
+    const updatedPayment = await prisma.paymentVoucher.update({
+      where: { id },
+      data: {
+        approvedBy: userId,
+        approvedAt: new Date(),
+        notes: data?.notes ? `${voucher.notes || ''}\n${data.notes}` : voucher.notes,
+      },
+      include: {
+        supplier: true,
+        creator: true,
+        approver: true,
+      },
+    });
 
     logActivity('update', userId, 'payment_vouchers', {
       recordId: id,
       action: 'approve_voucher',
       voucherCode: voucher.voucherCode,
     });
-    return updatedPayment
+
+    await redis.del(`payment-voucher:${id}`);
+    await redis.flushPattern('payment-voucher:list:*');
+
+    return updatedPayment;
   }
 
   async post(id: number, userId: number, data?: PostVoucherInput) {
@@ -362,15 +447,15 @@ class PaymentVoucherService {
     });
 
     if (!voucher) {
-      throw new NotFoundError('Payment voucher not found');
+      throw new NotFoundError('Phiếu chi không tìm thấy');
     }
 
     if (voucher.isPosted) {
-      throw new ValidationError('Voucher is already posted');
+      throw new ValidationError('Phiếu chi đã ghi sổ rồi');
     }
 
     if (!voucher.approvedBy) {
-      throw new ValidationError('Voucher must be approved before posting');
+      throw new ValidationError('Phiếu chi phải được duyệt trước khi ghi sổ');
     }
 
     const updatedVoucher = await prisma.paymentVoucher.update({
@@ -392,6 +477,9 @@ class PaymentVoucherService {
       voucherCode: voucher.voucherCode,
     });
 
+    await redis.del(`payment-voucher:${id}`);
+    await redis.flushPattern('payment-voucher:list:*');
+
     return updatedVoucher;
   }
 
@@ -401,19 +489,23 @@ class PaymentVoucherService {
     });
 
     if (!voucher) {
-      throw new NotFoundError('Payment voucher not found');
+      throw new NotFoundError('Phiếu chi không tìm thấy');
     }
 
     if (voucher.isPosted) {
-      throw new ValidationError('Cannot delete posted voucher');
+      throw new ValidationError('Không thể xóa phiếu chi đã ghi sổ');
     }
 
     if (voucher.approvedBy) {
-      throw new ValidationError('Cannot delete approved voucher');
+      throw new ValidationError('Không thể xóa phiếu chi đã được duyệt');
     }
 
-    await prisma.paymentVoucher.delete({
+    // soft delete
+    await prisma.paymentVoucher.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
 
     logActivity('delete', userId, 'payment_vouchers', {
@@ -421,7 +513,10 @@ class PaymentVoucherService {
       voucherCode: voucher.voucherCode,
     });
 
-    return { message: 'Payment voucher deleted successfully' };
+    await redis.del(`payment-voucher:${id}`);
+    await redis.flushPattern('payment-voucher:list:*');
+
+    return { message: 'Xóa phiếu chi thành công' };
   }
 
   async getBySupplier(supplierId: number) {
@@ -449,6 +544,57 @@ class PaymentVoucherService {
     });
 
     return vouchers;
+  }
+
+  async getStatistics(fromDate?: string, toDate?: string) {
+    const where: Prisma.PaymentVoucherWhereInput = {
+      ...(fromDate &&
+        toDate && {
+          paymentDate: {
+            gte: new Date(fromDate),
+            lte: new Date(toDate),
+          },
+        }),
+    };
+
+    // Get all vouchers in period (including pending and unposted)
+    const vouchers = await prisma.paymentVoucher.findMany({
+      where,
+      select: {
+        id: true,
+        amount: true,
+        paymentMethod: true,
+        approvedBy: true,
+        isPosted: true,
+      },
+    });
+
+    const totalAmount = vouchers.reduce((sum, v) => sum + Number(v.amount), 0);
+    const cashAmount = vouchers
+      .filter((v) => v.paymentMethod === 'cash')
+      .reduce((sum, v) => sum + Number(v.amount), 0);
+    const transferAmount = vouchers
+      .filter((v) => v.paymentMethod === 'transfer')
+      .reduce((sum, v) => sum + Number(v.amount), 0);
+
+    const approvedVouchers = vouchers.filter((v) => v.approvedBy).length;
+    const pendingVouchers = vouchers.filter((v) => !v.approvedBy).length;
+    const postedVouchers = vouchers.filter((v) => v.isPosted).length;
+
+    const pendingAmount = vouchers
+      .filter((v) => !v.approvedBy)
+      .reduce((sum, v) => sum + Number(v.amount), 0);
+
+    return {
+      totalVouchers: vouchers.length,
+      totalAmount,
+      cashAmount,
+      transferAmount,
+      approvedVouchers,
+      pendingVouchers,
+      pendingAmount,
+      postedVouchers,
+    };
   }
 
   async getSummary(fromDate?: string, toDate?: string) {
