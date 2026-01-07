@@ -9,6 +9,35 @@ import {
 } from '@validators/promotion.validator';
 
 class PromotionController {
+
+  // GET /api/promotions/summary - Get promotion statistics
+  async getSummary(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { fromDate, toDate } = req.query;
+      
+      // Gọi service để lấy số liệu
+      const stats = await promotionService.getSummary({
+        fromDate: fromDate as string,
+        toDate: toDate as string,
+      });
+
+      res.json({
+        success: true,
+        data: stats,
+        timestamp: new Date().toISOString(),
+      });
+      console.log('get summary with data:', stats);
+    } catch (error: any) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'INTERNAL_ERROR',
+          message: error.message,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+  }
   // GET /api/promotions - Get all promotions
   async getAll(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -21,6 +50,8 @@ class PromotionController {
         meta: result.meta,
         timestamp: new Date().toISOString(),
       });
+
+      // console.log('PromotionController.getAll executed with data:', result.data);
     } catch (error: any) {
       res.status(error.statusCode || 500).json({
         success: false,
@@ -44,6 +75,7 @@ class PromotionController {
         data: promotion,
         timestamp: new Date().toISOString(),
       });
+      console.log('get by id with data:', promotion);
     } catch (error: any) {
       res.status(error.statusCode || 500).json({
         success: false,

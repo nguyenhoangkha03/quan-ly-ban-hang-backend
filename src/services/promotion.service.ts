@@ -35,11 +35,45 @@ interface ApplyPromotionResult {
 }
 
 class PromotionService {
+
+  // GET /api/promotions/summary - Get promotion statistics 
+ async getSummary(filter: { fromDate?: string; toDate?: string }) {
+    const whereClause: any = {
+       // Nếu có dùng soft delete (isDeleted) thì thêm vào đây
+       // isDeleted: false, 
+    };
+
+    // Lọc theo ngày nếu có
+    if (filter.fromDate || filter.toDate) {
+      whereClause.startDate = {};
+      if (filter.fromDate) whereClause.startDate.gte = new Date(filter.fromDate);
+      if (filter.toDate) whereClause.startDate.lte = new Date(filter.toDate);
+    }
+
+    // Chạy song song 5 câu lệnh count để tối ưu tốc độ
+    const [total, active, pending, expired, cancelled] = await Promise.all([
+      prisma.promotion.count({ where: whereClause }),
+      prisma.promotion.count({ where: { ...whereClause, status: 'active' } }),
+      prisma.promotion.count({ where: { ...whereClause, status: 'pending' } }),
+      prisma.promotion.count({ where: { ...whereClause, status: 'expired' } }),
+      prisma.promotion.count({ where: { ...whereClause, status: 'cancelled' } }),
+    ]);
+
+    return {
+      totalPromotions: total,
+      activePromotions: active,
+      pendingPromotions: pending,
+      expiredPromotions: expired,
+      cancelledPromotions: cancelled,
+      totalUsage: 0, // Có thể update sau nếu muốn tính tổng lượt dùng
+    };
+  }
   // Get all promotions with filters
   async getAll(params: PromotionQueryInput) {
+    const page = Number(params.page) || 1;
+    const limit = Number(params.limit) || 20;
+
     const {
-      page = 1,
-      limit = 20,
       search,
       promotionType,
       status,
@@ -411,9 +445,40 @@ class PromotionService {
     return updated;
   }
 
-  // Delete promotion (soft delete via cancel)
+  // HÀM DELETE (ĐÂY LÀ XÓA CỨNG/PERMANENT DELETE) ---
+  // Hàm này chỉ xóa được khi chương trình chưa được sử dụng
   async delete(id: number, userId: number) {
-    return this.cancel(id, 'Deleted by user', userId);
+    // 1. Tìm thông tin
+    const promotion = await prisma.promotion.findUnique({
+      where: { id },
+    });
+
+    if (!promotion) {
+      throw new NotFoundError('Promotion');
+    }
+
+    // 2. Kiểm tra điều kiện "Chưa được dùng"
+    // Kiểm tra usageCount
+    if (promotion.usageCount > 0) {
+       throw new ValidationError('Không thể xóa vĩnh viễn chương trình đã có lượt sử dụng. Vui lòng sử dụng tính năng "Dừng" (Cancel).');
+    }
+
+    // 3. (Optional) Kiểm tra thêm ràng buộc Foreign Key với bảng Orders nếu có
+    // Nếu Prisma Schema có relation orders Order[], thì nên check:
+    // const linkedOrders = await prisma.order.count({ where: { promotionId: id } });
+    // if (linkedOrders > 0) throw ...
+
+    // 4. Thực hiện xóa cứng
+    // Do có relation onDelete: Cascade ở PromotionProduct, nên nó sẽ tự xóa các sản phẩm con
+    // Nếu không có Cascade, phải xóa promotionProduct trước.
+    await prisma.promotion.delete({
+      where: { id },
+    });
+
+    // 5. Log activity
+    logActivity('delete_permanent', userId, 'promotions', { id, code: promotion.promotionCode });
+
+    return { message: 'Xóa chương trình khuyến mãi thành công' };
   }
 
   // Get active promotions
