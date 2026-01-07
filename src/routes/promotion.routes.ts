@@ -82,7 +82,7 @@ router.post(
 router.put(
   '/:id',
   authorize('update_promotion'),
-  validate(updatePromotionSchema),
+  validateNested(updatePromotionSchema),
   asyncHandler(promotionController.update.bind(promotionController))
 );
 
