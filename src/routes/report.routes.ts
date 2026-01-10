@@ -231,12 +231,11 @@ router.get(
 // =====================================================
 // FINANCIAL REPORTS
 // =====================================================
-// GET /api/reports/financial - Financial summary
+// GET /api/reports/financial - Financial report
 router.get(
   '/financial',
   authorize('view_reports'),
-  validate(dateRangeSchema),
-  asyncHandler(reportController.getFinancialSummary.bind(reportController))
+  asyncHandler(reportController.getFinancialReport.bind(reportController))
 );
 
 export default router;
