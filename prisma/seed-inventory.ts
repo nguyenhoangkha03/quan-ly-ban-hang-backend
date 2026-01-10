@@ -45,7 +45,7 @@ export async function main() {
               productId: product.id,
               quantity: item.quantity,
               reservedQuantity: item.reserved,
-              updatedBy: 10, // Manager của kho này
+              updatedBy: 6, // Manager của kho này
             },
           });
         }
@@ -154,7 +154,7 @@ export async function main() {
               productId: product.id,
               quantity: item.quantity,
               reservedQuantity: item.reserved,
-              updatedBy: 9,
+              updatedBy: 6,
             },
           });
         }
@@ -224,7 +224,7 @@ export async function main() {
               productId: product.id,
               quantity: item.quantity,
               reservedQuantity: item.reserved,
-              updatedBy: 11,
+              updatedBy: 8,
             },
           });
         }
@@ -256,7 +256,7 @@ export async function main() {
               productId: product.id,
               quantity: item.quantity,
               reservedQuantity: item.reserved,
-              updatedBy: 12,
+              updatedBy: 7,
             },
           });
         }
@@ -351,7 +351,7 @@ export async function main() {
               productId: product.id,
               quantity: item.quantity,
               reservedQuantity: item.reserved,
-              updatedBy: 9,
+              updatedBy: 7,
             },
           });
         }
@@ -384,7 +384,7 @@ export async function main() {
               productId: product.id,
               quantity: item.quantity,
               reservedQuantity: item.reserved,
-              updatedBy: 10,
+              updatedBy: 7,
             },
           });
         }
@@ -461,11 +461,11 @@ export async function main() {
     `);
 }
 
-// main()
-//   .catch((e) => {
-//     console.error('❌ Lỗi khi seed inventory:', e);
-//     process.exit(1);
-//   })
-//   .finally(async () => {
-//     await prisma.$disconnect();
-//   });
+main()
+  .catch((e) => {
+    console.error('❌ Lỗi khi seed inventory:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

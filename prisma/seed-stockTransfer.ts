@@ -452,7 +452,7 @@ async function main() {
 │   ├── In Transit (Đang vận chuyển): 2 phiếu
 │   ├── Completed (Hoàn thành): 4 phiếu
 │   └── Cancelled (Đã hủy): 1 phiếu
-├── Tổng chi tiết: ${transferData.reduce((sum, t) => sum + t.details.length, 0)} chi tiết
+├── Tổng chi tiết: ${transferData.reduce((sum, t) => sum + (Array.isArray(t.details) ? t.details.length : 0), 0)} chi tiết
 └── Kho liên quan: ${warehouses.length} kho
 
 📊 Phân bố ngày:

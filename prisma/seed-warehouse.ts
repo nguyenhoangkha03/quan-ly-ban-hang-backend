@@ -76,7 +76,7 @@ async function main() {
     create: {
       warehouseCode: 'KHO-BB-DT',
       warehouseName: 'Kho Bao Bì & Vật Liệu Đóng Gói',
-      managerId: 9,
+      managerId: 6,
       warehouseType: 'packaging', // Kho bao bì
       address: 'Quốc Lộ 30, ấp Đông Mỹ, xã Mỹ Hội',
       city: 'Cao Lãnh',
@@ -98,7 +98,7 @@ async function main() {
       warehouseName: 'Kho Thành Phẩm Xuất Hàng',
       warehouseType: 'finished_product', // Kho thành phẩm
       address: 'Quốc Lộ 30, ấp Đông Mỹ, xã Mỹ Hội',
-      managerId: 10,
+      managerId: 7,
       city: 'Cao Lãnh',
       region: 'Đồng Tháp',
       description: 'Sản phẩm hoàn thiện sẵn sàng xuất kho bán hàng',
@@ -116,7 +116,7 @@ async function main() {
     create: {
       warehouseCode: 'KHO-CN-CT',
       warehouseName: 'Chi Nhánh Cần Thơ',
-      managerId: 11,
+      managerId:8,
       warehouseType: 'goods', // Kho hàng hóa
       address: 'Đường 3/2, Phường Xuân Khánh, Quận Ninh Kiều',
       city: 'Cần Thơ',
@@ -136,7 +136,7 @@ async function main() {
     create: {
       warehouseCode: 'KHO-CN-DN',
       warehouseName: 'Chi Nhánh Đồng Nai',
-      managerId: 12,
+      managerId: 8,
       warehouseType: 'goods',
       address: 'KCN Biên Hòa 2, Phường Long Bình Tân',
       city: 'Biên Hòa',
@@ -215,7 +215,7 @@ async function main() {
     update: {},
     create: {
       warehouseCode: 'KHO-CL-QC',
-      managerId: 9,
+      managerId: 6,
       warehouseName: 'Kho Cách Ly & Kiểm Định Chất Lượng',
       warehouseType: 'goods', // Kho hàng hóa
       address: 'Quốc Lộ 30, ấp Đông Mỹ, xã Mỹ Hội',
@@ -236,7 +236,7 @@ async function main() {
     create: {
       warehouseCode: 'KHO-DT-MV',
       warehouseName: 'Kho Dự Trữ Mùa Vụ',
-      managerId: 10,
+      managerId: 8,
       warehouseType: 'goods', // Kho hàng hóa
       address: 'Quốc Lộ 30, ấp Đông Mỹ, xã Mỹ Hội',
       city: 'Cao Lãnh',
@@ -256,7 +256,7 @@ async function main() {
     create: {
       warehouseCode: 'KHO-OLD-AG',
       warehouseName: 'Kho Cũ An Giang (Đã đóng)',
-      managerId: 11,
+      managerId: 7,
       warehouseType: 'goods',
       address: 'Đường Trần Hưng Đạo, TP. Long Xuyên',
       city: 'Long Xuyên',
@@ -292,11 +292,11 @@ async function main() {
 
 export { main };
 
-// main()
-//   .catch((e) => {
-//     console.error('❌ Lỗi khi seed warehouse:', e);
-//     process.exit(1);
-//   })
-//   .finally(async () => {
-//     await prisma.$disconnect();
-//   });
+main()
+  .catch((e) => {
+    console.error('❌ Lỗi khi seed warehouse:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

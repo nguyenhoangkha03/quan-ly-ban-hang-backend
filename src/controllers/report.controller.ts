@@ -175,6 +175,17 @@ class ReportController {
     });
   }
 
+  // GET /api/reports/inventory/stock-flow - Stock flow report
+  async getInventoryStockFlow(req: AuthRequest, res: Response) {
+    const result = await reportService.getInventoryStockFlow(req.query as any);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // GET /api/reports/sales/top-products - Top selling products
   async getTopSellingProducts(req: AuthRequest, res: Response) {
     const { limit, fromDate, toDate } = req.query;
@@ -182,6 +193,99 @@ class ReportController {
       limit ? parseInt(limit as string) : 10,
       fromDate as string,
       toDate as string
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales - Complete sales report
+  async getSalesReport(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy, orderStatus } = req.query;
+    const result = await reportService.getSalesReport({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+      orderStatus: orderStatus as any,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/summary - KPI Summary
+  async getSalesSummary(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy } = req.query;
+    const result = await reportService.getSalesSummary({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/charts - Charts data
+  async getSalesCharts(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy } = req.query;
+    const result = await reportService.getSalesCharts({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/top - Top analysis
+  async getSalesTopAnalysis(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy, type } = req.query;
+    const result = await reportService.getSalesTopAnalysis({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+      type: (type as any) || 'product',
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/filter-options - Filter options
+  async getFilterOptions(req: AuthRequest, res: Response) {
+    const { action, keyword } = req.query;
+    const result = await reportService.getFilterOptions(
+      (action as any) || 'get-sales-staff',
+      keyword as string
     );
 
     res.status(200).json({

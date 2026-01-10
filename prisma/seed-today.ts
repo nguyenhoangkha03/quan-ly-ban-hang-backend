@@ -6,7 +6,7 @@ async function main() {
   console.log('🌱 Seeding sales orders for today (2026-01-04)...\n');
 
   try {
-    // Get a customer and user for orders
+    // Get a customer, user, product, and warehouse for orders
     const customer = await prisma.customer.findFirst({
       where: { status: 'active' },
     });
@@ -19,14 +19,23 @@ async function main() {
       where: { status: 'active' },
     });
 
-    if (!customer || !user || !product) {
-      console.error('❌ Missing required data: customer, user, or product');
+    const warehouse = await prisma.warehouse.findFirst({
+      where: { status: 'active' },
+    });
+
+    if (!customer || !user || !product || !warehouse) {
+      console.error('❌ Missing required data: customer, user, product, or warehouse');
+      console.error(`Customer: ${customer ? 'OK' : 'MISSING'}`);
+      console.error(`User: ${user ? 'OK' : 'MISSING'}`);
+      console.error(`Product: ${product ? 'OK' : 'MISSING'}`);
+      console.error(`Warehouse: ${warehouse ? 'OK' : 'MISSING'}`);
       process.exit(1);
     }
 
     console.log(`Using Customer: ${customer.customerName}`);
     console.log(`Using User: ${user.fullName}`);
-    console.log(`Using Product: ${product.productName}\n`);
+    console.log(`Using Product: ${product.productName}`);
+    console.log(`Using Warehouse: ${warehouse.warehouseName}\n`);
 
     // Today date (2026-01-04)
     const today = new Date('2026-01-04T10:00:00Z');
@@ -40,7 +49,7 @@ async function main() {
           orderCode: 'DH-2026-00041',
           customerId: customer.id,
           createdBy: user.id,
-          warehouseId: 1,
+          warehouseId: warehouse.id,
           orderDate: today,
           completedAt: completedToday,
           salesChannel: 'retail',
@@ -58,7 +67,7 @@ async function main() {
             create: [
               {
                 productId: product.id,
-                warehouseId: 1,
+                warehouseId: warehouse.id,
                 quantity: '100',
                 unitPrice: product.sellingPriceRetail || '50000',
                 discountPercent: 10,
@@ -74,7 +83,7 @@ async function main() {
           orderCode: 'DH-2026-00042',
           customerId: customer.id,
           createdBy: user.id,
-          warehouseId: 1,
+          warehouseId: warehouse.id,
           orderDate: today,
           completedAt: completedToday,
           salesChannel: 'wholesale',
@@ -92,7 +101,7 @@ async function main() {
             create: [
               {
                 productId: product.id,
-                warehouseId: 1,
+                warehouseId: warehouse.id,
                 quantity: '150',
                 unitPrice: product.sellingPriceWholesale || '53000',
                 discountPercent: 10,
@@ -108,7 +117,7 @@ async function main() {
           orderCode: 'DH-2026-00043',
           customerId: customer.id,
           createdBy: user.id,
-          warehouseId: 1,
+          warehouseId: warehouse.id,
           orderDate: today,
           completedAt: completedToday,
           salesChannel: 'online',
@@ -126,7 +135,7 @@ async function main() {
             create: [
               {
                 productId: product.id,
-                warehouseId: 1,
+                warehouseId: warehouse.id,
                 quantity: '70',
                 unitPrice: product.sellingPriceRetail || '50000',
                 discountPercent: 0,
@@ -142,7 +151,7 @@ async function main() {
           orderCode: 'DH-2026-00044',
           customerId: customer.id,
           createdBy: user.id,
-          warehouseId: 1,
+          warehouseId: warehouse.id,
           orderDate: today,
           completedAt: null,
           salesChannel: 'distributor',
@@ -160,7 +169,7 @@ async function main() {
             create: [
               {
                 productId: product.id,
-                warehouseId: 1,
+                warehouseId: warehouse.id,
                 quantity: '120',
                 unitPrice: product.sellingPriceWholesale || '50000',
                 discountPercent: 10,
@@ -176,7 +185,7 @@ async function main() {
           orderCode: 'DH-2026-00045',
           customerId: customer.id,
           createdBy: user.id,
-          warehouseId: 1,
+          warehouseId: warehouse.id,
           orderDate: today,
           completedAt: null,
           salesChannel: 'retail',
@@ -194,7 +203,7 @@ async function main() {
             create: [
               {
                 productId: product.id,
-                warehouseId: 1,
+                warehouseId: warehouse.id,
                 quantity: '50',
                 unitPrice: product.sellingPriceRetail || '50000',
                 discountPercent: 10,

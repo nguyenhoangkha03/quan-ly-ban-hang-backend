@@ -24,7 +24,7 @@ async function main() {
     });
 
     const admin = await prisma.user.findFirst({
-      where: { email: 'nhoangkha03@gmail.com' },
+      where: { email: 'leeminhkang@gmail.com' },
     });
 
     if (!accountant || !admin) {
