@@ -62,6 +62,8 @@ class ProductService {
       sortOrder = 'desc',
     } = params;
 
+    console.log('productType', productType);
+
     const offset = (page - 1) * limit;
 
     const queryString = Object.keys(params).length > 0 ? JSON.stringify(params) : 'default';
@@ -84,7 +86,9 @@ class ProductService {
           { barcode: { contains: search } },
         ],
       }),
-      ...(productType && { productType: productType as any }),
+      ...(productType && {
+        productType: Array.isArray(productType) ? { in: productType } : productType,
+      }),
       ...(packagingType && { packagingType: packagingType as any }),
       ...(categoryId && { categoryId }),
       ...(supplierId && { supplierId }),

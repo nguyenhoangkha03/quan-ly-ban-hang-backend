@@ -13,6 +13,7 @@ import {
   applyPromotionSchema,
   getActivePromotionsSchema,
 } from '@validators/promotion.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -53,6 +54,7 @@ router.post(
   '/',
   authorize('create_promotion'),
   validate(createPromotionSchema),
+  logActivityMiddleware('create', 'promotion'),
   asyncHandler(promotionController.create.bind(promotionController))
 );
 
@@ -61,6 +63,7 @@ router.put(
   '/:id',
   authorize('update_promotion'),
   validate(updatePromotionSchema),
+  logActivityMiddleware('update', 'promotion'),
   asyncHandler(promotionController.update.bind(promotionController))
 );
 
@@ -69,6 +72,7 @@ router.put(
   '/:id/approve',
   authorize('approve_promotion'),
   validate(approvePromotionSchema),
+  logActivityMiddleware('approve', 'promotion'),
   asyncHandler(promotionController.approve.bind(promotionController))
 );
 
@@ -77,6 +81,7 @@ router.delete(
   '/:id',
   authorize('cancel_promotion'),
   validate(cancelPromotionSchema),
+  logActivityMiddleware('cancel', 'promotion'),
   asyncHandler(promotionController.cancel.bind(promotionController))
 );
 
@@ -84,6 +89,7 @@ router.delete(
 router.post(
   '/:id/apply',
   validate(applyPromotionSchema),
+  logActivityMiddleware('apply', 'promotion'),
   asyncHandler(promotionController.apply.bind(promotionController))
 );
 

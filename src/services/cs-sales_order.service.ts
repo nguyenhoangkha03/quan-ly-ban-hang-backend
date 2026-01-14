@@ -255,7 +255,9 @@ class CustomerSalesOrderService {
 
     const where: Prisma.SalesOrderWhereInput = {
       customerId: customerId,
-      ...(orderStatus && { orderStatus }),
+      ...(orderStatus && {
+        orderStatus: Array.isArray(orderStatus) ? { in: orderStatus } : orderStatus,
+      }),
       ...(fromDate &&
         toDate && {
           orderDate: { gte: new Date(fromDate), lte: new Date(toDate) },

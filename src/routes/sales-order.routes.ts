@@ -2,7 +2,7 @@ import { Router } from 'express';
 import salesOrderController from '@controllers/sales-order.controller';
 import { authentication } from '@middlewares/auth';
 import { authorize } from '@middlewares/authorize';
-import { validateNested } from '@middlewares/validate';
+import { validate } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
 import {
   createSalesOrderSchema,
@@ -12,6 +12,7 @@ import {
   processPaymentSchema,
   salesOrderQuerySchema,
 } from '@validators/sales-order.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.use(authentication);
 router.get(
   '/',
   authorize('view_sales_orders'),
-  validateNested(salesOrderQuerySchema),
+  validate(salesOrderQuerySchema, 'query'),
   asyncHandler(salesOrderController.getAll.bind(salesOrderController))
 );
 
@@ -37,7 +38,8 @@ router.get(
 router.post(
   '/',
   authorize('create_sales_order'),
-  validateNested(createSalesOrderSchema),
+  validate(createSalesOrderSchema),
+  logActivityMiddleware('create', 'sales_order'),
   asyncHandler(salesOrderController.create.bind(salesOrderController))
 );
 
@@ -45,7 +47,8 @@ router.post(
 router.put(
   '/:id',
   authorize('update_sales_order'),
-  validateNested(updateSalesOrderSchema),
+  validate(updateSalesOrderSchema),
+  logActivityMiddleware('update', 'sales_order'),
   asyncHandler(salesOrderController.update.bind(salesOrderController))
 );
 
@@ -53,7 +56,8 @@ router.put(
 router.put(
   '/:id/approve',
   authorize('approve_sales_order'),
-  validateNested(approveOrderSchema),
+  validate(approveOrderSchema),
+  logActivityMiddleware('approve', 'sales_order'),
   asyncHandler(salesOrderController.approve.bind(salesOrderController))
 );
 
@@ -61,6 +65,7 @@ router.put(
 router.put(
   '/:id/complete',
   authorize('complete_sales_order'),
+  logActivityMiddleware('complete', 'sales_order'),
   asyncHandler(salesOrderController.complete.bind(salesOrderController))
 );
 
@@ -68,7 +73,8 @@ router.put(
 router.put(
   '/:id/cancel',
   authorize('cancel_sales_order'),
-  validateNested(cancelOrderSchema),
+  validate(cancelOrderSchema),
+  logActivityMiddleware('cancel', 'sales_order'),
   asyncHandler(salesOrderController.cancel.bind(salesOrderController))
 );
 
@@ -76,7 +82,8 @@ router.put(
 router.post(
   '/:id/payment',
   authorize('process_payment'),
-  validateNested(processPaymentSchema),
+  validate(processPaymentSchema),
+  logActivityMiddleware('process', 'sales_order'),
   asyncHandler(salesOrderController.processPayment.bind(salesOrderController))
 );
 
@@ -84,7 +91,15 @@ router.post(
 router.delete(
   '/:id',
   authorize('delete_sales_order'),
+  logActivityMiddleware('delete', 'sales_order'),
   asyncHandler(salesOrderController.delete.bind(salesOrderController))
+);
+
+// POST /api/sales-orders/refresh - Refresh cache
+router.post(
+  '/refresh',
+  authorize('view_sales_orders'),
+  asyncHandler(salesOrderController.refresh.bind(salesOrderController))
 );
 
 export default router;

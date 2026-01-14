@@ -203,6 +203,28 @@ class PaymentVoucherController {
       timestamp: new Date().toISOString(),
     });
   }
+
+  // POST /api/payment-vouchers/refresh - Refresh cache
+  async refreshCache(_req: any, res: Response) {
+    try {
+      const result = await paymentVoucherService.refreshCache();
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: "Làm mới cache thành công",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: {
+          message: error?.message || "Làm mới cache thất bại",
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
 }
 
 export default new PaymentVoucherController();

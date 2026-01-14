@@ -959,6 +959,21 @@ class PaymentVoucherService {
 
     return result;
   }
+
+  async refreshCache() {
+    try {
+      // Xóa tất cả payment voucher cache
+      await redis.flushPattern('payment-voucher:*');
+      
+      return {
+        message: 'Cache đã được làm mới',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('❌ Lỗi khi làm mới cache:', error);
+      throw error;
+    }
+  }
 }
 
 export default new PaymentVoucherService();

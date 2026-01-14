@@ -9,8 +9,14 @@ import {
   PostReceiptInput,
   PaymentReceiptQueryInput,
 } from '@validators/payment-receipt.validator';
+import { sortedQuery } from '@utils/redis';
+import RedisService from './redis.service';
 
 const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
+
+const PAYMENT_RECEIPT_CACHE_TTL = 3600;
+const PAYMENT_RECEIPT_LIST_CACHE_TTL = 600;
 
 class PaymentReceiptService {
   private async generateReceiptCode(): Promise<string> {
@@ -30,30 +36,62 @@ class PaymentReceiptService {
     return `PT-${dateStr}-${sequence}`;
   }
 
-  async getAll(params: PaymentReceiptQueryInput) {
+  async getAll(query: PaymentReceiptQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
       search,
       customerId,
       orderId,
       receiptType,
       paymentMethod,
       isPosted,
+      approvalStatus,
+      postedStatus,
       fromDate,
       toDate,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
-    } = params;
+    } = query;
 
-    const offset = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Cache key
+    const cacheKey = `payment-receipt:list:${JSON.stringify(sortedQuery(query))}`;
+
+    const cache = await redis.get(cacheKey);
+    if (cache) {
+      console.log(`✅ Cache tìm thấy: ${cacheKey}`);
+      return cache;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, đang truy vấn từ database...`);
+
+    // Xử lý approvalStatus
+    let approvalStatusWhere: any = {};
+    if (approvalStatus === 'approved') {
+      approvalStatusWhere = { approvedBy: { not: null } };
+    } else if (approvalStatus === 'pending') {
+      approvalStatusWhere = { approvedBy: null };
+    }
+
+    // Xử lý postedStatus
+    let postedStatusWhere: any = {};
+    if (postedStatus === 'posted') {
+      postedStatusWhere = { isPosted: true };
+    } else if (postedStatus === 'draft') {
+      postedStatusWhere = { isPosted: false };
+    }
 
     const where: Prisma.PaymentReceiptWhereInput = {
+      deletedAt: null,
       ...(customerId && { customerId }),
       ...(orderId && { orderId }),
       ...(receiptType && { receiptType }),
       ...(paymentMethod && { paymentMethod }),
       ...(isPosted !== undefined && { isPosted }),
+      ...approvalStatusWhere,
+      ...postedStatusWhere,
       ...(search && {
         OR: [
           { receiptCode: { contains: search } },
@@ -104,24 +142,107 @@ class PaymentReceiptService {
           },
         },
         skip: offset,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        take: limitNum,
+        orderBy: [
+          // Đặt null (chờ duyệt) lên đầu bằng cách sort ASC
+          { approvedAt: 'asc' }, // null ở đầu, sau đó tăng dần theo thời gian
+          { isPosted: 'asc' }, // false (chưa ghi sổ) trước true
+          { createdAt: 'desc' }, // mới nhất trên
+        ],
       }),
       prisma.paymentReceipt.count({ where }),
     ]);
 
-    return {
-      data: receipts,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+    const sortedData = receipts.sort((a, b) => {
+      // Ưu tiên 1: approvedAt null lên đầu
+      if (a.approvedAt === null && b.approvedAt !== null) return -1;
+      if (a.approvedAt !== null && b.approvedAt === null) return 1;
+
+      // Ưu tiên 2: Nếu cả 2 đã duyệt, sắp xếp theo isPosted (false trước true)
+      if (a.approvedAt !== null && b.approvedAt !== null) {
+        if (a.isPosted === false && b.isPosted === true) return -1;
+        if (a.isPosted === true && b.isPosted === false) return 1;
+      }
+
+      // Ưu tiên 3: Mới nhất lên đầu
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // Stat Cards - Lấy tất cả receipts (không pagination)
+    const allReceipts = await prisma.paymentReceipt.findMany({
+      where,
+      select: {
+        id: true,
+        amount: true,
+        paymentMethod: true,
+        approvedBy: true,
+        isPosted: true,
       },
+    });
+
+    const totalAmount = allReceipts.reduce((sum, r) => sum + Number(r.amount), 0);
+    const cashAmount = allReceipts
+      .filter((r) => r.paymentMethod === 'cash')
+      .reduce((sum, r) => sum + Number(r.amount), 0);
+    const transferAmount = allReceipts
+      .filter((r) => r.paymentMethod === 'transfer')
+      .reduce((sum, r) => sum + Number(r.amount), 0);
+    const cardAmount = allReceipts
+      .filter((r) => r.paymentMethod === 'card')
+      .reduce((sum, r) => sum + Number(r.amount), 0);
+
+    const approvedReceipts = allReceipts.filter((r) => r.approvedBy).length;
+    const pendingReceipts = allReceipts.filter((r) => !r.approvedBy).length;
+    const postedReceipts = allReceipts.filter((r) => r.isPosted).length;
+    const unpostedAmount = allReceipts
+      .filter((r) => !r.isPosted)
+      .reduce((sum, r) => sum + Number(r.amount), 0);
+
+    const pendingAmount = allReceipts
+      .filter((r) => !r.approvedBy)
+      .reduce((sum, r) => sum + Number(r.amount), 0);
+
+    const statistics = {
+      totalReceipts: allReceipts.length,
+      totalAmount,
+      cashAmount,
+      transferAmount,
+      cardAmount,
+      approvedReceipts,
+      pendingReceipts,
+      postedReceipts,
+      unpostedAmount,
+      pendingAmount,
     };
+
+    const result = {
+      data: sortedData,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+      statistics,
+    };
+
+    await redis.set(cacheKey, result, PAYMENT_RECEIPT_LIST_CACHE_TTL);
+
+    return result;
   }
 
   async getById(id: number) {
+    const cacheKey = `payment-receipt:${id}`;
+
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Cache tìm thấy: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`⚠️ Không có cache: ${cacheKey}, đang truy vấn từ database...`);
+
     const receipt = await prisma.paymentReceipt.findUnique({
       where: { id },
       include: {
@@ -170,6 +291,8 @@ class PaymentReceiptService {
     if (!receipt) {
       throw new NotFoundError('Payment receipt not found');
     }
+
+    await redis.set(cacheKey, receipt, PAYMENT_RECEIPT_CACHE_TTL);
 
     return receipt;
   }
@@ -285,6 +408,8 @@ class PaymentReceiptService {
       return receipt;
     });
 
+    await redis.flushPattern('payment-receipt:list:*');
+
     logActivity('create', userId, 'payment_receipts', {
       recordId: result.id,
       receiptCode: result.receiptCode,
@@ -359,6 +484,9 @@ class PaymentReceiptService {
       changes: data,
     });
 
+    await redis.flushPattern('payment-receipt:list:*');
+    await redis.del(`payment-receipt:${id}`);
+
     return result;
   }
 
@@ -400,6 +528,9 @@ class PaymentReceiptService {
       receiptCode: receipt.receiptCode,
     });
 
+    await redis.flushPattern('payment-receipt:list:*');
+    await redis.del(`payment-receipt:${id}`);
+
     return updatedReceipt;
   }
 
@@ -440,6 +571,9 @@ class PaymentReceiptService {
       receiptCode: receipt.receiptCode,
     });
 
+    await redis.flushPattern('payment-receipt:list:*');
+    await redis.del(`payment-receipt:${id}`);
+
     return updatedReceipt;
   }
 
@@ -463,18 +597,29 @@ class PaymentReceiptService {
       throw new ValidationError('Cannot delete approved receipt');
     }
 
-    await prisma.$transaction(async (tx) => {
-      await this.revertFinancialImpact(receipt, userId);
+    // await prisma.$transaction(async (tx) => {
+    //   await this.revertFinancialImpact(receipt, userId);
 
-      await tx.paymentReceipt.delete({
-        where: { id },
-      });
+    //   await tx.paymentReceipt.delete({
+    //     where: { id },
+    //   });
+    // });
+
+    // soft delete
+    await prisma.paymentReceipt.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
 
     logActivity('delete', userId, 'payment_receipts', {
       recordId: id,
       receiptCode: receipt.receiptCode,
     });
+
+    await redis.flushPattern('payment-receipt:list:*');
+    await redis.del(`payment-receipt:${id}`);
 
     return { message: 'Payment receipt deleted successfully' };
   }
@@ -646,6 +791,21 @@ class PaymentReceiptService {
       byType,
       byMethod,
     };
+  }
+
+  async refreshCache() {
+    try {
+      // Xóa tất cả payment receipt cache
+      await redis.flushPattern('payment-receipt:*');
+
+      return {
+        message: 'Cache đã được làm mới',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('❌ Lỗi khi làm mới cache:', error);
+      throw error;
+    }
   }
 }
 

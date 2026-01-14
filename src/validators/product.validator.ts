@@ -92,27 +92,38 @@ export const updateProductSchema = z.object({
   status: z.enum(['active', 'inactive', 'discontinued']).optional(),
 });
 
-export const updateFeaturedSchema = z.object({
-  action: z.enum(['set_featured', 'unset_featured', 'reset_all']),
-  productIds: z.array(z.number().int().positive()).optional(),
-}).refine((data) => {
-  if (['set_featured', 'unset_featured'].includes(data.action)) {
-    return data.productIds && data.productIds.length > 0;
-  }
-  return true;
-}, {
-  message: "productIds is required for set/unset actions",
-  path: ["productIds"]
-});
+export const updateFeaturedSchema = z
+  .object({
+    action: z.enum(['set_featured', 'unset_featured', 'reset_all']),
+    productIds: z.array(z.number().int().positive()).optional(),
+  })
+  .refine(
+    (data) => {
+      if (['set_featured', 'unset_featured'].includes(data.action)) {
+        return data.productIds && data.productIds.length > 0;
+      }
+      return true;
+    },
+    {
+      message: 'productIds is required for set/unset actions',
+      path: ['productIds'],
+    }
+  );
 
 export const productQuerySchema = z.object({
   page: z.string().optional().default('1').transform(Number),
   limit: z.string().optional().default('20').transform(Number),
   search: z.string().optional(),
   productType: z
-    .enum(['raw_material', 'packaging', 'finished_product', 'goods'])
-    .refine((val) => !!val, { message: 'Loại không hợp lệ!' })
-    .optional(),
+    .union([
+      z.enum(['raw_material', 'packaging', 'finished_product', 'goods']),
+      z.array(z.enum(['raw_material', 'packaging', 'finished_product', 'goods'])),
+    ])
+    .optional()
+    .transform((val) => {
+      if (typeof val === 'string') return [val];
+      return val;
+    }),
   packagingType: z
     .enum(['bottle', 'box', 'bag', 'label', 'other'])
     .refine((val) => !!val, { message: 'Loại bao bì không hợp lệ!' })

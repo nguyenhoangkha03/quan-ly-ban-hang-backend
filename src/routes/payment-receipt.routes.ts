@@ -11,6 +11,7 @@ import {
   postReceiptSchema,
   paymentReceiptQuerySchema,
 } from '@validators/payment-receipt.validator';
+import { logActivityMiddleware } from '@middlewares/logger';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ router.get(
 router.get(
   '/',
   authorize('view_payment_receipts'),
-  validate(paymentReceiptQuerySchema),
+  validate(paymentReceiptQuerySchema, 'query'),
   asyncHandler(paymentReceiptController.getAll.bind(paymentReceiptController))
 );
 
@@ -51,6 +52,7 @@ router.post(
   '/',
   authorize('create_payment_receipt'),
   validate(createPaymentReceiptSchema),
+  logActivityMiddleware('create', 'payment_receipt'),
   asyncHandler(paymentReceiptController.create.bind(paymentReceiptController))
 );
 
@@ -59,6 +61,7 @@ router.put(
   '/:id',
   authorize('update_payment_receipt'),
   validate(updatePaymentReceiptSchema),
+  logActivityMiddleware('update', 'payment_receipt'),
   asyncHandler(paymentReceiptController.update.bind(paymentReceiptController))
 );
 
@@ -67,6 +70,7 @@ router.put(
   '/:id/approve',
   authorize('approve_payment_receipt'),
   validate(approveReceiptSchema),
+  logActivityMiddleware('approve', 'payment_receipt'),
   asyncHandler(paymentReceiptController.approve.bind(paymentReceiptController))
 );
 
@@ -75,13 +79,22 @@ router.post(
   '/:id/post',
   authorize('post_payment_receipt'),
   validate(postReceiptSchema),
+  logActivityMiddleware('post', 'payment_receipt'),
   asyncHandler(paymentReceiptController.post.bind(paymentReceiptController))
+);
+
+// POST /api/payment-receipts/refresh - Refresh cache
+router.post(
+  '/refresh',
+  authorize('view_payment_receipts'),
+  asyncHandler(paymentReceiptController.refreshCache.bind(paymentReceiptController))
 );
 
 // DELETE /api/payment-receipts/:id - Delete payment receipt
 router.delete(
   '/:id',
   authorize('delete_payment_receipt'),
+  logActivityMiddleware('delete', 'payment_receipt'),
   asyncHandler(paymentReceiptController.delete.bind(paymentReceiptController))
 );
 

@@ -11,6 +11,7 @@ class SalesOrderController {
       success: true,
       data: result.data,
       meta: result.meta,
+      statistics: result.statistics,
       timestamp: new Date().toISOString(),
     });
   }
@@ -34,14 +35,8 @@ class SalesOrderController {
 
     res.status(201).json({
       success: true,
-      data: result.order,
-      ...(result.inventoryShortages && {
-        warnings: {
-          inventoryShortages: result.inventoryShortages,
-          message: 'Order created but some products have insufficient inventory',
-        },
-      }),
-      message: 'Sales order created successfully',
+      data: result,
+      message: 'Tạo đơn hàng bán thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -55,7 +50,7 @@ class SalesOrderController {
     res.status(200).json({
       success: true,
       data: order,
-      message: 'Sales order updated successfully',
+      message: 'Cập nhật đơn hàng bán thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -69,7 +64,7 @@ class SalesOrderController {
     res.status(200).json({
       success: true,
       data: order,
-      message: 'Sales order approved successfully',
+      message: 'Phê duyệt đơn hàng bán thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -83,7 +78,8 @@ class SalesOrderController {
     res.status(200).json({
       success: true,
       data: order,
-      message: 'Sales order completed successfully. Inventory updated and customer debt recorded.',
+      message:
+        'Hoàn thành đơn hàng bán thành công. Tồn kho đã được cập nhật và công nợ khách hàng đã được ghi nhận.',
       timestamp: new Date().toISOString(),
     });
   }
@@ -97,7 +93,7 @@ class SalesOrderController {
     res.status(200).json({
       success: true,
       data: order,
-      message: 'Sales order cancelled successfully. Reserved inventory has been released.',
+      message: 'Hủy đơn hàng bán thành công. Tồn kho đã được giải phóng.',
       timestamp: new Date().toISOString(),
     });
   }
@@ -111,7 +107,7 @@ class SalesOrderController {
     res.status(200).json({
       success: true,
       data: order,
-      message: 'Payment processed successfully',
+      message: 'Xử lý thanh toán thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -121,6 +117,17 @@ class SalesOrderController {
     const id = parseInt(req.params.id);
     const userId = req.user!.id;
     const result = await salesOrderService.delete(id, userId);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // POST /api/sales-orders/refresh - Refresh cache
+  async refresh(_req: AuthRequest, res: Response) {
+    const result = await salesOrderService.refresh();
 
     res.status(200).json({
       success: true,

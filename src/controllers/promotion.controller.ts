@@ -19,6 +19,7 @@ class PromotionController {
         success: true,
         data: result.data,
         meta: result.meta,
+        statistics: result.statistics,
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -67,7 +68,7 @@ class PromotionController {
       res.status(201).json({
         success: true,
         data: promotion,
-        message: 'Promotion created successfully',
+        message: 'Tạo khuyến mãi thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -94,7 +95,7 @@ class PromotionController {
       res.json({
         success: true,
         data: promotion,
-        message: 'Promotion updated successfully',
+        message: 'Cập nhật khuyến mãi thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -120,7 +121,7 @@ class PromotionController {
       res.json({
         success: true,
         data: promotion,
-        message: 'Promotion approved successfully',
+        message: 'Phê duyệt khuyến mãi thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -147,7 +148,7 @@ class PromotionController {
       res.json({
         success: true,
         data: promotion,
-        message: 'Promotion cancelled successfully',
+        message: 'Hủy khuyến mãi thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -173,7 +174,7 @@ class PromotionController {
       res.json({
         success: true,
         data: promotion,
-        message: 'Promotion deleted successfully',
+        message: 'Xóa khuyến mãi thành công',
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
@@ -245,7 +246,7 @@ class PromotionController {
       res.json({
         success: true,
         data: { expiredCount: count },
-        message: `${count} promotions expired`,
+        message: `Đã hết hạn ${count} khuyến mãi`,
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
