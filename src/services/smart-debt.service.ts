@@ -73,13 +73,14 @@ private cache: CacheHelper;
   // =========================================================================
   async getAll(params: DebtQueryParams) {
     // 🟢 BƯỚC 1: TẠO CACHE KEY
+    // Dùng hàm sortedQuery để đảm bảo object {page:1, limit:10} giống {limit:10, page:1}
     const queryHash = JSON.stringify(sortedQuery(params));
     
     // 🟢 BƯỚC 2: KIỂM TRA CACHE
     const cachedData = await this.cache.getDebtList(queryHash);
     if (cachedData) {
         console.log(`🚀 Cache Hit: Smart Debt List [${queryHash}]`);
-        return cachedData;
+        return cachedData; // Trả về ngay lập tức
     }
 
     console.log(`🐢 Cache Miss: Querying DB for Debt List...`);
@@ -278,6 +279,21 @@ private cache: CacheHelper;
     else if (type === 'supplier') summaryWhere.supplierId = { not: null };
     // ... (Áp dụng lại các filter search/status vào summaryWhere tương tự như Case B) ...
     // Để đơn giản và nhanh, bạn có thể copy logic build where của Case B xuống đây dùng chung cho Summary
+    if (search) {
+        summaryWhere.AND = [{
+            OR: [
+              { customer: { customerName: { contains: search } } },
+              { customer: { customerCode: { contains: search } } },
+              { supplier: { supplierName: { contains: search } } },
+              { supplier: { supplierCode: { contains: search } } },
+            ]
+        }];
+   }
+   if (assignedUserId) {
+    summaryWhere.OR = [{ customer: { assignedUserId: Number(assignedUserId) } }, { supplier: { assignedUserId: Number(assignedUserId) } }];
+   }
+   if (status === 'paid') summaryWhere.closingBalance = { lte: 1000 };
+   else if (status === 'unpaid') summaryWhere.closingBalance = { gt: 1000 };
     
     // Tính tổng nhanh
     const agg = await prisma.debtPeriod.aggregate({
@@ -309,8 +325,8 @@ private cache: CacheHelper;
     return result;
   }
 
-  // =========================================================================
-  // 2. GET DETAIL (CÓ REDIS CACHE)
+// =========================================================================
+  // 2. GET DETAIL (CÓ REDIS CACHE + CÁC TRƯỜNG MỚI)
   // =========================================================================
   async getDetail(id: number, type: 'customer' | 'supplier', year?: number) {
     const targetYear = year || new Date().getFullYear();
@@ -323,7 +339,7 @@ private cache: CacheHelper;
         return cachedData;
     }
 
-    // 🟢 BƯỚC 2: LOGIC QUERY DB CŨ (GIỮ NGUYÊN)
+    // 🟢 BƯỚC 2: LOGIC QUERY DB
     console.log(`🐢 Cache Miss: Querying DB for Detail...`);
 
     const startOfYear = new Date(targetYear, 0, 1);
@@ -333,6 +349,11 @@ private cache: CacheHelper;
     let debtPeriod: any = null;
     let orders: any[] = [];
     let payments: any[] = [];
+    
+    // Biến cho các nghiệp vụ mới (Trả hàng, Điều chỉnh)
+    // Sau này bạn sẽ query DB vào đây
+    let returns: any[] = []; 
+    let adjustments: any[] = [];
 
     if (type === 'customer') {
       const customer = await prisma.customer.findUnique({
@@ -350,7 +371,10 @@ private cache: CacheHelper;
         email: customer.email,
         avatar: customer.avatarUrl,
         type: 'customer',
-        assignedUser: customer.assignedUser
+        assignedUser: customer.assignedUser,
+        // Có thể thêm tỉnh/thành để hiển thị chi tiết
+        province: customer.province,
+        district: customer.district
       };
 
       debtPeriod = await prisma.debtPeriod.findUnique({
@@ -366,6 +390,8 @@ private cache: CacheHelper;
         orderBy: { orderDate: 'desc' },
         select: {
             id: true, orderCode: true, totalAmount: true, orderDate: true, orderStatus: true,
+            // Thêm notes để hiển thị lý do
+            notes: true,
             details: {
                 select: {
                     quantity: true, unitPrice: true,
@@ -384,6 +410,9 @@ private cache: CacheHelper;
         select: { id: true, receiptCode: true, amount: true, receiptDate: true, notes: true }
       });
 
+      // TODO: Query bảng SalesReturn (Trả hàng bán) nếu có
+      // returns = await prisma.salesReturn.findMany(...)
+
     } else {
       const supplier = await prisma.supplier.findUnique({
         where: { id: Number(id) },
@@ -399,7 +428,8 @@ private cache: CacheHelper;
         address: supplier.address,
         email: supplier.email,
         type: 'supplier',
-        assignedUser: supplier.assignedUser
+        assignedUser: supplier.assignedUser,
+
       };
 
       debtPeriod = await prisma.debtPeriod.findUnique({
@@ -415,6 +445,7 @@ private cache: CacheHelper;
         orderBy: { orderDate: 'desc' },
         select: {
             id: true, poCode: true, totalAmount: true, orderDate: true, status: true,
+            notes: true,
             details: {
                 include: { product: { select: { id: true, productName: true, sku: true } } }
             }
@@ -429,8 +460,11 @@ private cache: CacheHelper;
         orderBy: { paymentDate: 'desc' },
         select: { id: true, voucherCode: true, amount: true, paymentDate: true, notes: true }
       });
+      
+      // TODO: Query bảng PurchaseReturn (Trả hàng mua) nếu có
     }
 
+    // Flatten Product History
     let productHistory: any[] = [];
     orders.forEach((order: any) => {
         if (order.details) {
@@ -453,10 +487,15 @@ private cache: CacheHelper;
         opening: Number(debtPeriod.openingBalance),
         increase: Number(debtPeriod.increasingAmount),
         payment: Number(debtPeriod.decreasingAmount),
+        
+        // ✅ THÊM TRƯỜNG MỚI (Hiện tại mock = 0, sau này lấy từ DB)
+        returnAmount: 0, 
+        adjustmentAmount: 0,
+
         closing: Number(debtPeriod.closingBalance),
         status: Number(debtPeriod.closingBalance) > 1000 ? 'unpaid' : 'paid'
     } : {
-        opening: 0, increase: 0, payment: 0, closing: 0, status: 'paid'
+        opening: 0, increase: 0, payment: 0, returnAmount: 0, adjustmentAmount: 0, closing: 0, status: 'paid'
     };
 
     const response = {
@@ -467,7 +506,10 @@ private cache: CacheHelper;
         history: {
             orders,
             payments,
-            products: productHistory
+            products: productHistory,
+            // ✅ THÊM DANH SÁCH MỚI
+            returns: returns,       // Danh sách trả hàng
+            adjustments: adjustments // Danh sách điều chỉnh
         }
     };
 
