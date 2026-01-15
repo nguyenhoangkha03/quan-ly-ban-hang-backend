@@ -230,46 +230,46 @@ class SmartDebtController {
     }
   }
 
-  /**
-   * POST /api/smart-debt/:id/email
-   * Gửi thông báo công nợ (Nhắc nợ hoặc Đối chiếu năm)
-   * Body: { type, year, message, customEmail... }
-   */
-  async sendEmail(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      const { id } = req.params;
-      // ✅ Cập nhật: Lấy thêm type, year từ body
-      const { type, year, message, customEmail } = req.body;
-      const userId = req.user?.id; 
+  // /**
+  //  * POST /api/smart-debt/:id/email
+  //  * Gửi thông báo công nợ (Nhắc nợ hoặc Đối chiếu năm)
+  //  * Body: { type, year, message, customEmail... }
+  //  */
+  // async sendEmail(req: AuthRequest, res: Response, next: NextFunction) {
+  //   try {
+  //     const { id } = req.params;
+  //     // ✅ Cập nhật: Lấy thêm type, year từ body
+  //     const { type, year, message, customEmail } = req.body;
+  //     const userId = req.user?.id; 
 
-      if (!userId) {
-        res.status(401).json({ success: false, message: "Không xác định được người gửi." });
-        return;
-      }
+  //     if (!userId) {
+  //       res.status(401).json({ success: false, message: "Không xác định được người gửi." });
+  //       return;
+  //     }
 
-      if (!type || (type !== 'customer' && type !== 'supplier')) {
-        throw new ValidationError("Thiếu tham số type ('customer' hoặc 'supplier')");
-      }
+  //     if (!type || (type !== 'customer' && type !== 'supplier')) {
+  //       throw new ValidationError("Thiếu tham số type ('customer' hoặc 'supplier')");
+  //     }
 
-      // Gọi Service mới (sendDebtNotice)
-      const result = await debtService.sendDebtNotice({
-          id: Number(id),
-          type,
-          year: year ? Number(year) : undefined,
-          message,
-          customEmail
-      }, userId);
+  //     // Gọi Service mới (sendDebtNotice)
+  //     const result = await debtService.sendDebtNotice({
+  //         id: Number(id),
+  //         type,
+  //         year: year ? Number(year) : undefined,
+  //         message,
+  //         customEmail
+  //     }, userId);
 
-      res.status(200).json({
-        success: true,
-        message: result.message,
-        data: result,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
+  //     res.status(200).json({
+  //       success: true,
+  //       message: result.message,
+  //       data: result,
+  //       timestamp: new Date().toISOString(),
+  //     });
+  //   } catch (error) {
+  //     next(error);
+  //   }
+  // }
 
   /**
    * GET /api/smart-debt/:id/pdf

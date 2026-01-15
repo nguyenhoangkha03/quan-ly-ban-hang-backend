@@ -86,13 +86,13 @@ router.post(
 // 3. NHÓM EMAIL (Gửi thông báo)
 // =============================================================================
 
-// Gửi email nhắc nợ / đối chiếu
-// Body: { type: 'customer', year: 2025 (optional), message: '...' }
-router.post(
-  '/:id/email',
-  authorize('send_debt_reconciliation_email'),
-  // validateNested(sendReconciliationEmailSchema), // ❌ Tạm tắt validate cũ
-  asyncHandler(smartDebtController.sendEmail.bind(smartDebtController))
-);
+// // Gửi email nhắc nợ / đối chiếu
+// // Body: { type: 'customer', year: 2025 (optional), message: '...' }
+// router.post(
+//   '/:id/email',
+//   authorize('send_debt_reconciliation_email'),
+//   // validateNested(sendReconciliationEmailSchema), // ❌ Tạm tắt validate cũ
+//   asyncHandler(smartDebtController.sendEmail.bind(smartDebtController))
+// );
 
 export default router;

@@ -110,65 +110,60 @@ model User {
   creator   User?      @relation("UserCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   updater   User?      @relation("UserUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
 
-  managedWarehouses          Warehouse[]        @relation("WarehouseManager")
-  createdUsers               User[]             @relation("UserCreator")
-  updatedUsers               User[]             @relation("UserUpdater")
-  activityLogs               ActivityLog[]
-  rolePermissionsAssigned    RolePermission[]   @relation("AssignedBy")
-  suppliers                  Supplier[]         @relation("SupplierCreator")
-  suppliersUpdated           Supplier[]         @relation("SupplierUpdater")
-  purchaseOrders             PurchaseOrder[]    @relation("POCreator")
-  purchaseOrdersApproved     PurchaseOrder[]    @relation("POApprover")
-  products                   Product[]          @relation("ProductCreator")
-  productsUpdated            Product[]          @relation("ProductUpdater")
-  productImages              ProductImage[]
-  stockTransactions          StockTransaction[] @relation("TransactionCreator")
-  stockTransactionsApproved  StockTransaction[] @relation("TransactionApprover")
-  stockTransactionsCancelled StockTransaction[] @relation("TransactionCanceller")
-  stockTransfers             StockTransfer[]    @relation("TransferRequester")
-  stockTransfersApproved     StockTransfer[]    @relation("TransferApprover")
-  stockTransfersCancelled    StockTransfer[]    @relation("TransferCanceller")
-  boms                       Bom[]              @relation("BomCreator")
-  bomsApproved               Bom[]              @relation("BomApprover")
-  productionOrders           ProductionOrder[]  @relation("ProductionCreator")
-  productionOrdersApproved   ProductionOrder[]  @relation("ProductionApprover")
-  productionOrdersCancelled  ProductionOrder[]  @relation("ProductionCanceller")
-  customers                  Customer[]         @relation("CustomerCreator")
-  customersUpdated           Customer[]         @relation("CustomerUpdater")
-  salesOrders                SalesOrder[]       @relation("SalesCreator")
-  salesOrdersApproved        SalesOrder[]       @relation("SalesApprover")
-  salesOrdersCancelled       SalesOrder[]       @relation("SalesCanceller")
-  deliveries                 Delivery[]         @relation("DeliveryStaff")
-  deliveriesSettled          Delivery[]         @relation("DeliverySettler")
-  paymentReceipts            PaymentReceipt[]   @relation("ReceiptCreator")
-  paymentReceiptsApproved    PaymentReceipt[]   @relation("ReceiptApprover")
-  paymentVouchers            PaymentVoucher[]   @relation("VoucherCreator")
-  paymentVouchersApproved    PaymentVoucher[]   @relation("VoucherApprover")
-  // debtReconciliations         DebtReconciliation[] @relation("ReconciliationCreator")
-  // debtReconciliationsApproved DebtReconciliation[] @relation("ReconciliationApprover")
-  cashFunds                  CashFund[]         @relation("CashFundReconciler")
-  cashFundsApproved          CashFund[]         @relation("CashFundApprover")
-  promotions                 Promotion[]        @relation("PromotionCreator")
-  promotionsApproved         Promotion[]        @relation("PromotionApprover")
-  promotionsCancelled        Promotion[]        @relation("PromotionCanceller")
-  attendance                 Attendance[]
-  attendanceApproved         Attendance[]       @relation("AttendanceApprover")
-  lockedAttendanceMonths     AttendanceMonth[]
-  salaries                   Salary[]
-  salariesCreated            Salary[]           @relation("SalaryCreator")
-  salariesApproved           Salary[]           @relation("SalaryApprover")
-  salariesPaid               Salary[]           @relation("SalaryPayer")
-  notifications              Notification[]
-  notificationsSent          Notification[]     @relation("NotificationSender")
-  inventoryUpdates           Inventory[]
-  verificationCodes          VerificationCode[]
-  productVideos              ProductVideo[]
+  managedWarehouses           Warehouse[]          @relation("WarehouseManager")
+  createdUsers                User[]               @relation("UserCreator")
+  updatedUsers                User[]               @relation("UserUpdater")
+  activityLogs                ActivityLog[]
+  rolePermissionsAssigned     RolePermission[]     @relation("AssignedBy")
+  suppliers                   Supplier[]           @relation("SupplierCreator")
+  suppliersUpdated            Supplier[]           @relation("SupplierUpdater")
+  purchaseOrders              PurchaseOrder[]      @relation("POCreator")
+  purchaseOrdersApproved      PurchaseOrder[]      @relation("POApprover")
+  products                    Product[]            @relation("ProductCreator")
+  productsUpdated             Product[]            @relation("ProductUpdater")
+  productImages               ProductImage[]
+  stockTransactions           StockTransaction[]   @relation("TransactionCreator")
+  stockTransactionsApproved   StockTransaction[]   @relation("TransactionApprover")
+  stockTransactionsCancelled  StockTransaction[]   @relation("TransactionCanceller")
+  stockTransfers              StockTransfer[]      @relation("TransferRequester")
+  stockTransfersApproved      StockTransfer[]      @relation("TransferApprover")
+  stockTransfersCancelled     StockTransfer[]      @relation("TransferCanceller")
+  boms                        Bom[]                @relation("BomCreator")
+  bomsApproved                Bom[]                @relation("BomApprover")
+  productionOrders            ProductionOrder[]    @relation("ProductionCreator")
+  productionOrdersApproved    ProductionOrder[]    @relation("ProductionApprover")
+  productionOrdersCancelled   ProductionOrder[]    @relation("ProductionCanceller")
+  customers                   Customer[]           @relation("CustomerCreator")
+  customersUpdated            Customer[]           @relation("CustomerUpdater")
+  salesOrders                 SalesOrder[]         @relation("SalesCreator")
+  salesOrdersApproved         SalesOrder[]         @relation("SalesApprover")
+  salesOrdersCancelled        SalesOrder[]         @relation("SalesCanceller")
+  deliveries                  Delivery[]           @relation("DeliveryStaff")
+  deliveriesSettled           Delivery[]           @relation("DeliverySettler")
+  paymentReceipts             PaymentReceipt[]     @relation("ReceiptCreator")
+  paymentReceiptsApproved     PaymentReceipt[]     @relation("ReceiptApprover")
+  paymentVouchers             PaymentVoucher[]     @relation("VoucherCreator")
+  paymentVouchersApproved     PaymentVoucher[]     @relation("VoucherApprover")
+  debtReconciliations         DebtReconciliation[] @relation("ReconciliationCreator")
+  debtReconciliationsApproved DebtReconciliation[] @relation("ReconciliationApprover")
+  cashFunds                   CashFund[]           @relation("CashFundReconciler")
+  cashFundsApproved           CashFund[]           @relation("CashFundApprover")
+  promotions                  Promotion[]          @relation("PromotionCreator")
+  promotionsApproved          Promotion[]          @relation("PromotionApprover")
+  promotionsCancelled         Promotion[]          @relation("PromotionCanceller")
+  attendance                  Attendance[]
+  attendanceApproved          Attendance[]         @relation("AttendanceApprover")
+  lockedAttendanceMonths      AttendanceMonth[]
+  salaries                    Salary[]
+  salariesCreated             Salary[]             @relation("SalaryCreator")
+  salariesApproved            Salary[]             @relation("SalaryApprover")
+  salariesPaid                Salary[]             @relation("SalaryPayer")
+  notifications               Notification[]
+  notificationsSent           Notification[]       @relation("NotificationSender")
+  inventoryUpdates            Inventory[]
+  verificationCodes           VerificationCode[]
+  productVideos               ProductVideo[]
 
-  // debtMasters replaced by debtReconciliations
-  managedCustomers Customer[] @relation("CustomerDebtManager")
-  managedSuppliers Supplier[] @relation("SupplierDebtManager")
-
-  @@index([roleId, status])
   @@index([roleId, status])
   @@map("users")
 }
@@ -273,18 +268,14 @@ model Supplier {
   payableUpdatedAt DateTime?      @map("payable_updated_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
-  assignedUserId   Int?           @map("assigned_user_id")
+  deletedAt        DateTime?      @map("deleted_at")
 
-  creator User? @relation("SupplierCreator", fields: [createdBy], references: [id], onDelete: SetNull)
-  updater User? @relation("SupplierUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
-
-  assignedUser User? @relation("SupplierDebtManager", fields: [assignedUserId], references: [id], onDelete: SetNull)
-
-  purchaseOrders  PurchaseOrder[]
-  products        Product[]
-  paymentVouchers PaymentVoucher[]
-  debtPeriods     DebtPeriod[]
-  // debtReconciliations DebtReconciliation[]
+  creator             User?                @relation("SupplierCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updater             User?                @relation("SupplierUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  purchaseOrders      PurchaseOrder[]
+  products            Product[]
+  paymentVouchers     PaymentVoucher[]
+  debtReconciliations DebtReconciliation[]
 
   @@index([supplierCode])
   @@index([status])
@@ -308,9 +299,6 @@ model PurchaseOrder {
   approvedBy           Int?                @map("approved_by")
   createdAt            DateTime            @default(now()) @map("created_at")
   deletedAt            DateTime?           @map("deleted_at")
-  // Liên kết vào kỳ công nợ
-  debtPeriodId         Int?                @map("debt_period_id")
-  debtPeriod           DebtPeriod?         @relation(fields: [debtPeriodId], references: [id])
 
   supplier  Supplier              @relation(fields: [supplierId], references: [id])
   warehouse Warehouse             @relation(fields: [warehouseId], references: [id])
@@ -318,13 +306,6 @@ model PurchaseOrder {
   approver  User?                 @relation("POApprover", fields: [approvedBy], references: [id])
   details   PurchaseOrderDetail[]
 
-  @@index([poCode])
-  @@index([status])
-  @@index([supplierId])
-  @@index([poCode])
-  @@index([status])
-  @@index([supplierId])
-  @@index([debtPeriodId])
   @@index([poCode])
   @@index([status])
   @@index([supplierId])
@@ -715,27 +696,11 @@ model Customer {
   creator         User?                  @relation("CustomerCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   updater         User?                  @relation("CustomerUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
 
-  salesOrders     SalesOrder[]
-  paymentReceipts PaymentReceipt[]
-  customerAccount CustomerAccount[]
-  assignedUserId  Int?              @map("assigned_user_id")
+  salesOrders         SalesOrder[]
+  paymentReceipts     PaymentReceipt[]
+  debtReconciliations DebtReconciliation[]
+  customerAccount     CustomerAccount[]
 
-  assignedUser User? @relation("CustomerDebtManager", fields: [assignedUserId], references: [id], onDelete: SetNull)
-
-  debtPeriods DebtPeriod[]
-
-  @@index([customerCode])
-  @@index([phone])
-  @@index([classification])
-  @@index([province, district])
-  @@index([status])
-  @@index([customerName])
-  @@index([customerCode])
-  @@index([phone])
-  @@index([classification])
-  @@index([province, district])
-  @@index([status])
-  @@index([customerName])
   @@index([customerCode])
   @@index([phone])
   @@index([classification])
@@ -801,30 +766,16 @@ model SalesOrder {
   updatedAt       DateTime      @updatedAt @map("updated_at")
   deletedAt       DateTime?     @map("deleted_at")
 
-  // Mỗi đơn hàng PHẢI thuộc về 1 kỳ công nợ
-  debtPeriodId Int?        @map("debt_period_id")
-  debtPeriod   DebtPeriod? @relation(fields: [debtPeriodId], references: [id])
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  warehouse Warehouse? @relation(fields: [warehouseId], references: [id])
+  creator   User       @relation("SalesCreator", fields: [createdBy], references: [id])
+  approver  User?      @relation("SalesApprover", fields: [approvedBy], references: [id])
+  canceller User?      @relation("SalesCanceller", fields: [cancelledBy], references: [id])
 
-  customer        Customer           @relation(fields: [customerId], references: [id])
-  warehouse       Warehouse?         @relation(fields: [warehouseId], references: [id])
-  creator         User?              @relation("SalesCreator", fields: [createdBy], references: [id])
-  approver        User?              @relation("SalesApprover", fields: [approvedBy], references: [id])
-  canceller       User?              @relation("SalesCanceller", fields: [cancelledBy], references: [id])
   details         SalesOrderDetail[]
   deliveries      Delivery[]
   paymentReceipts PaymentReceipt[]
 
-  @@index([orderCode])
-  @@index([orderDate])
-  @@index([orderStatus])
-  @@index([paymentStatus])
-  @@index([customerId, orderDate])
-  @@index([orderCode])
-  @@index([orderDate])
-  @@index([orderStatus])
-  @@index([paymentStatus])
-  @@index([customerId, orderDate])
-  @@index([debtPeriodId])
   @@index([orderCode])
   @@index([orderDate])
   @@index([orderStatus])
@@ -911,16 +862,11 @@ model PaymentReceipt {
   createdAt            DateTime             @default(now()) @map("created_at")
   deletedAt            DateTime?            @map("deleted_at")
 
-  debtPeriodId Int?        @map("debt_period_id")
-  debtPeriod   DebtPeriod? @relation(fields: [debtPeriodId], references: [id])
-
   customer    SalesOrder? @relation(fields: [orderId], references: [id])
   customerRef Customer    @relation(fields: [customerId], references: [id])
   creator     User        @relation("ReceiptCreator", fields: [createdBy], references: [id])
   approver    User?       @relation("ReceiptApprover", fields: [approvedBy], references: [id])
 
-  @@index([receiptCode])
-  @@index([receiptDate])
   @@index([receiptCode])
   @@index([receiptDate])
   @@map("payment_receipts")
@@ -944,9 +890,6 @@ model PaymentVoucher {
   createdAt      DateTime             @default(now()) @map("created_at")
   deletedAt      DateTime?            @map("deleted_at")
 
-  debtPeriodId Int?        @map("debt_period_id")
-  debtPeriod   DebtPeriod? @relation(fields: [debtPeriodId], references: [id])
-
   supplier Supplier? @relation(fields: [supplierId], references: [id])
   creator  User      @relation("VoucherCreator", fields: [createdBy], references: [id])
   approver User?     @relation("VoucherApprover", fields: [approvedBy], references: [id])
@@ -958,79 +901,41 @@ model PaymentVoucher {
   @@map("payment_vouchers")
 }
 
-// model DebtReconciliation {
-//     id                 Int                  @id @default(autoincrement())
-//     reconciliationCode String               @unique @map("reconciliation_code") @db.VarChar(50)
-//     reconciliationType ReconciliationType   @map("reconciliation_type")
-//     period             String               @db.VarChar(20)
-//     customerId         Int?                 @map("customer_id")
-//     supplierId         Int?                 @map("supplier_id")
-//     openingBalance     Decimal              @default(0) @map("opening_balance") @db.Decimal(15, 2)
-//     transactionsAmount Decimal              @default(0) @map("transactions_amount") @db.Decimal(15, 2)
-//     paymentAmount      Decimal              @default(0) @map("payment_amount") @db.Decimal(15, 2)
-//     closingBalance     Decimal              @default(0) @map("closing_balance") @db.Decimal(15, 2)
-//     discrepancyAmount  Decimal              @default(0) @map("discrepancy_amount") @db.Decimal(15, 2)
-//     discrepancyReason  String?              @map("discrepancy_reason") @db.VarChar(255)
-//     status             ReconciliationStatus @default(pending)
-//     reconciliationDate DateTime             @map("reconciliation_date") @db.Date
-//     confirmedByName    String?              @map("confirmed_by_name") @db.VarChar(200)
-//     confirmedByEmail   String?              @map("confirmed_by_email") @db.VarChar(200)
-//     confirmedAt        DateTime?            @map("confirmed_at")
-//     attachmentUrl      String?              @map("attachment_url") @db.VarChar(500)
-//     notes              String?              @db.VarChar(255)
-//     approvedBy         Int?                 @map("approved_by")
-//     approvedAt         DateTime?            @map("approved_at")
-//     createdBy          Int                  @map("created_by")
-//     createdAt          DateTime             @default(now()) @map("created_at")
+model DebtReconciliation {
+  id                 Int                  @id @default(autoincrement())
+  reconciliationCode String               @unique @map("reconciliation_code") @db.VarChar(50)
+  reconciliationType ReconciliationType   @map("reconciliation_type")
+  period             String               @db.VarChar(20)
+  customerId         Int?                 @map("customer_id")
+  supplierId         Int?                 @map("supplier_id")
+  openingBalance     Decimal              @default(0) @map("opening_balance") @db.Decimal(15, 2)
+  transactionsAmount Decimal              @default(0) @map("transactions_amount") @db.Decimal(15, 2)
+  paymentAmount      Decimal              @default(0) @map("payment_amount") @db.Decimal(15, 2)
+  closingBalance     Decimal              @default(0) @map("closing_balance") @db.Decimal(15, 2)
+  discrepancyAmount  Decimal              @default(0) @map("discrepancy_amount") @db.Decimal(15, 2)
+  discrepancyReason  String?              @map("discrepancy_reason") @db.VarChar(255)
+  status             ReconciliationStatus @default(pending)
+  reconciliationDate DateTime             @map("reconciliation_date") @db.Date
+  confirmedByName    String?              @map("confirmed_by_name") @db.VarChar(200)
+  confirmedByEmail   String?              @map("confirmed_by_email") @db.VarChar(200)
+  confirmedAt        DateTime?            @map("confirmed_at")
+  attachmentUrl      String?              @map("attachment_url") @db.VarChar(500)
+  notes              String?              @db.VarChar(255)
+  approvedBy         Int?                 @map("approved_by")
+  approvedAt         DateTime?            @map("approved_at")
+  createdBy          Int                  @map("created_by")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  deletedAt          DateTime?            @map("deleted_at")
 
-//     customer Customer? @relation(fields: [customerId], references: [id])
-//     supplier Supplier? @relation(fields: [supplierId], references: [id])
-//     creator  User      @relation("ReconciliationCreator", fields: [createdBy], references: [id])
-//     approver User?     @relation("ReconciliationApprover", fields: [approvedBy], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  creator  User      @relation("ReconciliationCreator", fields: [createdBy], references: [id])
+  approver User?     @relation("ReconciliationApprover", fields: [approvedBy], references: [id])
 
-//     @@index([reconciliationCode])
-//     @@index([reconciliationType, period])
-//     @@index([status])
-//     @@map("debt_reconciliation")
-// }
-
-model DebtPeriod {
-  id Int @id @default(autoincrement())
-
-  // 👇 Liên kết trực tiếp (Thay vì qua DebtMaster)
-  customerId Int? @map("customer_id")
-  supplierId Int? @map("supplier_id")
-
-  periodName String   @map("period_name") @db.VarChar(20) // VD: "2024", "2025"
-  startTime  DateTime @map("start_time") @db.Date
-  endTime    DateTime @map("end_time") @db.Date
-
-  // CÁC CỘT SỐ LIỆU
-  openingBalance   Decimal @default(0) @map("opening_balance") @db.Decimal(15, 2)
-  increasingAmount Decimal @default(0) @map("increasing_amount") @db.Decimal(15, 2) // Tổng mua/nhập
-  decreasingAmount Decimal @default(0) @map("decreasing_amount") @db.Decimal(15, 2) // Tổng trả/chi
-
-  closingBalance Decimal @default(0) @map("closing_balance") @db.Decimal(15, 2) // Dư cuối
-
-  isLocked Boolean @default(false) @map("is_locked") // Đã chốt sổ chưa?
-  notes    String? @db.VarChar(255)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // RELATIONS
-  customer        Customer?        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  supplier        Supplier?        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  purchaseOrders  PurchaseOrder[]
-  salesOrders     SalesOrder[]
-  paymentReceipts PaymentReceipt[]
-  paymentVouchers PaymentVoucher[]
-
-  // Đảm bảo mỗi khách chỉ có 1 dòng cho năm 2024
-  @@unique([customerId, periodName])
-  @@unique([supplierId, periodName])
-  @@index([periodName])
-  @@map("debt_periods")
+  @@index([reconciliationCode])
+  @@index([reconciliationType, period])
+  @@index([status])
+  @@map("debt_reconciliation")
 }
 
 model CashFund {
