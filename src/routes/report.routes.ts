@@ -90,7 +90,7 @@ router.get(
 router.get(
   '/revenue',
   authorize('view_reports'),
-  validate(revenueReportSchema),
+  validate(revenueReportSchema, 'query'),
   asyncHandler(reportController.getRevenueReport.bind(reportController))
 );
 
@@ -98,7 +98,7 @@ router.get(
 router.get(
   '/revenue/by-channel',
   authorize('view_reports'),
-  validate(dateRangeSchema),
+  validate(dateRangeSchema, 'query'),
   asyncHandler(reportController.getRevenueByChannel.bind(reportController))
 );
 
@@ -106,7 +106,7 @@ router.get(
 router.get(
   '/revenue/by-region',
   authorize('view_reports'),
-  validate(dateRangeSchema),
+  validate(dateRangeSchema, 'query'),
   asyncHandler(reportController.getRevenueByRegion.bind(reportController))
 );
 
@@ -117,7 +117,7 @@ router.get(
 router.get(
   '/inventory',
   authorize('view_reports'),
-  validate(inventoryReportSchema),
+  validate(inventoryReportSchema, 'query'),
   asyncHandler(reportController.getInventoryReport.bind(reportController))
 );
 
@@ -132,18 +132,61 @@ router.get(
 router.get(
   '/inventory/turnover',
   authorize('view_reports'),
-  validate(dateRangeSchema),
+  validate(dateRangeSchema, 'query'),
   asyncHandler(reportController.getInventoryTurnover.bind(reportController))
+);
+
+// GET /api/reports/inventory/stock-flow - Stock flow report (Nhập-Xuất-Tồn)
+router.get(
+  '/inventory/stock-flow',
+  authorize('view_reports'),
+  asyncHandler(reportController.getInventoryStockFlow.bind(reportController))
 );
 
 // =====================================================
 // SALES REPORTS
 // =====================================================
+// GET /api/reports/sales - Complete sales report with filters
+router.get(
+  '/sales',
+  authorize('view_reports'),
+  validate(revenueReportSchema, 'query'),
+  asyncHandler(reportController.getSalesReport.bind(reportController))
+);
+
+// GET /api/reports/sales/summary - KPI Summary (4 cards)
+router.get(
+  '/sales/summary',
+  authorize('view_reports'),
+  asyncHandler(reportController.getSalesSummary.bind(reportController))
+);
+
+// GET /api/reports/sales/charts - Charts data (timeline + byChannel)
+router.get(
+  '/sales/charts',
+  authorize('view_reports'),
+  asyncHandler(reportController.getSalesCharts.bind(reportController))
+);
+
+// GET /api/reports/sales/top - Top analysis (products/staff/customers)
+router.get(
+  '/sales/top',
+  authorize('view_reports'),
+  asyncHandler(reportController.getSalesTopAnalysis.bind(reportController))
+);
+
+// GET /api/reports/sales/filter-options - Search customer & get staff
+router.get(
+  '/sales/filter-options',
+  authorize('view_reports'),
+  asyncHandler(reportController.getFilterOptions.bind(reportController))
+);
+
 // GET /api/reports/sales/top-products - Top selling products
 router.get(
   '/sales/top-products',
   authorize('view_reports'),
-  validate(topProductsSchema),
+  validate(topProductsSchema, 'query'),
   asyncHandler(reportController.getTopSellingProducts.bind(reportController))
 );
 
@@ -188,12 +231,11 @@ router.get(
 // =====================================================
 // FINANCIAL REPORTS
 // =====================================================
-// GET /api/reports/financial - Financial summary
+// GET /api/reports/financial - Financial report
 router.get(
   '/financial',
   authorize('view_reports'),
-  validate(dateRangeSchema),
-  asyncHandler(reportController.getFinancialSummary.bind(reportController))
+  asyncHandler(reportController.getFinancialReport.bind(reportController))
 );
 
 export default router;

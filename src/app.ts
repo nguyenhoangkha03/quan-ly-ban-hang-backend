@@ -45,6 +45,8 @@ import attendanceRoutes from '@routes/attendance.routes';
 import salaryRoutes from '@routes/salary.routes';
 import notificationRoutes from '@routes/notification.routes';
 import reportRoutes from '@routes/report.routes';
+import financeRoutes from '@routes/finance.routes';
+import productionReportRoutes from '@routes/production-report.routes';
 import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
 
@@ -207,6 +209,8 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/salary', salaryRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/reports', productionReportRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/security', securityRoutes);
 

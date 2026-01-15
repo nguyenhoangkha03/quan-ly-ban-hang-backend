@@ -192,11 +192,11 @@ export async function main() {
   console.log('✅ Đã seed xong dữ liệu Category!');
 }
 
-// main()
-//   .catch((e) => {
-//     console.error('❌ Lỗi khi seed category:', e);
-//     process.exit(1);
-//   })
-//   .finally(async () => {
-//     await prisma.$disconnect();
-//   });
+main()
+  .catch((e) => {
+    console.error('❌ Lỗi khi seed category:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

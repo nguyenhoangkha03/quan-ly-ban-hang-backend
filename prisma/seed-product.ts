@@ -676,11 +676,11 @@ export async function main() {
   console.log(`   - Bao bì: 10 loại (chai, nhãn, thùng...)`);
 }
 
-// main()
-//   .catch((e) => {
-//     console.error('❌ Lỗi khi seed products:', e);
-//     process.exit(1);
-//   })
-//   .finally(async () => {
-//     await prisma.$disconnect();
-//   });
+main()
+  .catch((e) => {
+    console.error('❌ Lỗi khi seed products:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

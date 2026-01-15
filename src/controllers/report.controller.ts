@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '@custom-types/common.type';
 import reportService from '@services/report.service';
+import financialService from '@services/financial.service';
 
 class ReportController {
   // GET /api/reports/dashboard/stats - Complete dashboard stats (optimized all-in-one)
@@ -175,6 +176,17 @@ class ReportController {
     });
   }
 
+  // GET /api/reports/inventory/stock-flow - Stock flow report
+  async getInventoryStockFlow(req: AuthRequest, res: Response) {
+    const result = await reportService.getInventoryStockFlow(req.query as any);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // GET /api/reports/sales/top-products - Top selling products
   async getTopSellingProducts(req: AuthRequest, res: Response) {
     const { limit, fromDate, toDate } = req.query;
@@ -182,6 +194,99 @@ class ReportController {
       limit ? parseInt(limit as string) : 10,
       fromDate as string,
       toDate as string
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales - Complete sales report
+  async getSalesReport(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy, orderStatus } = req.query;
+    const result = await reportService.getSalesReport({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+      orderStatus: orderStatus as any,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/summary - KPI Summary
+  async getSalesSummary(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy } = req.query;
+    const result = await reportService.getSalesSummary({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/charts - Charts data
+  async getSalesCharts(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy } = req.query;
+    const result = await reportService.getSalesCharts({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/top - Top analysis
+  async getSalesTopAnalysis(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, warehouseId, salesChannel, customerId, createdBy, type } = req.query;
+    const result = await reportService.getSalesTopAnalysis({
+      fromDate: fromDate as string,
+      toDate: toDate as string,
+      warehouseId: warehouseId ? parseInt(warehouseId as string) : undefined,
+      salesChannel: salesChannel as any,
+      customerId: customerId ? parseInt(customerId as string) : undefined,
+      createdBy: createdBy ? parseInt(createdBy as string) : undefined,
+      type: (type as any) || 'product',
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // GET /api/reports/sales/filter-options - Filter options
+  async getFilterOptions(req: AuthRequest, res: Response) {
+    const { action, keyword } = req.query;
+    const result = await reportService.getFilterOptions(
+      (action as any) || 'get-sales-staff',
+      keyword as string
     );
 
     res.status(200).json({
@@ -243,10 +348,51 @@ class ReportController {
     });
   }
 
-  // GET /api/reports/financial - Financial summary
-  async getFinancialSummary(req: AuthRequest, res: Response) {
-    const { fromDate, toDate } = req.query;
-    const result = await reportService.getFinancialSummary(fromDate as string, toDate as string);
+  // GET /api/reports/financial - Financial report
+  async getFinancialReport(req: AuthRequest, res: Response) {
+    const { fromDate, toDate, datePreset } = req.query;
+    
+    // Calculate date range based on preset or custom dates
+    const today = new Date();
+    let start = fromDate as string;
+    let end = toDate as string;
+
+    if (datePreset && !fromDate) {
+      const startOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
+      const subDays = (date: Date, days: number) => new Date(date.getTime() - days * 24 * 60 * 60 * 1000);
+      
+      switch (datePreset) {
+        case 'today':
+          start = today.toISOString().split('T')[0];
+          end = today.toISOString().split('T')[0];
+          break;
+        case 'yesterday':
+          const yesterday = subDays(today, 1);
+          start = yesterday.toISOString().split('T')[0];
+          end = yesterday.toISOString().split('T')[0];
+          break;
+        case 'thisWeek':
+          const weekStart = subDays(today, today.getDay());
+          start = weekStart.toISOString().split('T')[0];
+          end = today.toISOString().split('T')[0];
+          break;
+        case 'thisMonth':
+          start = startOfMonth(today).toISOString().split('T')[0];
+          end = today.toISOString().split('T')[0];
+          break;
+        case 'lastMonth':
+          const lastMonth = subDays(today, today.getDate());
+          start = startOfMonth(lastMonth).toISOString().split('T')[0];
+          end = lastMonth.toISOString().split('T')[0];
+          break;
+        case 'thisYear':
+          start = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+          end = today.toISOString().split('T')[0];
+          break;
+      }
+    }
+
+    const result = await financialService.getFinancialReport(start, end);
 
     res.status(200).json({
       success: true,
