@@ -1,3 +1,4 @@
+import { ApplyPromotionResult, PromotionConditions } from '@custom-types/promotion.type';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import { logActivity } from '@utils/logger';
@@ -7,39 +8,20 @@ import {
   ApplyPromotionInput,
   PromotionQueryInput,
 } from '@validators/promotion.validator';
+import RedisService from './redis.service';
+import { sortedQuery } from '@utils/redis';
 
 const prisma = new PrismaClient();
+const redis = RedisService.getInstance();
 
-interface PromotionConditions {
-  applicable_categories?: number[];
-  applicable_customer_types?: string[];
-  days_of_week?: number[];
-  time_slots?: string[];
-  max_usage_per_customer?: number;
-  buy_quantity?: number;
-  get_quantity?: number;
-  get_same_product?: boolean;
-  gift_product_id?: number;
-  gift_quantity?: number;
-}
-
-interface ApplyPromotionResult {
-  applicable: boolean;
-  discountAmount: number;
-  finalAmount: number;
-  giftProducts?: {
-    productId: number;
-    quantity: number;
-  }[];
-  message?: string;
-}
+const PROMOTION_CACHE_TTL = 3600;
+const PROMOTION_LIST_CACHE_TTL = 600;
 
 class PromotionService {
-  // Get all promotions with filters
-  async getAll(params: PromotionQueryInput) {
+  async getAll(query: PromotionQueryInput) {
     const {
-      page = 1,
-      limit = 20,
+      page = '1',
+      limit = '20',
       search,
       promotionType,
       status,
@@ -49,16 +31,27 @@ class PromotionService {
       isActive,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-    } = params;
+    } = query;
 
-    const offset = (page - 1) * limit;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Cache key
+    const cacheKey = `promotion:list:${JSON.stringify(sortedQuery(query))}`;
+
+    const cache = await redis.get(cacheKey);
+    if (cache) {
+      console.log(`✅ Cache tìm thấy: ${cacheKey}`);
+      return cache;
+    }
+
+    console.log(`❌ Không có cache: ${cacheKey}, đang truy vấn từ database...`);
 
     const where: Prisma.PromotionWhereInput = {
+      deletedAt: null,
       ...(search && {
-        OR: [
-          { promotionCode: { contains: search } },
-          { promotionName: { contains: search } },
-        ],
+        OR: [{ promotionCode: { contains: search } }, { promotionName: { contains: search } }],
       }),
       ...(promotionType && { promotionType }),
       ...(status && { status }),
@@ -87,7 +80,7 @@ class PromotionService {
       }),
     };
 
-    const [promotions, total] = await Promise.all([
+    const [promotions, total, allPromotions] = await Promise.all([
       prisma.promotion.findMany({
         where,
         include: {
@@ -112,25 +105,92 @@ class PromotionService {
           },
         },
         skip: offset,
-        take: limit,
+        take: limitNum,
         orderBy: { [sortBy]: sortOrder },
       }),
       prisma.promotion.count({ where }),
+      prisma.promotion.findMany({
+        where,
+        select: {
+          id: true,
+          status: true,
+          usageCount: true,
+          startDate: true,
+          endDate: true,
+        },
+      }),
     ]);
 
-    return {
+    // Calculate statistics
+    const now = new Date();
+    const threeSevenDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const activePromotions = allPromotions.filter((p: any) => p.status === 'active').length;
+    const pendingPromotions = allPromotions.filter((p: any) => p.status === 'pending').length;
+    const expiredPromotions = allPromotions.filter((p: any) => p.status === 'expired').length;
+    const expiringPromotions = allPromotions.filter(
+      (p: any) =>
+        p.status === 'active' && p.endDate >= threeSevenDaysLater && p.endDate <= sevenDaysLater
+    ).length;
+
+    const totalUsage = allPromotions.reduce((sum: number, p: any) => sum + p.usageCount, 0);
+
+    // Calculate usage by day (last 30 days)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const usageByDayMap: Record<string, number> = {};
+
+    allPromotions.forEach((p: any) => {
+      if (p.createdAt >= thirtyDaysAgo) {
+        const dateKey = new Date(p.createdAt).toISOString().split('T')[0];
+        usageByDayMap[dateKey] = (usageByDayMap[dateKey] || 0) + p.usageCount;
+      }
+    });
+
+    const usageByDay = Object.entries(usageByDayMap).map(([date, count]) => ({
+      date,
+      count,
+    }));
+
+    const statistics = {
+      totalPromotions: total,
+      activePromotions,
+      pendingPromotions,
+      expiredPromotions,
+      expiringPromotions,
+      totalUsage,
+      usageByDay,
+    };
+
+    const result = {
       data: promotions,
       meta: {
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limitNum),
       },
+      statistics,
     };
+
+    await redis.set(cacheKey, result, PROMOTION_LIST_CACHE_TTL);
+
+    return result;
   }
 
   // Get promotion by ID
   async getById(id: number) {
+    const cacheKey = `promotion:${id}`;
+
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ Cache tìm thấy: ${cacheKey}`);
+      return cached;
+    }
+
+    console.log(`⚠️ Không có cache: ${cacheKey}, đang truy vấn từ database...`);
+
     const promotion = await prisma.promotion.findUnique({
       where: { id },
       include: {
@@ -180,21 +240,22 @@ class PromotionService {
     });
 
     if (!promotion) {
-      throw new NotFoundError('Promotion');
+      throw new NotFoundError('Khuyến mãi');
     }
+
+    await redis.set(cacheKey, promotion, PROMOTION_CACHE_TTL);
 
     return promotion;
   }
 
   // Create new promotion
   async create(data: CreatePromotionInput, userId: number) {
-    // Check if promotion code already exists
     const existingCode = await prisma.promotion.findUnique({
       where: { promotionCode: data.promotionCode },
     });
 
     if (existingCode) {
-      throw new ConflictError('Promotion code already exists');
+      throw new ConflictError('Mã khuyến mãi đã tồn tại');
     }
 
     // Validate promotion type specific fields
@@ -247,7 +308,12 @@ class PromotionService {
     });
 
     // Log activity
-    logActivity('create', userId, 'promotions', { id: promotion.id, code: promotion.promotionCode });
+    logActivity('create', userId, 'promotions', {
+      id: promotion.id,
+      code: promotion.promotionCode,
+    });
+
+    await redis.flushPattern('promotion:list:*');
 
     return promotion;
   }
@@ -255,7 +321,7 @@ class PromotionService {
   // Update promotion
   async update(id: number, data: UpdatePromotionInput | undefined, userId: number) {
     if (!data) {
-      throw new ValidationError('Update data is required');
+      throw new ValidationError('Dữ liệu cập nhật là bắt buộc');
     }
 
     const existing = await prisma.promotion.findUnique({
@@ -263,14 +329,12 @@ class PromotionService {
     });
 
     if (!existing) {
-      throw new NotFoundError('Promotion');
+      throw new NotFoundError('Khuyến mãi');
     }
 
     // Cannot update if already active or expired
     if (existing.status === 'active' || existing.status === 'expired') {
-      throw new ValidationError(
-        `Cannot update promotion with status: ${existing.status}`
-      );
+      throw new ValidationError(`Không thể cập nhật khuyến mãi có trạng thái: ${existing.status}`);
     }
 
     // If products are provided, delete old and create new
@@ -336,6 +400,9 @@ class PromotionService {
     // Log activity
     logActivity('update', userId, 'promotions', { id, changes: Object.keys(updateData) });
 
+    await redis.flushPattern('promotion:list:*');
+    await redis.del(`promotion:${promotion.id}`);
+
     return promotion;
   }
 
@@ -346,11 +413,11 @@ class PromotionService {
     });
 
     if (!promotion) {
-      throw new NotFoundError('Promotion');
+      throw new NotFoundError('Khuyến mãi');
     }
 
     if (promotion.status !== 'pending') {
-      throw new ValidationError('Only pending promotions can be approved');
+      throw new ValidationError('Chỉ có thể phê duyệt khuyến mãi đang chờ duyệt');
     }
 
     const updated = await prisma.promotion.update({
@@ -375,6 +442,9 @@ class PromotionService {
     // Log activity
     logActivity('approve', userId, 'promotions', { id, code: updated.promotionCode });
 
+    await redis.flushPattern('promotion:list:*');
+    await redis.del(`promotion:${promotion.id}`);
+
     return updated;
   }
 
@@ -385,11 +455,13 @@ class PromotionService {
     });
 
     if (!promotion) {
-      throw new NotFoundError('Promotion');
+      throw new NotFoundError('Khuyến mãi');
     }
 
     if (promotion.status === 'cancelled' || promotion.status === 'expired') {
-      throw new ValidationError(`Promotion is already ${promotion.status}`);
+      throw new ValidationError(
+        `Khuyến mãi đã ${promotion.status === 'cancelled' ? 'hủy' : 'hết hạn'}`
+      );
     }
 
     const updated = await prisma.promotion.update({
@@ -408,12 +480,44 @@ class PromotionService {
     // Log activity
     logActivity('cancel', userId, 'promotions', { id, reason, code: updated.promotionCode });
 
+    await redis.flushPattern('promotion:list:*');
+    await redis.del(`promotion:${promotion.id}`);
+
     return updated;
   }
 
-  // Delete promotion (soft delete via cancel)
+  // Delete promotion (soft delete)
   async delete(id: number, userId: number) {
-    return this.cancel(id, 'Deleted by user', userId);
+    const promotion = await prisma.promotion.findUnique({
+      where: { id },
+    });
+
+    if (!promotion) {
+      throw new NotFoundError('Promotion');
+    }
+
+    if (promotion.status !== 'pending') {
+      throw new ValidationError('Chỉ có thể xóa khuyến mãi ở trạng thái chờ duyệt');
+    }
+
+    const updated = await prisma.promotion.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+      include: {
+        creator: true,
+        approver: true,
+      },
+    });
+
+    // Log activity
+    logActivity('delete', userId, 'promotions', { id, code: updated.promotionCode });
+
+    await redis.flushPattern('promotion:list:*');
+    await redis.del(`promotion:${promotion.id}`);
+
+    return updated;
   }
 
   // Get active promotions
@@ -468,7 +572,7 @@ class PromotionService {
     });
 
     if (!promotion) {
-      throw new NotFoundError('Promotion');
+      throw new NotFoundError('Khuyến mãi');
     }
 
     // Check if promotion is active
@@ -478,7 +582,7 @@ class PromotionService {
         applicable: false,
         discountAmount: 0,
         finalAmount: data.orderAmount,
-        message: `Promotion is ${promotion.status}`,
+        message: `Khuyến mãi đang ở trạng thái ${promotion.status}`,
       };
     }
 
@@ -487,7 +591,7 @@ class PromotionService {
         applicable: false,
         discountAmount: 0,
         finalAmount: data.orderAmount,
-        message: 'Promotion is not within valid date range',
+        message: 'Khuyến mãi không trong khoảng thời gian hiệu lực',
       };
     }
 
@@ -497,7 +601,7 @@ class PromotionService {
         applicable: false,
         discountAmount: 0,
         finalAmount: data.orderAmount,
-        message: 'Promotion usage limit reached',
+        message: 'Đã đạt giới hạn sử dụng khuyến mãi',
       };
     }
 
@@ -507,7 +611,7 @@ class PromotionService {
         applicable: false,
         discountAmount: 0,
         finalAmount: data.orderAmount,
-        message: `Minimum order value is ${promotion.minOrderValue}`,
+        message: `Giá trị đơn hàng tối thiểu là ${promotion.minOrderValue}`,
       };
     }
 
@@ -542,7 +646,7 @@ class PromotionService {
       if (!conditions.applicable_customer_types.includes(data.customerType)) {
         return {
           applicable: false,
-          message: 'Customer type not eligible for this promotion',
+          message: 'Loại khách hàng không đủ điều kiện cho khuyến mãi này',
         };
       }
     }
@@ -553,7 +657,7 @@ class PromotionService {
       if (!conditions.days_of_week.includes(dayOfWeek)) {
         return {
           applicable: false,
-          message: 'Promotion not available on this day',
+          message: 'Khuyến mãi không áp dụng vào ngày này',
         };
       }
     }
@@ -561,7 +665,10 @@ class PromotionService {
     // Check time slot
     if (conditions.time_slots && conditions.time_slots.length > 0) {
       const now = new Date();
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}`;
 
       const inTimeSlot = conditions.time_slots.some((slot) => {
         const [start, end] = slot.split('-');
@@ -571,7 +678,7 @@ class PromotionService {
       if (!inTimeSlot) {
         return {
           applicable: false,
-          message: 'Promotion not available at this time',
+          message: 'Khuyến mãi không áp dụng vào thời gian này',
         };
       }
     }
@@ -580,9 +687,7 @@ class PromotionService {
     if (conditions.applicable_categories && conditions.applicable_categories.length > 0) {
       const orderCategories = data.orderItems
         .map((item) => {
-          const productPromo = promotion.products?.find(
-            (p: any) => p.productId === item.productId
-          );
+          const productPromo = promotion.products?.find((p: any) => p.productId === item.productId);
           return productPromo?.product?.categoryId;
         })
         .filter((catId: number | undefined): catId is number => catId !== undefined);
@@ -594,7 +699,7 @@ class PromotionService {
       if (!hasMatchingCategory) {
         return {
           applicable: false,
-          message: 'No products in applicable categories',
+          message: 'Không có sản phẩm nào trong danh mục áp dụng',
         };
       }
     }
@@ -603,10 +708,7 @@ class PromotionService {
   }
 
   // Calculate discount amount
-  private calculateDiscount(
-    promotion: any,
-    data: ApplyPromotionInput
-  ): ApplyPromotionResult {
+  private calculateDiscount(promotion: any, data: ApplyPromotionInput): ApplyPromotionResult {
     let discountAmount = 0;
     const giftProducts: { productId: number; quantity: number }[] = [];
 
@@ -615,10 +717,7 @@ class PromotionService {
         discountAmount = (data.orderAmount * Number(promotion.discountValue)) / 100;
 
         // Apply max discount limit
-        if (
-          promotion.maxDiscountValue &&
-          discountAmount > Number(promotion.maxDiscountValue)
-        ) {
+        if (promotion.maxDiscountValue && discountAmount > Number(promotion.maxDiscountValue)) {
           discountAmount = Number(promotion.maxDiscountValue);
         }
         break;
@@ -697,7 +796,7 @@ class PromotionService {
       case 'percent_discount':
       case 'fixed_discount':
         if (!data.discountValue || data.discountValue <= 0) {
-          throw new ValidationError('Discount value is required and must be greater than 0');
+          throw new ValidationError('Giá trị giảm giá là bắt buộc và phải lớn hơn 0');
         }
         break;
 
@@ -711,7 +810,7 @@ class PromotionService {
           conditions.get_quantity <= 0
         ) {
           throw new ValidationError(
-            'Buy X Get Y promotion requires valid buy_quantity and get_quantity in conditions'
+            'Khuyến mãi Mua X Tặng Y yêu cầu buy_quantity và get_quantity hợp lệ trong điều kiện'
           );
         }
         break;
@@ -719,14 +818,12 @@ class PromotionService {
 
       case 'gift': {
         if (!data.products || data.products.length === 0) {
-          throw new ValidationError('Gift promotion requires at least one product');
+          throw new ValidationError('Khuyến mãi quà tặng yêu cầu ít nhất một sản phẩm');
         }
 
         const hasGift = data.products.some((p) => p.giftProductId && p.giftQuantity);
         if (!hasGift) {
-          throw new ValidationError(
-            'Gift promotion requires giftProductId and giftQuantity'
-          );
+          throw new ValidationError('Khuyến mãi quà tặng yêu cầu giftProductId và giftQuantity');
         }
         break;
       }
@@ -747,17 +844,23 @@ class PromotionService {
       },
     });
 
+    await redis.flushPattern('promotion:list:*');
+
     return expired.count;
   }
 
   // Increment usage count
   async incrementUsage(id: number) {
-    return await prisma.promotion.update({
+    const promotion = await prisma.promotion.update({
       where: { id },
       data: {
         usageCount: { increment: 1 },
       },
     });
+
+    await redis.flushPattern('promotion:list:*');
+
+    return promotion;
   }
 }
 

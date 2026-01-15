@@ -2,12 +2,12 @@ import { z } from 'zod';
 
 export const createPaymentVoucherSchema = z.object({
   voucherType: z.enum(['salary', 'operating_cost', 'supplier_payment', 'refund', 'other']),
-  supplierId: z.number().int().positive('Supplier ID must be positive').optional(),
+  supplierId: z.number().int().positive('ID nhà cung cấp phải là số dương').optional(),
   expenseAccount: z.string().max(100).optional(),
-  amount: z.number().positive('Amount must be positive'),
+  amount: z.number().positive('Số tiền phải là số dương'),
   paymentMethod: z.enum(['cash', 'transfer']),
   bankName: z.string().max(200).optional(),
-  paymentDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid payment date'),
+  paymentDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Ngày thanh toán không hợp lệ'),
   notes: z.string().max(255).optional(),
 });
 
@@ -15,14 +15,14 @@ export const updatePaymentVoucherSchema = z.object({
   voucherType: z
     .enum(['salary', 'operating_cost', 'supplier_payment', 'refund', 'other'])
     .optional(),
-  supplierId: z.number().int().positive().optional(),
+  supplierId: z.number().int().positive('ID nhà cung cấp phải là số dương').optional(),
   expenseAccount: z.string().max(100).optional(),
-  amount: z.number().positive().optional(),
+  amount: z.number().positive('Số tiền phải là số dương').optional(),
   paymentMethod: z.enum(['cash', 'transfer']).optional(),
   bankName: z.string().max(200).optional(),
   paymentDate: z
     .string()
-    .refine((val) => !isNaN(Date.parse(val)), 'Invalid payment date')
+    .refine((val) => !isNaN(Date.parse(val)), 'Ngày thanh toán không hợp lệ')
     .optional(),
   notes: z.string().max(255).optional(),
 });
@@ -52,6 +52,8 @@ export const paymentVoucherQuerySchema = z.object({
     .string()
     .transform((val) => val === 'true')
     .optional(),
+  approvalStatus: z.enum(['approved', 'pending']).optional(),
+  postedStatus: z.enum(['posted', 'draft']).optional(),
   fromDate: z.string().optional(),
   toDate: z.string().optional(),
   sortBy: z.string().optional(),

@@ -476,9 +476,167 @@ Sales & Production System Team
     `;
   }
 
-  // Check if email service is configured
-  isEmailServiceConfigured(): boolean {
-    return this.isConfigured;
+  // Send payment receipt email
+  async sendPaymentReceiptEmail(receipt: any): Promise<boolean> {
+    if (!receipt.customer?.email) {
+      logError('Không thể gửi email phiếu thu - không tìm thấy email khách hàng.', null, {
+        receiptCode: receipt.receiptCode,
+        customerId: receipt.customerId,
+      });
+      return false;
+    }
+
+    return await this.sendEmail({
+      to: receipt.customer.email,
+      subject: `Biên lai thanh toán ${receipt.receiptCode} - Công Ty Nam Việt`,
+      html: this.getPaymentReceiptEmailTemplate(receipt),
+      text: `Biên lai thanh toán ${receipt.receiptCode}\n\nKính gửi ${receipt.customer.customerName},\n\nCông ty Nam Việt xin gửi đến quý khách biên lai thanh toán.\nVui lòng kiểm tra email HTML để xem chi tiết.\n\nTrân trọng,\nCông Ty Nam Việt`,
+    });
+  }
+
+  private getPaymentReceiptEmailTemplate(receipt: any): string {
+    const formatCurrency = (amount: number) => {
+      return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+      }).format(amount);
+    };
+
+    const formatDate = (dateString: string) => {
+      return new Date(dateString).toLocaleDateString('vi-VN');
+    };
+
+    const receiptTypeLabels: Record<string, string> = {
+      sales: 'Bán hàng',
+      debt_collection: 'Thu công nợ',
+      refund: 'Hoàn tiền',
+      other: 'Khác',
+    };
+
+    const paymentMethodLabels: Record<string, string> = {
+      cash: 'Tiền mặt',
+      transfer: 'Chuyển khoản',
+      card: 'Thẻ',
+    };
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biên Lai Thanh Toán - ${receipt.receiptCode}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+  
+  <!-- Header -->
+  <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">💳 BIÊN LAI THANH TOÁN</h1>
+    <p style="color: #d1fae5; margin: 10px 0 0 0; font-size: 16px;">Số: ${receipt.receiptCode}</p>
+  </div>
+
+  <!-- Main Content -->
+  <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    
+    <!-- Greeting -->
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Kính gửi: <strong>${receipt.customer?.customerName || '—'}</strong>
+    </p>
+
+    <p style="font-size: 14px; margin-bottom: 30px; line-height: 1.8;">
+      Công ty Cổ Phần Hóa Sinh Nam Việt xin gửi đến quý khách biên lai thanh toán với các thông tin chi tiết như sau:
+    </p>
+
+    <!-- Company Info -->
+    <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #10b981;">
+      <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 16px;">Thông tin công ty</h3>
+      <table style="width: 100%; font-size: 14px;">
+        <tr>
+          <td style="padding: 5px 0; width: 150px; color: #64748b;">Công ty:</td>
+          <td style="padding: 5px 0; font-weight: 600;">Công Ty Cổ Phần Hoá Sinh Nam Việt</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Địa chỉ:</td>
+          <td style="padding: 5px 0;">QL30/ấp Đông Mỹ, Mỹ Hội, Cao Lãnh, Đồng Tháp</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Điện thoại:</td>
+          <td style="padding: 5px 0;">0886 357 788</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Receipt Info -->
+    <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+      <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 16px;">Thông tin phiếu thu</h3>
+      <table style="width: 100%; font-size: 14px;">
+        <tr>
+          <td style="padding: 5px 0; width: 150px; color: #64748b;">Loại phiếu:</td>
+          <td style="padding: 5px 0; font-weight: 600;">${receiptTypeLabels[receipt.receiptType] || receipt.receiptType}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Phương thức:</td>
+          <td style="padding: 5px 0;">
+            ${paymentMethodLabels[receipt.paymentMethod] || receipt.paymentMethod}${receipt.bankName ? ` - ${receipt.bankName}` : ''}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Ngày thu:</td>
+          <td style="padding: 5px 0;">${formatDate(receipt.receiptDate)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0; color: #64748b;">Trạng thái:</td>
+          <td style="padding: 5px 0;">
+            <span style="background: ${receipt.isPosted ? '#dcfce7' : '#fef3c7'}; color: ${receipt.isPosted ? '#166534' : '#92400e'}; padding: 4px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;">
+              ${receipt.isPosted ? 'Đã ghi sổ' : 'Chưa ghi sổ'}
+            </span>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Amount Section -->
+    <div style="background: #f8fafc; padding: 25px; border-radius: 8px; margin-bottom: 25px; border: 2px solid #10b981; text-align: center;">
+      <p style="font-size: 14px; color: #64748b; margin: 0 0 10px 0;">TỔNG SỐ TIỀN THANH TOÁN</p>
+      <p style="font-size: 32px; color: #10b981; margin: 0; font-weight: bold;">
+        ${formatCurrency(receipt.amount)}
+      </p>
+    </div>
+
+    ${receipt.transactionReference ? `
+    <!-- Transaction Reference -->
+    <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="font-size: 13px; color: #64748b; margin: 0;">
+        <strong>Mã tham chiếu:</strong> ${receipt.transactionReference}
+      </p>
+    </div>
+    ` : ''}
+
+    ${receipt.notes ? `
+    <!-- Notes -->
+    <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="font-size: 13px; color: #64748b; margin: 0;">
+        <strong>Ghi chú:</strong> ${receipt.notes}
+      </p>
+    </div>
+    ` : ''}
+
+    <!-- Footer -->
+    <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+    
+    <p style="font-size: 13px; color: #666; margin-bottom: 10px;">
+      Cảm ơn quý khách đã thanh toán. Vui lòng giữ biên lai này để làm bằng chứng thanh toán.
+    </p>
+
+    <p style="font-size: 12px; color: #999; text-align: center; margin-top: 20px;">
+      Trân trọng,<br>
+      <strong>Sales & Production System Team</strong><br>
+      <em>Công Ty Cổ Phần Hoá Sinh Nam Việt</em>
+    </p>
+  </div>
+</body>
+</html>
+    `;
   }
 
   private getPurchaseOrderEmailTemplate(purchaseOrder: any): string {

@@ -11,8 +11,8 @@ import {
   postVoucherSchema,
   paymentVoucherQuerySchema,
 } from '@validators/payment-voucher.validator';
-
 import { logActivityMiddleware } from '@middlewares/logger';
+
 const router = Router();
 
 // All routes require authentication
@@ -95,6 +95,29 @@ router.post(
   validate(postVoucherSchema),
   logActivityMiddleware('post', 'payment_voucher'),
   asyncHandler(paymentVoucherController.post.bind(paymentVoucherController))
+);
+
+// DELETE /api/payment-vouchers/:id/unpost - Unpost voucher (Revert)
+router.delete(
+  '/:id/unpost',
+  authorize('post_payment_voucher'),
+  logActivityMiddleware('unpost', 'payment_voucher'),
+  asyncHandler(paymentVoucherController.unpost.bind(paymentVoucherController))
+);
+
+// POST /api/payment-vouchers/bulk-post - Bulk post vouchers
+router.post(
+  '/bulk-post',
+  authorize('post_payment_voucher'),
+  logActivityMiddleware('bulkPost', 'payment_voucher'),
+  asyncHandler(paymentVoucherController.bulkPost.bind(paymentVoucherController))
+);
+
+// POST /api/payment-vouchers/refresh - Refresh cache
+router.post(
+  '/refresh',
+  authorize('view_payment_vouchers'),
+  asyncHandler(paymentVoucherController.refreshCache.bind(paymentVoucherController))
 );
 
 // DELETE /api/payment-vouchers/:id - Delete payment voucher

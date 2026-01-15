@@ -46,7 +46,10 @@ class PaymentVoucherController {
   // GET /api/payment-vouchers/statistics - Get statistics
   async getStatistics(req: AuthRequest, res: Response) {
     const { fromDate, toDate } = req.query;
-    const statistics = await paymentVoucherService.getStatistics(fromDate as string, toDate as string);
+    const statistics = await paymentVoucherService.getStatistics(
+      fromDate as string,
+      toDate as string
+    );
 
     res.status(200).json({
       success: true,
@@ -74,7 +77,7 @@ class PaymentVoucherController {
     if (!fromDate || !toDate) {
       res.status(400).json({
         success: false,
-        message: 'fromDate and toDate are required',
+        message: 'fromDate và toDate là các trường bắt buộc.',
         timestamp: new Date().toISOString(),
       });
       return;
@@ -100,7 +103,7 @@ class PaymentVoucherController {
     res.status(201).json({
       success: true,
       data: voucher,
-      message: 'Payment voucher created successfully',
+      message: 'Phiếu thanh toán đã được tạo thành công.',
       timestamp: new Date().toISOString(),
     });
   }
@@ -114,7 +117,7 @@ class PaymentVoucherController {
     res.status(200).json({
       success: true,
       data: voucher,
-      message: 'Payment voucher updated successfully',
+      message: 'Phiếu thanh toán đã được cập nhật thành công.',
       timestamp: new Date().toISOString(),
     });
   }
@@ -128,7 +131,7 @@ class PaymentVoucherController {
     res.status(200).json({
       success: true,
       data: voucher,
-      message: 'Payment voucher approved successfully',
+      message: 'Phiếu thanh toán đã được phê duyệt thành công.',
       timestamp: new Date().toISOString(),
     });
   }
@@ -142,7 +145,21 @@ class PaymentVoucherController {
     res.status(200).json({
       success: true,
       data: voucher,
-      message: 'Payment voucher posted to accounting successfully',
+      message: 'Chứng từ thanh toán đã được ghi nhận vào hệ thống kế toán thành công.',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // DELETE /api/payment-vouchers/:id/unpost - Unpost voucher (Revert posted status)
+  async unpost(req: AuthRequest, res: Response) {
+    const id = parseInt(req.params.id);
+    const userId = req.user!.id;
+    const result = await paymentVoucherService.unpost(id, userId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Bỏ ghi sổ phiếu chi thành công',
       timestamp: new Date().toISOString(),
     });
   }
@@ -158,6 +175,55 @@ class PaymentVoucherController {
       message: result.message,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  // POST /api/payment-vouchers/bulk-post - Bulk post vouchers
+  async bulkPost(req: AuthRequest, res: Response) {
+    const userId = req.user!.id;
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_IDS',
+          message: 'ids phải là mảng không rỗng',
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const result = await paymentVoucherService.bulkPost(ids, userId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: result.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // POST /api/payment-vouchers/refresh - Refresh cache
+  async refreshCache(_req: any, res: Response) {
+    try {
+      const result = await paymentVoucherService.refreshCache();
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: "Làm mới cache thành công",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: {
+          message: error?.message || "Làm mới cache thất bại",
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 }
 
