@@ -58,6 +58,7 @@ import cs_inventoryRoutes from '@routes/cs-inventory.routes';
 import cs_customerRoutes from '@routes/cs-customer.routes';
 import cs_warehouseRoutes from '@routes/cs-warehouse.routes';
 import cs_salesOrderRoutes from '@routes/cs-sales-order.routes';
+import cs_product_Routes from '@routes/cs-product.routes';
 
 // Import notification scheduler
 import notificationScheduler from '@schedulers/notification.scheduler';
@@ -224,6 +225,7 @@ app.use('/api/cs/inventory', cs_inventoryRoutes);
 app.use('/api/cs/customers', cs_customerRoutes);
 app.use('/api/cs/warehouses', cs_warehouseRoutes);
 app.use('/api/cs/sale-order', cs_salesOrderRoutes);
+app.use('/api/cs/products', cs_product_Routes);
 
 // 404 handler
 app.use(notFoundHandler);

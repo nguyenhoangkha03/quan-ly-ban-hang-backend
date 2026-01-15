@@ -10,6 +10,9 @@ export const CacheTTL = {
   DASHBOARD: 5 * 60,
   PERMISSIONS: 60 * 60,
   RATE_LIMIT: 60,
+
+  SMART_DEBT_LIST: 300,
+  SMART_DEBT_DETAIL: 600,
 };
 
 // Cache key prefixes
@@ -25,6 +28,8 @@ export const CachePrefix = {
   BLACKLIST: 'blacklist:',
   WAREHOUSE: 'warehouse:',
   BOM: 'bom:',
+
+  SMART_DEBT: 'smart_debt:',
 };
 
 class RedisService {

@@ -68,3 +68,60 @@ export const customerAuthentication = (req: Request, res: Response, next: NextFu
     // Truyền đủ 3 tham số và bắt lỗi để Express xử lý
     verifyCustomer(req as AuthRequest, res, next).catch(next);
 };
+
+// 👇 MIDDLEWARE MỚI: XÁC THỰC TÙY CHỌN (KHÔNG CHẶN KHÁCH)
+export const optionalCustomerAuthentication = async (req: Request, _res: Response, next: NextFunction) => {
+    try {
+
+        const authHeader = req.headers.authorization;
+        console.log("Optional Auth Middleware was called 👇 with header: ",authHeader);
+        
+        // 1. Nếu không có token -> Coi như khách vãng lai -> NEXT luôn
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return next();
+        }
+
+        const token = authHeader.split(' ')[1];
+        
+        // 2. Verify Token
+        let decoded;
+        try {
+            decoded = verifyAccessToken(token);
+        } catch (err) {
+            return next(); 
+        }
+
+        if (!decoded || !decoded.customerId) {
+            return next();
+        }
+
+        // 👇 3. SỬA ĐỔI QUAN TRỌNG: Truy vấn thẳng vào bảng Customer
+        // Vì classification nằm ở bảng Customer, không cần qua bảng Account
+        const customer = await prisma.customer.findUnique({
+            where: { id: decoded.customerId }, // ID của Customer luôn là Unique
+            select: { 
+                id: true, 
+                classification: true,
+                status: true
+            }
+        });
+
+        // Nếu không tìm thấy hoặc khách bị khóa -> Vẫn cho xem nhưng giá lẻ
+        if (!customer || customer.status !== 'active') {
+            return next();
+        }
+
+        // 4. Gắn user vào request
+        (req as any).user = {
+            id: customer.id,
+            classification: customer.classification, // ✅ Lấy được VIP/Wholesale
+            role: 'customer'
+        };
+
+        next();
+
+    } catch (error) {
+        console.error("Optional Auth Error:", error); 
+        next();
+    }
+};

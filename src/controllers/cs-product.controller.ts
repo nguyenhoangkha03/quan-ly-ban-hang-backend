@@ -1,26 +1,55 @@
-import { Response } from 'express';
-import { AuthRequest } from '@custom-types/common.type';
-import productService from '@services/cs-product.service'; 
+import { Response, Request } from 'express';
+import storeProductService from '@services/cs-product.service';
 import { ApiResponse } from '@custom-types/common.type';
-import { ProductQueryInput } from '@validators/product.validator';
+
+// Nếu bạn có interface AuthRequest thì import vào, nếu không dùng (req as any) cũng được
+// import { AuthRequest } from '@custom-types/common.type';
 
 class PublicProductController {
     
-    // GET /api/cs/categories - Lấy danh sách sản phẩm (có filter/search/pagination/sorting/status)
-     async getAll(req: AuthRequest, res: Response) {
-       // 1. Ép kiểu req.query về ProductQueryInput do zod
-       const queryParams = req.query as unknown as ProductQueryInput;
+    // =================================================================
+    // GET /api/store/products (Danh sách - Có bộ lọc & Đa giá)
+    // =================================================================
+    async getAll(req: Request, res: Response) {
+       // 1. Lấy tham số từ query
+       const { 
+           page, limit, search, categoryId, 
+           isFeatured, sortBy,
+           minPrice, maxPrice, packagingType
+       } = req.query;
    
-       // 2. Gọi Service truyền thẳng object vào
-       const result = await productService.getAll({
-         ...queryParams, // Spread toàn bộ tham số (page, limit, search...)
+       // 2. XÁC ĐỊNH LOẠI KHÁCH HÀNG (Quan trọng)
+       // Giả sử middleware authentication (optional) đã gán user vào req
+       // Nếu không có user (khách vãng lai) => Mặc định là 'retail'
+       const currentUser = (req as any).user; 
+       console.log('Current User classification:', currentUser?.classification);
+       const userType = currentUser?.classification || 'retail';
+       console.log('Determined userType:', userType);
+
+       // 3. Gọi Service
+       const result = await storeProductService.getPublicProducts({
+         // Phân trang & Tìm kiếm
+         page: page ? Number(page) : 1,
+         limit: limit ? Number(limit) : 20,
+         search: search as string,
          
-         status: 'active', 
+         // Bộ lọc cơ bản
+         categoryId: categoryId ? Number(categoryId) : undefined,
+         isFeatured: isFeatured === 'true' ? true : undefined,
+         sortBy: sortBy as any,
+
+         // Bộ lọc nâng cao (Giá & Quy cách)
+         minPrice: minPrice ? Number(minPrice) : undefined,
+         maxPrice: maxPrice ? Number(maxPrice) : undefined,
+         packagingType: packagingType as any,
+
+         // 👇 THAM SỐ MỚI: Loại tài khoản để tính giá
+         userType: userType, 
        });
-   
+
        const response: ApiResponse = {
          success: true,
-         data: result.products,
+         data: result.data, 
          meta: result.pagination,
          timestamp: new Date().toISOString(),
        };
@@ -28,11 +57,18 @@ class PublicProductController {
        res.status(200).json(response);
      }
    
-     // GET /api/products/:id
-     async getById(req: AuthRequest, res: Response) {
+     // =================================================================
+     // GET /api/store/products/:id (Chi tiết - Có đa giá & List khuyến mãi)
+     // =================================================================
+     async getById(req: Request, res: Response) {
        const { id } = req.params;
    
-       const product = await productService.getById(parseInt(id));
+       // 1. Lấy User Type tương tự như trên
+       const currentUser = (req as any).user;
+       const userType = currentUser?.classification || 'retail';
+
+       // 2. Gọi hàm detail kèm userType
+       const product = await storeProductService.getProductDetail(Number(id), userType);
    
        const response: ApiResponse = {
          success: true,

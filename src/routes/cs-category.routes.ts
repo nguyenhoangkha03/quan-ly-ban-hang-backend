@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import publicCategoryController from '@controllers/cs-category.controller';
 import { asyncHandler } from '@middlewares/errorHandler';
+import { publicCategoryQuerySchema } from '@validators/cs-category.validator';
+import { validate } from '@middlewares/validate';
 
 
 const router = Router();
@@ -16,6 +18,7 @@ const router = Router();
 router.get(
     '/',
     // publicCategoryController.getAllCategories sẽ tự thêm status: 'active' vào query
+    validate(publicCategoryQuerySchema, 'query'),
     asyncHandler(publicCategoryController.getAllCategories.bind(publicCategoryController))
 );
 
@@ -35,6 +38,7 @@ router.get(
  */
 router.get(
     '/:id',
+    validate(publicCategoryQuerySchema, 'query'),
     asyncHandler(publicCategoryController.getCategoryById.bind(publicCategoryController))
 );
 

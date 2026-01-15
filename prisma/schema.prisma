@@ -165,8 +165,10 @@ model User {
   productVideos              ProductVideo[]
 
   // debtMasters replaced by debtReconciliations
-  managedDebts DebtMaster[]
+  managedCustomers Customer[] @relation("CustomerDebtManager")
+  managedSuppliers Supplier[] @relation("SupplierDebtManager")
 
+  @@index([roleId, status])
   @@index([roleId, status])
   @@map("users")
 }
@@ -271,15 +273,18 @@ model Supplier {
   payableUpdatedAt DateTime?      @map("payable_updated_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
-  deletedAt        DateTime?      @map("deleted_at")
+  assignedUserId   Int?           @map("assigned_user_id")
 
-  creator         User?            @relation("SupplierCreator", fields: [createdBy], references: [id], onDelete: SetNull)
-  updater         User?            @relation("SupplierUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  creator User? @relation("SupplierCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  updater User? @relation("SupplierUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  assignedUser User? @relation("SupplierDebtManager", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
   purchaseOrders  PurchaseOrder[]
   products        Product[]
   paymentVouchers PaymentVoucher[]
-
-  managedDebts DebtMaster[]
+  debtPeriods     DebtPeriod[]
+  // debtReconciliations DebtReconciliation[]
 
   @@index([supplierCode])
   @@index([status])
@@ -303,10 +308,9 @@ model PurchaseOrder {
   approvedBy           Int?                @map("approved_by")
   createdAt            DateTime            @default(now()) @map("created_at")
   deletedAt            DateTime?           @map("deleted_at")
-
   // Liên kết vào kỳ công nợ
-  debtPeriodId Int?        @map("debt_period_id")
-  debtPeriod   DebtPeriod? @relation(fields: [debtPeriodId], references: [id])
+  debtPeriodId         Int?                @map("debt_period_id")
+  debtPeriod           DebtPeriod?         @relation(fields: [debtPeriodId], references: [id])
 
   supplier  Supplier              @relation(fields: [supplierId], references: [id])
   warehouse Warehouse             @relation(fields: [warehouseId], references: [id])
@@ -321,6 +325,9 @@ model PurchaseOrder {
   @@index([status])
   @@index([supplierId])
   @@index([debtPeriodId])
+  @@index([poCode])
+  @@index([status])
+  @@index([supplierId])
   @@map("purchase_orders")
 }
 
@@ -711,8 +718,18 @@ model Customer {
   salesOrders     SalesOrder[]
   paymentReceipts PaymentReceipt[]
   customerAccount CustomerAccount[]
-  debtMaster      DebtMaster?
+  assignedUserId  Int?              @map("assigned_user_id")
 
+  assignedUser User? @relation("CustomerDebtManager", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  debtPeriods DebtPeriod[]
+
+  @@index([customerCode])
+  @@index([phone])
+  @@index([classification])
+  @@index([province, district])
+  @@index([status])
+  @@index([customerName])
   @@index([customerCode])
   @@index([phone])
   @@index([classification])
@@ -808,6 +825,11 @@ model SalesOrder {
   @@index([paymentStatus])
   @@index([customerId, orderDate])
   @@index([debtPeriodId])
+  @@index([orderCode])
+  @@index([orderDate])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+  @@index([customerId, orderDate])
   @@map("sales_orders")
 }
 
@@ -922,7 +944,6 @@ model PaymentVoucher {
   createdAt      DateTime             @default(now()) @map("created_at")
   deletedAt      DateTime?            @map("deleted_at")
 
-  // Mỗi phiếu chi PHẢI thuộc về 1 kỳ công nợ
   debtPeriodId Int?        @map("debt_period_id")
   debtPeriod   DebtPeriod? @relation(fields: [debtPeriodId], references: [id])
 
@@ -973,70 +994,42 @@ model PaymentVoucher {
 //     @@map("debt_reconciliation")
 // }
 
-// 1. Bảng Tổng Nợ / Sổ Cái (DebtMaster)
-// Quản lý chung cho cả Khách hàng và Nhà cung cấp
-model DebtMaster {
+model DebtPeriod {
   id Int @id @default(autoincrement())
 
-  // --- PHÂN LOẠI ĐỐI TƯỢNG ---
-  // Một Master chỉ thuộc về 1 trong 2 (Dùng code để check logic này)
-  customerId Int? @unique @map("customer_id")
-  supplierId Int? @unique @map("supplier_id")
+  // 👇 Liên kết trực tiếp (Thay vì qua DebtMaster)
+  customerId Int? @map("customer_id")
+  supplierId Int? @map("supplier_id")
 
-  // --- NGƯỜI PHỤ TRÁCH (User) ---
-  // Người chịu trách nhiệm giải quyết công nợ này
-  assignedUserId Int? @map("assigned_user_id")
+  periodName String   @map("period_name") @db.VarChar(20) // VD: "2024", "2025"
+  startTime  DateTime @map("start_time") @db.Date
+  endTime    DateTime @map("end_time") @db.Date
 
-  // Tổng nợ hiện tại (Real-time)
-  totalDebt   Decimal @default(0) @map("total_debt")
-  creditLimit Decimal @default(0) @map("credit_limit")
+  // CÁC CỘT SỐ LIỆU
+  openingBalance   Decimal @default(0) @map("opening_balance") @db.Decimal(15, 2)
+  increasingAmount Decimal @default(0) @map("increasing_amount") @db.Decimal(15, 2) // Tổng mua/nhập
+  decreasingAmount Decimal @default(0) @map("decreasing_amount") @db.Decimal(15, 2) // Tổng trả/chi
 
+  closingBalance Decimal @default(0) @map("closing_balance") @db.Decimal(15, 2) // Dư cuối
+
+  isLocked Boolean @default(false) @map("is_locked") // Đã chốt sổ chưa?
+  notes    String? @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Quan hệ
-  customer     Customer? @relation(fields: [customerId], references: [id])
-  supplier     Supplier? @relation(fields: [supplierId], references: [id])
-  assignedUser User?     @relation(fields: [assignedUserId], references: [id])
-
-  periods DebtPeriod[]
-
-  @@map("debt_masters")
-}
-
-// 2. Bảng Kỳ Kế Toán (DebtPeriod)
-model DebtPeriod {
-  id           Int @id @default(autoincrement())
-  debtMasterId Int @map("debt_master_id")
-
-  periodName String // VD: "2025"
-  startTime  DateTime @map("start_time")
-  endTime    DateTime @map("end_time")
-
-  // Số dư đầu kỳ
-  openingBalance Decimal @default(0) @map("opening_balance") @db.Decimal(15, 2)
-
-  // Phát sinh tăng
-  increasingAmount Decimal @default(0) @map("increasing_amount") @db.Decimal(15, 2) // Tổng mua
-
-  // Các khoản giảm trừ
-  decreasingAmount Decimal @default(0) @map("decreasing_amount") @db.Decimal(15, 2) // Thanh toán
-  returnAmount     Decimal @default(0) @map("return_amount") @db.Decimal(15, 2) // Trả hàng (MỚI)
-  adjustmentAmount Decimal @default(0) @map("adjustment_amount") @db.Decimal(15, 2) // Điều chỉnh (MỚI)
-
-  closingBalance Decimal @default(0) @map("closing_balance") @db.Decimal(15, 2) // Nợ cần thu
-
-  notes     String?  @db.VarChar(500)
-  status    String   @default("OPEN")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-
-  debtMaster DebtMaster @relation(fields: [debtMasterId], references: [id])
-
+  // RELATIONS
+  customer        Customer?        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  supplier        Supplier?        @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  purchaseOrders  PurchaseOrder[]
   salesOrders     SalesOrder[]
   paymentReceipts PaymentReceipt[]
-  purchaseOrders  PurchaseOrder[]
   paymentVouchers PaymentVoucher[]
 
-  @@unique([debtMasterId, periodName])
+  // Đảm bảo mỗi khách chỉ có 1 dòng cho năm 2024
+  @@unique([customerId, periodName])
+  @@unique([supplierId, periodName])
+  @@index([periodName])
   @@map("debt_periods")
 }
 
