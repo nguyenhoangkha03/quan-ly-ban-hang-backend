@@ -83,6 +83,14 @@ router.post(
   asyncHandler(paymentReceiptController.post.bind(paymentReceiptController))
 );
 
+// POST /api/payment-receipts/:id/send-email - Send email receipt
+router.post(
+  '/:id/send-email',
+  authorize('send_email_payment_receipt'),
+  logActivityMiddleware('send_email', 'payment_receipt'),
+  asyncHandler(paymentReceiptController.sendEmail.bind(paymentReceiptController))
+);
+
 // POST /api/payment-receipts/refresh - Refresh cache
 router.post(
   '/refresh',

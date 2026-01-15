@@ -2,6 +2,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { logActivity } from '@utils/logger';
 import customerService from './customer.service';
+import emailService from './email.service';
 import {
   CreatePaymentReceiptInput,
   UpdatePaymentReceiptInput,
@@ -289,7 +290,7 @@ class PaymentReceiptService {
     });
 
     if (!receipt) {
-      throw new NotFoundError('Payment receipt not found');
+      throw new NotFoundError('Không tìm thấy phiếu thu');
     }
 
     await redis.set(cacheKey, receipt, PAYMENT_RECEIPT_CACHE_TTL);
@@ -301,7 +302,7 @@ class PaymentReceiptService {
     const customer = await customerService.getById(data.customerId);
 
     if (customer.status !== 'active') {
-      throw new ValidationError('Customer must be active to create payment receipt');
+      throw new ValidationError('Khách hàng phải ở trạng thái hoạt động để tạo phiếu thu');
     }
 
     if (data.orderId) {
@@ -310,24 +311,26 @@ class PaymentReceiptService {
       });
 
       if (!order) {
-        throw new NotFoundError('Sales order not found');
+        throw new NotFoundError('Không tìm thấy đơn hàng');
       }
 
       if (order.customerId !== data.customerId) {
-        throw new ValidationError('Order does not belong to the specified customer');
+        throw new ValidationError('Đơn hàng không thuộc về khách hàng này');
       }
 
       const remainingAmount = Number(order.totalAmount) - Number(order.paidAmount);
       if (data.amount > remainingAmount) {
         throw new ValidationError(
-          `Payment amount (${data.amount}) exceeds remaining order amount (${remainingAmount})`
+          `Số tiền thanh toán (${data.amount}) vượt quá số tiền còn lại của đơn hàng (${remainingAmount})`
         );
       }
     }
 
     if (data.paymentMethod === 'transfer' || data.paymentMethod === 'card') {
       if (!data.bankName) {
-        throw new ValidationError('Bank name is required for transfer and card payments');
+        throw new ValidationError(
+          'Tên ngân hàng là bắt buộc đối với thanh toán chuyển khoản và thẻ'
+        );
       }
     }
 
@@ -351,59 +354,25 @@ class PaymentReceiptService {
         },
         include: {
           customerRef: true,
-          customer: true,
-          creator: true,
+          customer: {
+            select: {
+              id: true,
+              orderCode: true,
+              totalAmount: true,
+              paidAmount: true,
+              orderStatus: true,
+              paymentStatus: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              fullName: true,
+              employeeCode: true,
+            },
+          },
         },
       });
-
-      if (data.orderId) {
-        const order = await tx.salesOrder.findUnique({
-          where: { id: data.orderId },
-        });
-
-        if (order) {
-          const newPaidAmount = Number(order.paidAmount) + data.amount;
-          let paymentStatus: 'unpaid' | 'partial' | 'paid';
-
-          if (newPaidAmount >= Number(order.totalAmount)) {
-            paymentStatus = 'paid';
-          } else if (newPaidAmount > 0) {
-            paymentStatus = 'partial';
-          } else {
-            paymentStatus = 'unpaid';
-          }
-
-          await tx.salesOrder.update({
-            where: { id: data.orderId },
-            data: {
-              paidAmount: newPaidAmount,
-              paymentStatus,
-            },
-          });
-
-          if (order.orderStatus === 'completed') {
-            await tx.customer.update({
-              where: { id: data.customerId },
-              data: {
-                currentDebt: {
-                  decrement: data.amount,
-                },
-                debtUpdatedAt: new Date(),
-              },
-            });
-          }
-        }
-      } else if (data.receiptType === 'debt_collection') {
-        await tx.customer.update({
-          where: { id: data.customerId },
-          data: {
-            currentDebt: {
-              decrement: data.amount,
-            },
-            debtUpdatedAt: new Date(),
-          },
-        });
-      }
 
       return receipt;
     });
@@ -414,6 +383,8 @@ class PaymentReceiptService {
       recordId: result.id,
       receiptCode: result.receiptCode,
       amount: data.amount,
+      customerId: data.customerId,
+      orderId: data.orderId,
     });
 
     return result;
@@ -428,27 +399,23 @@ class PaymentReceiptService {
     });
 
     if (!receipt) {
-      throw new NotFoundError('Payment receipt not found');
+      throw new NotFoundError('Không tìm thấy phiếu thu');
     }
 
     if (receipt.isPosted) {
-      throw new ValidationError('Cannot update posted receipt');
+      throw new ValidationError('Không thể cập nhật phiếu thu đã ghi sổ');
     }
 
     if (receipt.approvedBy) {
-      throw new ValidationError('Cannot update approved receipt');
+      throw new ValidationError('Không thể cập nhật phiếu thu đã được duyệt');
     }
 
     if (data.paymentMethod === 'transfer' || data.paymentMethod === 'card') {
       if (!data.bankName && !receipt.bankName) {
-        throw new ValidationError('Bank name is required for transfer and card payments');
+        throw new ValidationError(
+          'Tên ngân hàng là bắt buộc đối với thanh toán chuyển khoản và thẻ'
+        );
       }
-    }
-
-    const needsFinancialUpdate = data.amount && Number(data.amount) !== Number(receipt.amount);
-
-    if (needsFinancialUpdate) {
-      await this.revertFinancialImpact(receipt, userId);
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -471,10 +438,6 @@ class PaymentReceiptService {
         },
       });
 
-      if (needsFinancialUpdate) {
-        await this.applyFinancialImpact(updatedReceipt, userId);
-      }
-
       return updatedReceipt;
     });
 
@@ -496,15 +459,15 @@ class PaymentReceiptService {
     });
 
     if (!receipt) {
-      throw new NotFoundError('Payment receipt not found');
+      throw new NotFoundError('Không tìm thấy phiếu thu');
     }
 
     if (receipt.isPosted) {
-      throw new ValidationError('Cannot approve posted receipt');
+      throw new ValidationError('Không thể duyệt phiếu thu đã ghi sổ');
     }
 
     if (receipt.approvedBy) {
-      throw new ValidationError('Receipt is already approved');
+      throw new ValidationError('Phiếu thu đã được duyệt');
     }
 
     const updatedReceipt = await prisma.paymentReceipt.update({
@@ -537,32 +500,42 @@ class PaymentReceiptService {
   async post(id: number, userId: number, data?: PostReceiptInput) {
     const receipt = await prisma.paymentReceipt.findUnique({
       where: { id },
+      include: {
+        customerRef: true,
+      },
     });
 
     if (!receipt) {
-      throw new NotFoundError('Payment receipt not found');
+      throw new NotFoundError('Không tìm thấy phiếu thu');
     }
 
     if (receipt.isPosted) {
-      throw new ValidationError('Receipt is already posted');
+      throw new ValidationError('Phiếu thu đã được ghi sổ');
     }
 
     if (!receipt.approvedBy) {
-      throw new ValidationError('Receipt must be approved before posting');
+      throw new ValidationError('Phiếu thu phải được duyệt trước khi ghi sổ');
     }
 
-    const updatedReceipt = await prisma.paymentReceipt.update({
-      where: { id },
-      data: {
-        isPosted: true,
-        notes: data?.notes ? `${receipt.notes || ''}\n[POSTED] ${data.notes}` : receipt.notes,
-      },
-      include: {
-        customerRef: true,
-        customer: true,
-        creator: true,
-        approver: true,
-      },
+    const updatedReceipt = await prisma.$transaction(async (tx) => {
+      const posted = await tx.paymentReceipt.update({
+        where: { id },
+        data: {
+          isPosted: true,
+          notes: data?.notes ? `${receipt.notes || ''}\n[POSTED] ${data.notes}` : receipt.notes,
+        },
+        include: {
+          customerRef: true,
+          customer: true,
+          creator: true,
+          approver: true,
+        },
+      });
+
+      // Áp dụng tác động tài chính: cập nhật paidAmount, paymentStatus, currentDebt, CashFund
+      await this.applyFinancialImpact(receipt, userId);
+
+      return posted;
     });
 
     logActivity('update', userId, 'payment_receipts', {
@@ -571,8 +544,16 @@ class PaymentReceiptService {
       receiptCode: receipt.receiptCode,
     });
 
+    // Xóa cache: Phiếu, Quỹ tiền mặt, Khách hàng, Đơn hàng
     await redis.flushPattern('payment-receipt:list:*');
     await redis.del(`payment-receipt:${id}`);
+    await redis.flushPattern('cash-fund:*');
+    if (receipt.customerId) {
+      await redis.del(`customer:${receipt.customerId}`);
+    }
+    if (receipt.orderId) {
+      await redis.del(`sales-order:${receipt.orderId}`);
+    }
 
     return updatedReceipt;
   }
@@ -586,15 +567,15 @@ class PaymentReceiptService {
     });
 
     if (!receipt) {
-      throw new NotFoundError('Payment receipt not found');
+      throw new NotFoundError('Không tìm thấy phiếu thu');
     }
 
     if (receipt.isPosted) {
-      throw new ValidationError('Cannot delete posted receipt');
+      throw new ValidationError('Không thể xóa phiếu thu đã ghi sổ');
     }
 
     if (receipt.approvedBy) {
-      throw new ValidationError('Cannot delete approved receipt');
+      throw new ValidationError('Không thể xóa phiếu thu đã được duyệt');
     }
 
     // await prisma.$transaction(async (tx) => {
@@ -621,10 +602,57 @@ class PaymentReceiptService {
     await redis.flushPattern('payment-receipt:list:*');
     await redis.del(`payment-receipt:${id}`);
 
-    return { message: 'Payment receipt deleted successfully' };
+    return { message: 'Xóa phiếu thu thành công' };
   }
 
   private async applyFinancialImpact(receipt: any, _userId: number) {
+    // Cập nhật Sổ quỹ (CashFund) - Tiền tăng lên
+    const receiptDate = new Date(receipt.receiptDate);
+    const fundDate = new Date(
+      receiptDate.getFullYear(),
+      receiptDate.getMonth(),
+      receiptDate.getDate()
+    );
+
+    // Tìm hoặc tạo bản ghi CashFund của ngày đó
+    let cashFund = await prisma.cashFund.findUnique({
+      where: { fundDate },
+    });
+
+    if (!cashFund) {
+      // Nếu chưa có, tạo mới với số dư bằng 0
+      cashFund = await prisma.cashFund.create({
+        data: {
+          fundDate,
+          openingBalance: 0,
+          totalReceipts: 0,
+          totalPayments: 0,
+          isLocked: false,
+        },
+      });
+    }
+
+    // Kiểm tra xem sổ quỹ ngày đó có bị khóa không
+    if (cashFund.isLocked) {
+      throw new ValidationError(
+        `Sổ quỹ ngày ${fundDate.toLocaleDateString('vi-VN')} đã bị khóa, không thể ghi sổ phiếu này`
+      );
+    }
+
+    // Cập nhật CashFund: Cộng tiền thu vào totalReceipts và closingBalance
+    const newTotalReceipts = Number(cashFund.totalReceipts) + Number(receipt.amount);
+    const newClosingBalance =
+      Number(cashFund.openingBalance) + newTotalReceipts - Number(cashFund.totalPayments);
+
+    await prisma.cashFund.update({
+      where: { fundDate },
+      data: {
+        totalReceipts: newTotalReceipts,
+        closingBalance: newClosingBalance,
+      },
+    });
+
+    // Cập nhật Đơn hàng và Công nợ khách hàng
     if (receipt.orderId) {
       const order = await prisma.salesOrder.findUnique({
         where: { id: receipt.orderId },
@@ -650,6 +678,7 @@ class PaymentReceiptService {
           },
         });
 
+        // Cập nhật công nợ khách hàng nếu đơn hàng đã hoàn thành
         if (order.orderStatus === 'completed') {
           await prisma.customer.update({
             where: { id: receipt.customerId },
@@ -663,6 +692,7 @@ class PaymentReceiptService {
         }
       }
     } else if (receipt.receiptType === 'debt_collection') {
+      // Phiếu thu công nợ: trừ trực tiếp vào công nợ khách hàng
       await prisma.customer.update({
         where: { id: receipt.customerId },
         data: {
@@ -675,56 +705,78 @@ class PaymentReceiptService {
     }
   }
 
-  private async revertFinancialImpact(receipt: any, _userId: number) {
-    if (receipt.orderId) {
-      const order = await prisma.salesOrder.findUnique({
-        where: { id: receipt.orderId },
-      });
+  // private async revertFinancialImpact(receipt: any, _userId: number) {
+  //   // Đảo ngược Sổ quỹ (CashFund) - Tiền giảm xuống
+  //   const receiptDate = new Date(receipt.receiptDate);
+  //   const fundDate = new Date(receiptDate.getFullYear(), receiptDate.getMonth(), receiptDate.getDate());
 
-      if (order) {
-        const newPaidAmount = Number(order.paidAmount) - Number(receipt.amount);
-        let paymentStatus: 'unpaid' | 'partial' | 'paid';
+  //   const cashFund = await prisma.cashFund.findUnique({
+  //     where: { fundDate },
+  //   });
 
-        if (newPaidAmount >= Number(order.totalAmount)) {
-          paymentStatus = 'paid';
-        } else if (newPaidAmount > 0) {
-          paymentStatus = 'partial';
-        } else {
-          paymentStatus = 'unpaid';
-        }
+  //   if (cashFund) {
+  //     const newTotalReceipts = Math.max(0, Number(cashFund.totalReceipts) - Number(receipt.amount));
+  //     const newClosingBalance = Number(cashFund.openingBalance) + newTotalReceipts - Number(cashFund.totalPayments);
 
-        await prisma.salesOrder.update({
-          where: { id: receipt.orderId },
-          data: {
-            paidAmount: newPaidAmount,
-            paymentStatus,
-          },
-        });
+  //     await prisma.cashFund.update({
+  //       where: { fundDate },
+  //       data: {
+  //         totalReceipts: newTotalReceipts,
+  //         closingBalance: newClosingBalance,
+  //       },
+  //     });
+  //   }
 
-        if (order.orderStatus === 'completed') {
-          await prisma.customer.update({
-            where: { id: receipt.customerId },
-            data: {
-              currentDebt: {
-                increment: Number(receipt.amount),
-              },
-              debtUpdatedAt: new Date(),
-            },
-          });
-        }
-      }
-    } else if (receipt.receiptType === 'debt_collection') {
-      await prisma.customer.update({
-        where: { id: receipt.customerId },
-        data: {
-          currentDebt: {
-            increment: Number(receipt.amount),
-          },
-          debtUpdatedAt: new Date(),
-        },
-      });
-    }
-  }
+  //   // Đảo ngược Đơn hàng và Công nợ khách hàng
+  //   if (receipt.orderId) {
+  //     const order = await prisma.salesOrder.findUnique({
+  //       where: { id: receipt.orderId },
+  //     });
+
+  //     if (order) {
+  //       const newPaidAmount = Number(order.paidAmount) - Number(receipt.amount);
+  //       let paymentStatus: 'unpaid' | 'partial' | 'paid';
+
+  //       if (newPaidAmount >= Number(order.totalAmount)) {
+  //         paymentStatus = 'paid';
+  //       } else if (newPaidAmount > 0) {
+  //         paymentStatus = 'partial';
+  //       } else {
+  //         paymentStatus = 'unpaid';
+  //       }
+
+  //       await prisma.salesOrder.update({
+  //         where: { id: receipt.orderId },
+  //         data: {
+  //           paidAmount: newPaidAmount,
+  //           paymentStatus,
+  //         },
+  //       });
+
+  //       if (order.orderStatus === 'completed') {
+  //         await prisma.customer.update({
+  //           where: { id: receipt.customerId },
+  //           data: {
+  //             currentDebt: {
+  //               increment: Number(receipt.amount),
+  //             },
+  //             debtUpdatedAt: new Date(),
+  //           },
+  //         });
+  //       }
+  //     }
+  //   } else if (receipt.receiptType === 'debt_collection') {
+  //     await prisma.customer.update({
+  //       where: { id: receipt.customerId },
+  //       data: {
+  //         currentDebt: {
+  //           increment: Number(receipt.amount),
+  //         },
+  //         debtUpdatedAt: new Date(),
+  //       },
+  //     });
+  //   }
+  // }
 
   async getByCustomer(customerId: number) {
     const receipts = await prisma.paymentReceipt.findMany({
@@ -806,6 +858,33 @@ class PaymentReceiptService {
       console.error('❌ Lỗi khi làm mới cache:', error);
       throw error;
     }
+  }
+
+  async sendEmail(id: number, userId: number) {
+    const receipt = await this.getById(id);
+
+    if (!receipt.customer?.email) {
+      throw new ValidationError('Khách hàng không có địa chỉ email');
+    }
+
+    try {
+      await emailService.sendPaymentReceiptEmail(receipt);
+    } catch (error) {
+      throw new Error('Lỗi không gửi được email');
+    }
+
+    // Log activity
+    logActivity('send_email', userId, 'payment_receipts', {
+      recordId: id,
+      receiptCode: receipt.receiptCode,
+      to: receipt.customer.email,
+    });
+
+    // Invalidate cache
+    await redis.del(`payment-receipt:${id}`);
+    await redis.flushPattern('payment-receipt:list:*');
+
+    return receipt;
   }
 }
 
