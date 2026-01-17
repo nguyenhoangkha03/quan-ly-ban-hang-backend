@@ -144,8 +144,13 @@ model User {
   paymentReceiptsApproved     PaymentReceipt[]     @relation("ReceiptApprover")
   paymentVouchers             PaymentVoucher[]     @relation("VoucherCreator")
   paymentVouchersApproved     PaymentVoucher[]     @relation("VoucherApprover")
-  debtReconciliations         DebtReconciliation[] @relation("ReconciliationCreator")
-  debtReconciliationsApproved DebtReconciliation[] @relation("ReconciliationApprover")
+  // debtReconciliations         DebtReconciliation[] @relation("ReconciliationCreator")
+  // debtReconciliationsApproved DebtReconciliation[] @relation("ReconciliationApprover")
+
+  // ✅ THÊM 2 DÒNG NÀY:
+  assignedCustomers Customer[] @relation("CustomerManager")
+  assignedSuppliers Supplier[] @relation("SupplierManager")
+
   cashFunds                   CashFund[]           @relation("CashFundReconciler")
   cashFundsApproved           CashFund[]           @relation("CashFundApprover")
   promotions                  Promotion[]          @relation("PromotionCreator")
@@ -272,10 +277,16 @@ model Supplier {
 
   creator             User?                @relation("SupplierCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   updater             User?                @relation("SupplierUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  // ✅ THÊM NGƯỜI PHỤ TRÁCH (MUA HÀNG)
+  assignedUserId Int?     @map("assigned_user_id")
+  assignedUser   User?    @relation("SupplierManager", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  
   purchaseOrders      PurchaseOrder[]
   products            Product[]
   paymentVouchers     PaymentVoucher[]
-  debtReconciliations DebtReconciliation[]
+  // debtReconciliations DebtReconciliation[]
+  debtPeriods    DebtPeriod[]
 
   @@index([supplierCode])
   @@index([status])
@@ -696,9 +707,14 @@ model Customer {
   creator         User?                  @relation("CustomerCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   updater         User?                  @relation("CustomerUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
 
+  // ✅ THÊM DÒNG NÀY:
+  assignedUserId Int?     @map("assigned_user_id")
+  assignedUser   User?    @relation("CustomerManager", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
   salesOrders         SalesOrder[]
   paymentReceipts     PaymentReceipt[]
-  debtReconciliations DebtReconciliation[]
+  // debtReconciliations DebtReconciliation[]
+  debtPeriods    DebtPeriod[]
   customerAccount     CustomerAccount[]
 
   @@index([customerCode])
@@ -707,6 +723,8 @@ model Customer {
   @@index([province, district])
   @@index([status])
   @@index([customerName])
+
+  @@index([assignedUserId])
   @@map("customers")
 }
 
@@ -901,41 +919,79 @@ model PaymentVoucher {
   @@map("payment_vouchers")
 }
 
-model DebtReconciliation {
-  id                 Int                  @id @default(autoincrement())
-  reconciliationCode String               @unique @map("reconciliation_code") @db.VarChar(50)
-  reconciliationType ReconciliationType   @map("reconciliation_type")
-  period             String               @db.VarChar(20)
-  customerId         Int?                 @map("customer_id")
-  supplierId         Int?                 @map("supplier_id")
-  openingBalance     Decimal              @default(0) @map("opening_balance") @db.Decimal(15, 2)
-  transactionsAmount Decimal              @default(0) @map("transactions_amount") @db.Decimal(15, 2)
-  paymentAmount      Decimal              @default(0) @map("payment_amount") @db.Decimal(15, 2)
-  closingBalance     Decimal              @default(0) @map("closing_balance") @db.Decimal(15, 2)
-  discrepancyAmount  Decimal              @default(0) @map("discrepancy_amount") @db.Decimal(15, 2)
-  discrepancyReason  String?              @map("discrepancy_reason") @db.VarChar(255)
-  status             ReconciliationStatus @default(pending)
-  reconciliationDate DateTime             @map("reconciliation_date") @db.Date
-  confirmedByName    String?              @map("confirmed_by_name") @db.VarChar(200)
-  confirmedByEmail   String?              @map("confirmed_by_email") @db.VarChar(200)
-  confirmedAt        DateTime?            @map("confirmed_at")
-  attachmentUrl      String?              @map("attachment_url") @db.VarChar(500)
-  notes              String?              @db.VarChar(255)
-  approvedBy         Int?                 @map("approved_by")
-  approvedAt         DateTime?            @map("approved_at")
-  createdBy          Int                  @map("created_by")
-  createdAt          DateTime             @default(now()) @map("created_at")
-  deletedAt          DateTime?            @map("deleted_at")
+// model DebtReconciliation {
+//   id                 Int                  @id @default(autoincrement())
+//   reconciliationCode String               @unique @map("reconciliation_code") @db.VarChar(50)
+//   reconciliationType ReconciliationType   @map("reconciliation_type")
+//   period             String               @db.VarChar(20)
+//   customerId         Int?                 @map("customer_id")
+//   supplierId         Int?                 @map("supplier_id")
+//   openingBalance     Decimal              @default(0) @map("opening_balance") @db.Decimal(15, 2)
+//   transactionsAmount Decimal              @default(0) @map("transactions_amount") @db.Decimal(15, 2)
+//   paymentAmount      Decimal              @default(0) @map("payment_amount") @db.Decimal(15, 2)
+//   closingBalance     Decimal              @default(0) @map("closing_balance") @db.Decimal(15, 2)
+//   discrepancyAmount  Decimal              @default(0) @map("discrepancy_amount") @db.Decimal(15, 2)
+//   discrepancyReason  String?              @map("discrepancy_reason") @db.VarChar(255)
+//   status             ReconciliationStatus @default(pending)
+//   reconciliationDate DateTime             @map("reconciliation_date") @db.Date
+//   confirmedByName    String?              @map("confirmed_by_name") @db.VarChar(200)
+//   confirmedByEmail   String?              @map("confirmed_by_email") @db.VarChar(200)
+//   confirmedAt        DateTime?            @map("confirmed_at")
+//   attachmentUrl      String?              @map("attachment_url") @db.VarChar(500)
+//   notes              String?              @db.VarChar(255)
+//   approvedBy         Int?                 @map("approved_by")
+//   approvedAt         DateTime?            @map("approved_at")
+//   createdBy          Int                  @map("created_by")
+//   createdAt          DateTime             @default(now()) @map("created_at")
+//   deletedAt          DateTime?            @map("deleted_at")
 
-  customer Customer? @relation(fields: [customerId], references: [id])
-  supplier Supplier? @relation(fields: [supplierId], references: [id])
-  creator  User      @relation("ReconciliationCreator", fields: [createdBy], references: [id])
-  approver User?     @relation("ReconciliationApprover", fields: [approvedBy], references: [id])
+//   customer Customer? @relation(fields: [customerId], references: [id])
+//   supplier Supplier? @relation(fields: [supplierId], references: [id])
+//   creator  User      @relation("ReconciliationCreator", fields: [createdBy], references: [id])
+//   approver User?     @relation("ReconciliationApprover", fields: [approvedBy], references: [id])
 
-  @@index([reconciliationCode])
-  @@index([reconciliationType, period])
-  @@index([status])
-  @@map("debt_reconciliation")
+//   @@index([reconciliationCode])
+//   @@index([reconciliationType, period])
+//   @@index([status])
+//   @@map("debt_reconciliation")
+// }
+
+// Bảng lưu trữ lịch sử công nợ theo kỳ (Năm)
+model DebtPeriod {
+    id              Int       @id @default(autoincrement())
+    
+    // 👇 Liên kết trực tiếp (Thay vì qua DebtMaster)
+    customerId      Int?      @map("customer_id")
+    supplierId      Int?      @map("supplier_id")
+
+    periodName      String    @map("period_name") @db.VarChar(20) // VD: "2024", "2025"
+    startTime       DateTime  @map("start_time") @db.Date
+    endTime         DateTime  @map("end_time") @db.Date
+
+    // CÁC CỘT SỐ LIỆU
+    openingBalance   Decimal  @default(0) @map("opening_balance") @db.Decimal(15, 2)
+    increasingAmount Decimal  @default(0) @map("increasing_amount") @db.Decimal(15, 2) // Tổng mua/nhập
+    decreasingAmount Decimal  @default(0) @map("decreasing_amount") @db.Decimal(15, 2) // Tổng trả/chi
+    returnAmount      Decimal  @default(0) // Giá trị hàng trả lại
+    adjustmentAmount  Decimal  @default(0) // Giá trị điều chỉnh tăng/giảm
+    
+    closingBalance   Decimal  @default(0) @map("closing_balance") @db.Decimal(15, 2)   // Dư cuối
+
+    isLocked         Boolean  @default(false) @map("is_locked") // Đã chốt sổ chưa?
+    notes            String?  @db.VarChar(255)
+    
+    createdAt        DateTime @default(now()) @map("created_at")
+    updatedAt        DateTime @updatedAt @map("updated_at")
+
+    // RELATIONS
+    customer         Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+    supplier         Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+    // Đảm bảo mỗi khách chỉ có 1 dòng cho năm 2024
+    @@unique([customerId, periodName]) 
+    @@unique([supplierId, periodName])
+    @@index([periodName])
+    @@map("debt_periods")
 }
 
 model CashFund {
