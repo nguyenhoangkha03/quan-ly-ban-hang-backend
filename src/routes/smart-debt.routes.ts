@@ -25,6 +25,12 @@ router.get(
   asyncHandler(smartDebtController.checkIntegrity.bind(smartDebtController))
 );
 
+// 1b. Export List of Integrity Issues (Xuất file danh sách )
+router.get('/export-list', 
+  authorize('view_debt_reconciliation'),
+  asyncHandler(smartDebtController.exportList.bind(smartDebtController))
+);
+
 // 2. Export PDF
 // ⚠️ Frontend cần gọi: /api/smart-debt/123/pdf?type=customer&year=2025
 router.get(

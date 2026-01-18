@@ -50,6 +50,36 @@ class SmartDebtController {
     }
   }
 
+/**
+   * GET /api/smart-debt/export-list
+   * Params: year (number), type ('all' | 'customer' | 'supplier')
+   */
+  async exportList(req: Request, res: Response, next: NextFunction) {
+    try {
+      // 1. Lấy tham số từ Query String
+      const { year, type } = req.query;
+      
+      const targetYear = year ? Number(year) : new Date().getFullYear();
+      
+      // 2. Validate và gán mặc định cho 'type'
+      // Nếu user gửi linh tinh hoặc không gửi -> mặc định là 'all'
+      const exportType = (type === 'customer' || type === 'supplier') ? type : 'all';
+
+      // 3. Gọi Service với tham số mới
+      const data = await debtService.getListForExport(targetYear, exportType);
+
+      res.status(200).json({
+        success: true,
+        data: data,
+        message: `Đã lấy danh sách in (${exportType}) cho năm ${targetYear}.`
+      });
+
+      console.log(`SmartDebtController.exportList executed for year ${targetYear} and type ${exportType} with data:`, data);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   /**
    * GET /api/smart-debt/:id
    * Lấy chi tiết công nợ & lịch sử giao dịch

@@ -32,7 +32,7 @@ export interface SyncDebtParams {
   
   assignedUserId?: number; // Cập nhật người phụ trách (nếu có)
   
-  // (Optional) Giữ lại để mở rộng sau này (VD: Nút điều chỉnh số dư tay)
+
   adjustmentAmount?: number; 
 }
 
@@ -1441,6 +1441,85 @@ private cache: CacheHelper;
   //       message: `Đã gửi email thành công tới ${toEmail}`
   //   };
   // }
+
+// =========================================================================
+  // 6. GET LIST FOR EXPORT (Hỗ trợ lọc theo Loại: 'all' | 'customer' | 'supplier')
+  // =========================================================================
+  async getListForExport(year: number, type: 'all' | 'customer' | 'supplier' = 'all') {
+    const targetYearStr = String(year);
+    let customers: any[] = [];
+    let suppliers: any[] = [];
+
+    // --- 1. LẤY DỮ LIỆU KHÁCH HÀNG (Nếu type là 'all' hoặc 'customer') ---
+    if (type === 'all' || type === 'customer') {
+      customers = await prisma.customer.findMany({
+        where: { status: 'active' },
+        include: {
+          assignedUser: { select: { fullName: true } },
+          debtPeriods: { where: { periodName: targetYearStr }, take: 1 }
+        },
+        orderBy: { customerName: 'asc' } // Sắp xếp nội bộ trước
+      });
+    }
+
+    // --- 2. LẤY DỮ LIỆU NHÀ CUNG CẤP (Nếu type là 'all' hoặc 'supplier') ---
+    if (type === 'all' || type === 'supplier') {
+      suppliers = await prisma.supplier.findMany({
+        where: { status: 'active' },
+        include: {
+          assignedUser: { select: { fullName: true } },
+          debtPeriods: { where: { periodName: targetYearStr }, take: 1 }
+        },
+        orderBy: { supplierName: 'asc' } // Sắp xếp nội bộ trước
+      });
+    }
+
+    // --- 3. HÀM MAPPER CHUNG (Dùng cho cả 2 đối tượng) ---
+    const mapItem = (item: any, itemType: 'customer' | 'supplier') => {
+        const debt = item.debtPeriods?.[0]; // Dùng optional chaining cho an toàn
+        const isCustomer = itemType === 'customer';
+        
+        return {
+            id: item.id,
+            // Mã & Tên: Tự động lấy theo loại
+            code: isCustomer ? item.customerCode : item.supplierCode,
+            name: isCustomer ? item.customerName : item.supplierName,
+            phone: item.phone,
+            
+            // Địa chỉ: Khách (Huyện, Tỉnh), NCC (Address full)
+            location: isCustomer 
+                ? [item.district, item.province].filter(Boolean).join(', ') 
+                : item.address,
+            
+            // Phân loại: Khách (Nhóm khách), NCC (Mặc định là 'NCC')
+            category: isCustomer ? item.classification : 'Nhà Cung Cấp',
+            
+            // Người phụ trách
+            pic: item.assignedUser?.fullName || '',
+            
+            // Ghi chú
+            customerNotes: item.notes,
+
+            // Số liệu tài chính (Mặc định 0 nếu không có)
+            opening: Number(debt?.openingBalance || 0),
+            increase: Number(debt?.increasingAmount || 0),
+            returnAmt: Number(debt?.returnAmount || 0),
+            adjustment: Number(debt?.adjustmentAmount || 0),
+            payment: Number(debt?.decreasingAmount || 0),
+            closing: Number(debt?.closingBalance || 0),
+        };
+    };
+
+    // --- 4. GỘP DỮ LIỆU & TRẢ VỀ ---
+    const list1 = customers.map(c => mapItem(c, 'customer'));
+    const list2 = suppliers.map(s => mapItem(s, 'supplier'));
+    
+    // Gộp lại và sắp xếp chung theo tên A-Z (để danh sách hỗn hợp nhìn đẹp hơn)
+    const combined = [...list1, ...list2].sort((a, b) => a.name.localeCompare(b.name));
+
+    // Đánh số thứ tự lại từ 1
+    return combined.map((item, idx) => ({ ...item, stt: idx + 1 }));
+  }
 
   // =========================================================================
   // PRIVATE HELPERS

@@ -37,7 +37,7 @@
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/csurf": "^1.11.5",
-    "@types/express": "^5.0.5",
+    "@types/express": "^4.17.25",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
