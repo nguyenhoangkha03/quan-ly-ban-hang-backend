@@ -51,7 +51,7 @@ import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
 
 import smartDebtRoutes from '@routes/smart-debt.routes';
-import cs_accountRoutes from '@routes/cs-auth.routes';
+import cs_authRoutes from '@routes/cs-auth.routes';
 import cs_categoryRoutes from '@routes/cs-category.routes';
 import cs_productRoutes from '@routes/cs-product.routes';
 import cs_inventoryRoutes from '@routes/cs-inventory.routes';
@@ -218,7 +218,7 @@ app.use('/api/security', securityRoutes);
 // Smart Debt routes
 app.use('/api/smart-debt', smartDebtRoutes);
 //custommer service routes
-app.use('/api/accounts', cs_accountRoutes);
+app.use('/api/cs/accounts', cs_authRoutes);
 app.use('/api/cs/categories', cs_categoryRoutes);
 app.use('/api/cs/products', cs_productRoutes);
 app.use('/api/cs/inventory', cs_inventoryRoutes);

@@ -28,6 +28,8 @@ class CustomerProfileController {
         // Gọi Service method getById, sử dụng ID từ Token
         const customer = await customerService.getById(customerId); 
 
+        console.log('Fetched customer profile:', customer);
+
         return res.status(200).json({
             success: true,
             data: customer,
