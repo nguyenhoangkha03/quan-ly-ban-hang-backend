@@ -51,7 +51,7 @@ import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
 
 import smartDebtRoutes from '@routes/smart-debt.routes';
-import cs_accountRoutes from '@routes/customer_account.routes';
+import cs_accountRoutes from '@routes/cs-auth.routes';
 import cs_categoryRoutes from '@routes/cs-category.routes';
 import cs_productRoutes from '@routes/cs-product.routes';
 import cs_inventoryRoutes from '@routes/cs-inventory.routes';
