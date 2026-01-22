@@ -60,6 +60,11 @@ import cs_warehouseRoutes from '@routes/cs-warehouse.routes';
 import cs_salesOrderRoutes from '@routes/cs-sales-order.routes';
 import cs_product_Routes from '@routes/cs-product.routes';
 
+// News routes
+import newsRoutes from '@routes/news.routes';
+import newsCategoryRoutes from '@routes/news-category.routes';
+import newsTagRoutes from '@routes/news-tag.routes';
+
 // Import notification scheduler
 import notificationScheduler from '@schedulers/notification.scheduler';
 
@@ -226,6 +231,11 @@ app.use('/api/cs/customers', cs_customerRoutes);
 app.use('/api/cs/warehouses', cs_warehouseRoutes);
 app.use('/api/cs/sale-order', cs_salesOrderRoutes);
 app.use('/api/cs/products', cs_product_Routes);
+
+// News routes
+app.use('/api/news', newsRoutes);
+app.use('/api/news-categories', newsCategoryRoutes);
+app.use('/api/news-tags', newsTagRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

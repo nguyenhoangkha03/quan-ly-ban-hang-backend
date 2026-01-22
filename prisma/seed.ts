@@ -428,7 +428,7 @@ async function main() {
 
   let adminUser = await prisma.user.findFirst({
     where: {
-      OR: [{ email: 'nhoangkha03@gmail.com' }, { employeeCode: 'NV-0001' }],
+      OR: [{ email: 'leeminhkang@gmail.com' }, { employeeCode: 'NV-0001' }],
     },
   });
 
@@ -436,7 +436,7 @@ async function main() {
     adminUser = await prisma.user.create({
       data: {
         employeeCode: 'NV-0001',
-        email: 'nhoangkha03@gmail.com',
+        email: 'leeminhkang@gmail.com',
         passwordHash: hashedPassword,
         fullName: 'Quản trị viên hệ thống',
         phone: '0123456789',
@@ -713,7 +713,7 @@ async function main() {
   console.log('✅ Database seed completed successfully! 🎉\n');
   console.log('📌 Login Credentials:\n');
   console.log('👤 Admin:');
-  console.log('   Email: nhoangkha03@gmail.com');
+  console.log('   Email: leeminhkang@gmail.com');
   console.log('   Password: admin123\n');
   console.log('👥 Other Users (password: 123456):');
   console.log('   - manager1@company.com (Nguyễn Văn Quản - Warehouse Manager)');
