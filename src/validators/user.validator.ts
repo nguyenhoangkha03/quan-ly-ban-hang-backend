@@ -106,6 +106,7 @@ export const updateUserSchema = z.object({
     .positive('Mã số kho phải là một số nguyên dương.')
     .optional()
     .nullable(),
+  canEditProfile: z.boolean().optional(),
 });
 
 // Update user status schema

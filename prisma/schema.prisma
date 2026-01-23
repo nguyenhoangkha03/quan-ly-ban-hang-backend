@@ -42,6 +42,7 @@ model Permission {
   deletedAt      DateTime? @map("deleted_at")
 
   rolePermissions RolePermission[]
+  userPermissions UserPermission[]
 
   @@map("permissions")
 }
@@ -171,6 +172,10 @@ model User {
   newsAuthored                News[]               @relation("NewsAuthor")
   newsCreated                 News[]               @relation("NewsCreator")
   newsUpdated                 News[]               @relation("NewsUpdater")
+  generalSettingsUpdated      GeneralSetting[]
+  loginHistories              LoginHistory[]
+  userPermissions             UserPermission[]      @relation("PermissionAssignedBy")
+  userPermissionsAssigned     UserPermission[]
 
   @@index([roleId, status])
   @@map("users")
@@ -1610,4 +1615,71 @@ model NewsTagRelation {
 
   @@id([newsId, tagId])
   @@map("news_tag_relations")
+}
+
+// =====================================================
+// 10. SYSTEM SETTINGS
+// =====================================================
+
+model GeneralSetting {
+  id            Int       @id @default(autoincrement())
+  brandName     String    @map("brand_name") @db.VarChar(200)
+  logo          String?   @db.VarChar(500)
+  name          String    @db.VarChar(200)
+  email         String    @db.VarChar(100)
+  phone         String    @db.VarChar(20)
+  address       String    @db.VarChar(255)
+  taxCode       String    @map("tax_code") @db.VarChar(50)
+  website       String    @db.VarChar(255)
+  banks         String?   @db.LongText // Store as JSON string array of bank accounts
+  updatedBy     Int?      @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  updater User? @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("general_settings")
+}
+
+// =====================================================
+// 11. LOGIN HISTORY
+// =====================================================
+
+model LoginHistory {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  userAgent String    @map("user_agent") @db.VarChar(500)
+  ipAddress String    @map("ip_address") @db.VarChar(50)
+  createdAt DateTime  @default(now()) @map("created_at")
+  logoutAt  DateTime? @map("logout_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("login_histories")
+}
+
+// =====================================================
+// 12. USER PERMISSIONS
+// =====================================================
+
+model UserPermission {
+  userId       Int       @map("user_id")
+  permissionId Int       @map("permission_id")
+  grantType    GrantType @default(grant) // grant: thêm quyền, revoke: bỏ quyền
+  assignedAt   DateTime  @default(now()) @map("assigned_at")
+  assignedBy   Int?      @map("assigned_by")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assigner   User?      @relation("PermissionAssignedBy", fields: [assignedBy], references: [id], onDelete: SetNull)
+
+  @@id([userId, permissionId])
+  @@index([userId, grantType])
+  @@map("user_permissions")
+}
+
+enum GrantType {
+  grant  // Thêm quyền
+  revoke // Bỏ quyền (dùng để override quyền từ role)
 }

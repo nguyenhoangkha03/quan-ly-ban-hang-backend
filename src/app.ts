@@ -49,6 +49,8 @@ import financeRoutes from '@routes/finance.routes';
 import productionReportRoutes from '@routes/production-report.routes';
 import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
+import generalSettingRoutes from '@routes/general-setting.routes';
+import loginHistoryRoutes from '@routes/login-history.routes';
 
 import smartDebtRoutes from '@routes/smart-debt.routes';
 import cs_accountRoutes from '@routes/cs-auth.routes';
@@ -219,6 +221,8 @@ app.use('/api/finance', financeRoutes);
 app.use('/api/reports', productionReportRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/settings/general', generalSettingRoutes);
+app.use('/api/settings/login-history', loginHistoryRoutes);
 
 // Smart Debt routes
 app.use('/api/smart-debt', smartDebtRoutes);
