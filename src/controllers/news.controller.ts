@@ -193,4 +193,52 @@ export class NewsController {
             res.status(500).json({ success: false, error: error.message });
         }
     }
+
+    /**
+     * Upload video file
+     */
+    static async uploadVideo(req: Request, res: Response) {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ success: false, error: 'No video file uploaded' });
+            }
+
+            const videoPath = `videos/${req.file.filename}`;
+
+            return res.json({
+                success: true,
+                data: {
+                    videoFile: videoPath,
+                    filename: req.file.filename,
+                    size: req.file.size,
+                }
+            });
+        } catch (error: any) {
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    }
+
+    /**
+     * Upload thumbnail file
+     */
+    static async uploadThumbnail(req: Request, res: Response) {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ success: false, error: 'No thumbnail file uploaded' });
+            }
+
+            const thumbnailPath = `thumbnails/${req.file.filename}`;
+
+            return res.json({
+                success: true,
+                data: {
+                    videoThumbnail: thumbnailPath,
+                    filename: req.file.filename,
+                    size: req.file.size,
+                }
+            });
+        } catch (error: any) {
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    }
 }

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { NewsController } from '../controllers/news.controller';
+import { uploadVideo, uploadThumbnail } from '../config/video-upload.config';
 
 const router = Router();
 
@@ -18,5 +19,9 @@ router.put('/admin/:id', NewsController.updateNews);
 router.delete('/admin/:id', NewsController.deleteNews);
 router.post('/admin/:id/publish', NewsController.publishNews);
 router.post('/admin/:id/archive', NewsController.archiveNews);
+
+// Upload routes
+router.post('/admin/upload-video', uploadVideo.single('video'), NewsController.uploadVideo);
+router.post('/admin/upload-thumbnail', uploadThumbnail.single('thumbnail'), NewsController.uploadThumbnail);
 
 export default router;

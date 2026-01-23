@@ -106,7 +106,7 @@ app.use(
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     next();
   },
-  express.static(path.join(__dirname, '../uploads'))
+  express.static(path.join(process.cwd(), 'uploads'))
 );
 
 app.use(express.static(path.join(__dirname, '../public')));
