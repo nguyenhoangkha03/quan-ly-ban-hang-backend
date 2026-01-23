@@ -8,7 +8,7 @@ export const createNewsSchema = z.object({
     content: z.string().min(50, 'Content must be at least 50 characters'),
     contentType: z.enum(['article', 'video']).default('article'),
     featuredImage: z.string().optional(),
-    videoUrl: z.string().url().optional(),
+    videoFile: z.string().optional(),
     videoThumbnail: z.string().optional(),
     videoDuration: z.number().int().positive().optional(),
     categoryId: z.number().int().positive('Category ID is required'),
@@ -21,15 +21,15 @@ export const createNewsSchema = z.object({
     metaKeywords: z.string().max(255).optional(),
 }).refine(
     (data) => {
-        // If contentType is video, videoUrl is required
+        // If contentType is video, videoFile is required
         if (data.contentType === 'video') {
-            return !!data.videoUrl;
+            return !!data.videoFile;
         }
         return true;
     },
     {
-        message: "Video URL is required when content type is video",
-        path: ["videoUrl"],
+        message: "Video file is required when content type is video",
+        path: ["videoFile"],
     }
 );
 

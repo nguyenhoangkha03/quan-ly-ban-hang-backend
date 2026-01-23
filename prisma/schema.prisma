@@ -1567,7 +1567,7 @@ model News {
   content         String       @db.LongText
   contentType     ContentType  @default(article) @map("content_type")
   featuredImage   String?      @map("featured_image") @db.VarChar(255)
-  videoUrl        String?      @map("video_url") @db.VarChar(500)
+  videoFile       String?      @map("video_file") @db.VarChar(500)
   videoThumbnail  String?      @map("video_thumbnail") @db.VarChar(255)
   videoDuration   Int?         @map("video_duration")
   categoryId      Int          @map("category_id")

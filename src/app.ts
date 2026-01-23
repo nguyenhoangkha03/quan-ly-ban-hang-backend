@@ -65,6 +65,9 @@ import newsRoutes from '@routes/news.routes';
 import newsCategoryRoutes from '@routes/news-category.routes';
 import newsTagRoutes from '@routes/news-tag.routes';
 
+// Contact routes
+import contactRoutes from '@routes/contact.routes';
+
 // Import notification scheduler
 import notificationScheduler from '@schedulers/notification.scheduler';
 
@@ -106,7 +109,7 @@ app.use(
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     next();
   },
-  express.static(path.join(__dirname, '../uploads'))
+  express.static(path.join(process.cwd(), 'uploads'))
 );
 
 app.use(express.static(path.join(__dirname, '../public')));
@@ -189,6 +192,10 @@ app.get('/api', (_req, res) => {
 });
 
 // API Routes
+// Public routes (no authentication required)
+app.use('/api/contact', contactRoutes);
+
+// Protected routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
