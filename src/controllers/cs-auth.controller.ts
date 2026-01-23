@@ -105,6 +105,8 @@ class CustomerAuthController {
                 provider: providerEnum
             });
 
+            console.log('SOCIAL_LOGIN_RESULT', result);
+
             // ✅ Set Cookie Refresh Token
             this.setRefreshTokenCookie(res, result.tokens.refreshToken);
 
