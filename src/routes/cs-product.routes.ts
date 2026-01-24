@@ -4,17 +4,14 @@ import { validate } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
 // 👇 Import middleware MỚI
 import { optionalCustomerAuthentication } from '@middlewares/authCustomer'; 
-import { productQuerySchema, productIdSchema } from '@validators/product.validator';
+import {
+     productQuerySchema,
+     productIdSchema } from '@validators/product.validator';
 
 const router = Router();
-
-// ==========================================
-// PUBLIC PRODUCT ROUTES
-// ==========================================
-
 router.get(
     '/',
-    optionalCustomerAuthentication, // ✅ Dùng cái này: Khách nào cũng vào được
+    optionalCustomerAuthentication,
     validate(productQuerySchema, 'query'),
     asyncHandler(publicProductController.getAll.bind(publicProductController))
 );

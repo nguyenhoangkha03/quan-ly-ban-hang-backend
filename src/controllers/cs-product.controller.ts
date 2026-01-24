@@ -11,11 +11,11 @@ class PublicProductController {
     // GET /api/store/products (Danh sách - Có bộ lọc & Đa giá)
     // =================================================================
     async getAll(req: Request, res: Response) {
-       // 1. Lấy tham số từ query
+
        const { 
            page, limit, search, categoryId, 
            isFeatured, sortBy,
-           minPrice, maxPrice, packagingType
+           packagingType
        } = req.query;
    
        // 2. XÁC ĐỊNH LOẠI KHÁCH HÀNG (Quan trọng)
@@ -38,12 +38,7 @@ class PublicProductController {
          isFeatured: isFeatured === 'true' ? true : undefined,
          sortBy: sortBy as any,
 
-         // Bộ lọc nâng cao (Giá & Quy cách)
-         minPrice: minPrice ? Number(minPrice) : undefined,
-         maxPrice: maxPrice ? Number(maxPrice) : undefined,
          packagingType: packagingType as any,
-
-         // 👇 THAM SỐ MỚI: Loại tài khoản để tính giá
          userType: userType, 
        });
 

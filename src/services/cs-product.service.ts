@@ -55,14 +55,11 @@ class StoreProductService {
     isFeatured?: boolean;
     sortBy?: 'price_asc' | 'price_desc' | 'newest' | 'bestseller';
     packagingType?: 'bottle' | 'box' | 'bag' | 'label' | 'other';
-    minPrice?: number;
-    maxPrice?: number;
     userType?: 'retail' | 'wholesale' | 'vip';
   }) {
     const { 
       page = 1, limit = 20, search, categoryId, isFeatured, sortBy = 'newest',
-      packagingType, minPrice, maxPrice,
-      userType = 'retail' 
+      packagingType, userType = 'retail' 
     } = params;
     
     const offset = (page - 1) * limit;
@@ -73,18 +70,12 @@ class StoreProductService {
     const where: Prisma.ProductWhereInput = {
       status: 'active',
       productType: { in: ['finished_product', 'goods'] },
-      ...(isFeatured !== undefined && { isFeatured }),
+      ...(isFeatured !== undefined && {  isFeatured }),
       ...(categoryId && { categoryId }),
       ...(packagingType && { packagingType: packagingType as any }),
-      ...((minPrice !== undefined || maxPrice !== undefined) && {
-        sellingPriceRetail: {
-          ...(minPrice !== undefined && { gte: Number(minPrice) }),
-          ...(maxPrice !== undefined && { lte: Number(maxPrice) })
-        }
-      }),
       ...(search && {
         OR: [
-          { productName: { contains: search } }, // Bỏ mode nếu không dùng Postgres
+          { productName: { contains: search } },
           { sku: { contains: search } }
         ]
       })
@@ -106,13 +97,9 @@ class StoreProductService {
           productName: true,
           sku: true,
           slug: true,
-          sellingPriceRetail: true, 
-          sellingPriceWholesale: true,
-          sellingPriceVip: true,
-          isFeatured: true,
+          sellingPriceRetail: true,
           unit: true,
           
-          // ✅ Cần khai báo relation trong schema.prisma thì mới select được các dòng dưới
           images: {
             where: { isPrimary: true },
             take: 1,
@@ -137,7 +124,6 @@ class StoreProductService {
                   promotionType: true,
                   discountValue: true,
                   maxDiscountValue: true,
-                  // ❌ ĐÃ XÓA giftProductName VÌ KHÔNG CÓ TRONG DB
                   endDate: true,
                 }
               }
@@ -197,7 +183,6 @@ class StoreProductService {
     return result;
   }
 
-  // ... (Phần getProductDetail cũng sửa tương tự: bỏ giftProductName) ...
   async getProductDetail(id: number, userType: 'retail' | 'wholesale' | 'vip' = 'retail') {
     const cacheKey = `store:product:detail:${id}:${userType}`;
     const cached = await redis.get(cacheKey);
@@ -247,7 +232,6 @@ class StoreProductService {
                 promotionType: true,
                 discountValue: true,
                 maxDiscountValue: true,
-                // ❌ Bỏ giftProductName ở đây
                 endDate: true,
               }
             }
@@ -326,15 +310,12 @@ class StoreProductService {
     for (const item of activePromotions) {
       const promo = item.promotion;
       let priceAfterDiscount = originalPrice;
-      
-      // ✅ Nếu cần lấy tên quà, bạn cần thêm logic query bảng promotion_products thay vì promotion
-      // Tạm thời để null nếu chưa query được
       let promoInfo: PromotionInfo = {
           id: promo.id,
           name: promo.promotionName,
           type: promo.promotionType,
           endDate: promo.endDate,
-          giftName: undefined // Bỏ mapping giftName tạm thời
+          giftName: undefined
       };
 
       if (promo.promotionType === 'percent_discount') {
