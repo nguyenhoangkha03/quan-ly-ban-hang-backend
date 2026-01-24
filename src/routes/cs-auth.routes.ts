@@ -1,16 +1,16 @@
 import { Router } from 'express';
-import accountController from '@controllers/customer_account.controller';
+// ✅ 1. Import đúng Controller mới
+import accountController from '@controllers/cs-auth.controller'; 
 import { validateNested } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
-import { customerAuthentication } from '@middlewares/authCustomer'; 
-import { syncPhoneAccountSchema } from '@validators/customer_account.validator';
+import { customerAuthentication } from '@middlewares/authCustomer'; // Middleware verify token
 
 import {
     socialLoginSchema,
     loginPasswordSchema,
     setPasswordSchema,
-    refreshTokenSchema,
-    checkPhoneSchema // Bổ sung
+    syncPhoneAccountSchema,
+    checkPhoneSchema 
 } from '@validators/customer_account.validator';
 
 const router = Router();
@@ -19,21 +19,21 @@ const router = Router();
 // 1. PUBLIC ROUTES (Authentication Flow)
 // ==========================================
 
-// 1.1 [BƯỚC 1 SĐT] Kiểm tra SĐT có tồn tại chưa (Gợi ý Đăng ký/Đăng nhập Mật khẩu)
+// 1.1 [BƯỚC 1 SĐT] Kiểm tra SĐT
 router.post(
     '/check-phone', 
-    validateNested(checkPhoneSchema), // Thêm Validation cho check-phone
+    validateNested(checkPhoneSchema),
     asyncHandler(accountController.checkPhone.bind(accountController))
 );
 
-// 1.2 [BƯỚC SAU OTP] Đồng bộ/Đăng nhập bằng SĐT + UID (Sau khi Supabase Verify OTP thành công)
+// 1.2 [BƯỚC SAU OTP] Đồng bộ/Đăng nhập bằng SĐT + UID
 router.post(
     '/sync-phone-account',
-    validateNested(syncPhoneAccountSchema), // <== Áp dụng validation
+    validateNested(syncPhoneAccountSchema), 
     asyncHandler(accountController.syncPhoneAccount.bind(accountController)) 
 );
 
-// 1.3 [BƯỚC ĐẶT MẬT KHẨU MỚI] Đặt mật khẩu (Sử dụng sau Đăng ký/Quên mật khẩu SĐT)
+// 1.3 [BƯỚC ĐẶT MẬT KHẨU MỚI]
 router.post(
     '/set-password',
     validateNested(setPasswordSchema),
@@ -57,7 +57,6 @@ router.post(
 // 1.6 Refresh Token
 router.post(
     '/refresh-token',
-    validateNested(refreshTokenSchema),
     asyncHandler(accountController.refreshToken.bind(accountController))
 );
 
@@ -66,13 +65,21 @@ router.post(
 // 2. PROTECTED ROUTES (Cần Token)
 // ==========================================
 
-// Áp dụng middleware xác thực cho TẤT CẢ các route bên dưới dòng này
+// Route Logout (Cần token để blacklist nên để ở group Protected hoặc check token thủ công trong controller)
+// Để đơn giản, ta cứ để nó public (controller sẽ tự check header nếu có) hoặc protected đều được.
+// Nhưng thường Logout cần access token để blacklist -> Nên để Protected hoặc tự parse header.
+// Ở đây mình đặt trước middleware auth chung để controller tự xử lý mềm dẻo hơn.
+router.post(
+    '/logout',
+    asyncHandler(accountController.logout.bind(accountController))
+);
+
+// Áp dụng middleware xác thực cho các route bên dưới (Profile...)
 router.use(customerAuthentication); 
 
-// 2.1 Lấy thông tin tài khoản cá nhân (GET /api/account/profile)
+// 2.1 Lấy thông tin tài khoản cá nhân
 router.get(
     '/profile', 
-    // Không cần params.id nữa, lấy customerId từ req.user
     asyncHandler(accountController.getAccountById.bind(accountController)) 
 );
 

@@ -73,7 +73,9 @@ export const updateUserSchema = z.object({
     .regex(
       /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/,
       'Mật khẩu phải chứa ít nhất một ký tự đặc biệt.'
-    ),
+    )
+    .optional()
+    .or(z.literal('')),
   fullName: z
     .string()
     .min(2, 'Họ và tên phải có ít nhất 2 ký tự.')
@@ -106,6 +108,7 @@ export const updateUserSchema = z.object({
     .positive('Mã số kho phải là một số nguyên dương.')
     .optional()
     .nullable(),
+  canEditProfile: z.boolean().optional(),
 });
 
 // Update user status schema

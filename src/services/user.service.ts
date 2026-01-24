@@ -84,6 +84,7 @@ class UserService {
           roleId: true,
           warehouseId: true,
           status: true,
+          canEditProfile: true,
           createdAt: true,
           updatedAt: true,
           lastLogin: true,
@@ -154,6 +155,7 @@ class UserService {
         roleId: true,
         warehouseId: true,
         status: true,
+        canEditProfile: true,
         createdBy: true,
         updatedBy: true,
         createdAt: true,
@@ -254,6 +256,7 @@ class UserService {
         roleId: true,
         warehouseId: true,
         status: true,
+        canEditProfile: true,
         createdAt: true,
         role: {
           select: {
@@ -346,6 +349,7 @@ class UserService {
         ...(data.dateOfBirth !== undefined && {
           dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
         }),
+        ...(data.password && data.password.trim() && { passwordHash: await hashPassword(data.password) }),
         ...(data.roleId && { roleId: data.roleId }),
         ...(data.warehouseId !== undefined && { warehouseId: data.warehouseId }),
         updatedBy,
@@ -363,6 +367,7 @@ class UserService {
         roleId: true,
         warehouseId: true,
         status: true,
+        canEditProfile: true,
         updatedAt: true,
         role: {
           select: {
@@ -476,6 +481,47 @@ class UserService {
       action: 'status_change',
       oldValue: { status: user.status },
       newValue: { status: data.status },
+    });
+
+    // Invalidate cache
+    await redis.del(`user:${id}`);
+    await redis.flushPattern(`user:list:*`);
+
+    return updatedUser;
+  }
+
+  // Toggle Can Edit Profile
+  async toggleCanEditProfile(id: number, canEditProfile: boolean, updatedBy: number) {
+    const user = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new NotFoundError('Nhân viên không tìm thấy');
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: {
+        canEditProfile,
+        updatedBy,
+      },
+      select: {
+        id: true,
+        employeeCode: true,
+        email: true,
+        fullName: true,
+        canEditProfile: true,
+        updatedAt: true,
+      },
+    });
+
+    // Log activity
+    logActivity('update', updatedBy, 'users', {
+      recordId: id,
+      action: 'toggle_edit_profile',
+      oldValue: { canEditProfile: user.canEditProfile },
+      newValue: { canEditProfile },
     });
 
     // Invalidate cache

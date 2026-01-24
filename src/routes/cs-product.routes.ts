@@ -1,26 +1,23 @@
 import { Router } from 'express';
 import publicProductController from '@controllers/cs-product.controller';
-import { validate } from '@middlewares/validate';
 import { asyncHandler } from '@middlewares/errorHandler';
-// 👇 Import middleware MỚI
-import { optionalCustomerAuthentication } from '@middlewares/authCustomer'; 
-import {
-     productQuerySchema,
-     productIdSchema } from '@validators/product.validator';
+import { optionalCustomerAuthentication } from '@middlewares/authCustomer';
 
 const router = Router();
+
+// ==========================================
+// PUBLIC PRODUCT ROUTES
+// ==========================================
 router.get(
-    '/',
-    optionalCustomerAuthentication,
-    validate(productQuerySchema, 'query'),
-    asyncHandler(publicProductController.getAll.bind(publicProductController))
+  '/',
+  optionalCustomerAuthentication,
+  asyncHandler(publicProductController.getAll.bind(publicProductController))
 );
 
 router.get(
-    '/:id',
-    optionalCustomerAuthentication, // ✅ Dùng cái này
-    validate(productIdSchema, 'params'),
-    asyncHandler(publicProductController.getById.bind(publicProductController))
+  '/:id',
+  optionalCustomerAuthentication,
+  asyncHandler(publicProductController.getById.bind(publicProductController))
 );
 
 export default router;

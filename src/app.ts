@@ -49,9 +49,11 @@ import financeRoutes from '@routes/finance.routes';
 import productionReportRoutes from '@routes/production-report.routes';
 import performanceRoutes from '@routes/performance.routes';
 import securityRoutes from '@routes/security.routes';
+import generalSettingRoutes from '@routes/general-setting.routes';
+import loginHistoryRoutes from '@routes/login-history.routes';
 
 import smartDebtRoutes from '@routes/smart-debt.routes';
-import cs_accountRoutes from '@routes/customer_account.routes';
+import cs_authRoutes from '@routes/cs-auth.routes';
 import cs_categoryRoutes from '@routes/cs-category.routes';
 import cs_productRoutes from '@routes/cs-product.routes';
 import cs_inventoryRoutes from '@routes/cs-inventory.routes';
@@ -59,6 +61,14 @@ import cs_customerRoutes from '@routes/cs-customer.routes';
 import cs_warehouseRoutes from '@routes/cs-warehouse.routes';
 import cs_salesOrderRoutes from '@routes/cs-sales-order.routes';
 import cs_product_Routes from '@routes/cs-product.routes';
+
+// News routes
+import newsRoutes from '@routes/news.routes';
+import newsCategoryRoutes from '@routes/news-category.routes';
+import newsTagRoutes from '@routes/news-tag.routes';
+
+// Contact routes
+import contactRoutes from '@routes/contact.routes';
 
 // Import notification scheduler
 import notificationScheduler from '@schedulers/notification.scheduler';
@@ -101,7 +111,7 @@ app.use(
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     next();
   },
-  express.static(path.join(__dirname, '../uploads'))
+  express.static(path.join(process.cwd(), 'uploads'))
 );
 
 app.use(express.static(path.join(__dirname, '../public')));
@@ -184,6 +194,10 @@ app.get('/api', (_req, res) => {
 });
 
 // API Routes
+// Public routes (no authentication required)
+app.use('/api/contact', contactRoutes);
+
+// Protected routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
@@ -214,11 +228,13 @@ app.use('/api/finance', financeRoutes);
 app.use('/api/reports', productionReportRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/settings/general', generalSettingRoutes);
+app.use('/api/settings/login-history', loginHistoryRoutes);
 
 // Smart Debt routes
 app.use('/api/smart-debt', smartDebtRoutes);
 //custommer service routes
-app.use('/api/accounts', cs_accountRoutes);
+app.use('/api/cs/accounts', cs_authRoutes);
 app.use('/api/cs/categories', cs_categoryRoutes);
 app.use('/api/cs/products', cs_productRoutes);
 app.use('/api/cs/inventory', cs_inventoryRoutes);
@@ -226,6 +242,11 @@ app.use('/api/cs/customers', cs_customerRoutes);
 app.use('/api/cs/warehouses', cs_warehouseRoutes);
 app.use('/api/cs/sale-order', cs_salesOrderRoutes);
 app.use('/api/cs/products', cs_product_Routes);
+
+// News routes
+app.use('/api/news', newsRoutes);
+app.use('/api/news-categories', newsCategoryRoutes);
+app.use('/api/news-tags', newsTagRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
