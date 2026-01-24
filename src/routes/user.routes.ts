@@ -82,6 +82,14 @@ router.patch(
   asyncHandler(userController.updateUserStatus.bind(userController))
 );
 
+// PATCH /api/users/:id - Toggle Can Edit Profile
+router.patch(
+  '/:id',
+  authorize('update_user'),
+  logActivityMiddleware('toggle edit profile', 'user'),
+  asyncHandler(userController.toggleCanEditProfile.bind(userController))
+);
+
 // POST /api/users/:id/avatar
 router.post(
   '/:id/avatar',

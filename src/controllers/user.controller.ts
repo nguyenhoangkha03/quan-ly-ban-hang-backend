@@ -202,6 +202,36 @@ class UserController {
     return res.status(200).json(response);
   }
 
+  // PATCH /api/users/:id - Toggle Can Edit Profile
+  async toggleCanEditProfile(req: AuthRequest, res: Response) {
+    const userId = parseInt(req.params.id);
+    const { canEditProfile } = req.body as { canEditProfile: boolean };
+    const updatedBy = req.user!.id;
+
+    if (typeof canEditProfile !== 'boolean') {
+      const response: ApiResponse = {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'canEditProfile phải là boolean',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return res.status(400).json(response);
+    }
+
+    const result = await userService.toggleCanEditProfile(userId, canEditProfile, updatedBy);
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      message: `${canEditProfile ? 'Cho phép' : 'Tắt'} chỉnh sửa hồ sơ thành công!`,
+      timestamp: new Date().toISOString(),
+    };
+
+    return res.status(200).json(response);
+  }
+
   // PUT /api/users/:id/password - Change user password (admin only)
   async changePassword(req: AuthRequest, res: Response) {
     const userId = parseInt(req.params.id);
