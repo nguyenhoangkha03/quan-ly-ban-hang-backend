@@ -15,18 +15,18 @@ export class CashFundController {
         data: fund,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 
   async getCashFundList(req: Request, res: Response) {
     try {
-      const { startDate, endDate, isLocked } = req.query;
+      const { startDate, endDate, isLocked, page, limit } = req.query;
 
-      const filter: any = {};
+      const filter: any = {
+        page: page ? parseInt(page as string) : 1,
+        limit: limit ? parseInt(limit as string) : 20,
+      };
 
       if (startDate) {
         filter.startDate = new Date(startDate as string);
@@ -42,23 +42,21 @@ export class CashFundController {
         filter.isLocked = isLocked === 'true';
       }
 
-      const funds = await cashFundService.getCashFundList(filter);
+      const result = await cashFundService.getCashFundList(filter);
 
       res.json({
         success: true,
-        data: funds,
+        ...result,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 
   async createCashFund(req: Request, res: Response) {
     try {
       const { fundDate, openingBalance, notes } = req.body;
+      const userId = (req as any).user?.userId;
 
       const date = new Date(fundDate);
       date.setHours(0, 0, 0, 0);
@@ -67,17 +65,14 @@ export class CashFundController {
         fundDate: date,
         openingBalance,
         notes,
-      });
+      }, userId);
 
       res.status(201).json({
         success: true,
         data: fund,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 
@@ -85,6 +80,7 @@ export class CashFundController {
     try {
       const { date } = req.params;
       const { openingBalance, notes } = req.body;
+      const userId = (req as any).user?.userId;
 
       const fundDate = new Date(date);
       fundDate.setHours(0, 0, 0, 0);
@@ -92,17 +88,14 @@ export class CashFundController {
       const fund = await cashFundService.updateCashFund(fundDate, {
         openingBalance,
         notes,
-      });
+      }, userId);
 
       res.json({
         success: true,
         data: fund,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 
@@ -119,38 +112,33 @@ export class CashFundController {
         approvedBy: approvedBy || userId,
         reconciledBy: reconciledBy || userId,
         notes,
-      });
+      }, userId);
 
       res.json({
         success: true,
         data: fund,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 
   async unlockCashFund(req: Request, res: Response) {
     try {
       const { date } = req.params;
+      const userId = (req as any).user?.userId;
 
       const fundDate = new Date(date);
       fundDate.setHours(0, 0, 0, 0);
 
-      const fund = await cashFundService.unlockCashFund(fundDate);
+      const fund = await cashFundService.unlockCashFund(fundDate, userId);
 
       res.json({
         success: true,
         data: fund,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 
@@ -159,11 +147,7 @@ export class CashFundController {
       const { startDate, endDate } = req.query;
 
       if (!startDate || !endDate) {
-        res.status(400).json({
-          success: false,
-          message: 'Start date and end date are required',
-        });
-        return;
+        throw new Error('Start date and end date are required');
       }
 
       const start = new Date(startDate as string);
@@ -179,10 +163,7 @@ export class CashFundController {
         data: summary,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 
@@ -200,10 +181,7 @@ export class CashFundController {
         data: discrepancies,
       });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw error;
     }
   }
 }
