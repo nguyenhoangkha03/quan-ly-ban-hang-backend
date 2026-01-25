@@ -2,9 +2,11 @@ import { z } from 'zod';
 
 export const getCashFundListSchema = z.object({
   query: z.object({
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
+    startDate: z.string().datetime().optional().or(z.literal('')),
+    endDate: z.string().datetime().optional().or(z.literal('')),
     isLocked: z.enum(['true', 'false']).optional(),
+    page: z.string().regex(/^\d+$/).optional(),
+    limit: z.string().regex(/^\d+$/).optional(),
   }),
 });
 
@@ -51,8 +53,8 @@ export const unlockCashFundSchema = z.object({
 
 export const getCashFundSummarySchema = z.object({
   query: z.object({
-    startDate: z.string().datetime({ message: 'Start date is required' }),
-    endDate: z.string().datetime({ message: 'End date is required' }),
+    startDate: z.string().datetime({ message: 'Start date is required' }).or(z.literal('').transform(() => undefined)),
+    endDate: z.string().datetime({ message: 'End date is required' }).or(z.literal('').transform(() => undefined)),
   }),
 });
 

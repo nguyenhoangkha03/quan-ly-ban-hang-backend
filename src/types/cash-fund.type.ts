@@ -19,4 +19,6 @@ export interface CashFundFilter {
   startDate?: Date;
   endDate?: Date;
   isLocked?: boolean;
+  page?: number;
+  limit?: number;
 }

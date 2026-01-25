@@ -30,6 +30,9 @@ export const createCustomerSchema = z.object({
   province: z.string().max(100, 'Tỉnh/Thành phố tối đa 100 ký tự').optional(),
   district: z.string().max(100, 'Quận/Huyện tối đa 100 ký tự').optional(),
   taxCode: z.string().max(50, 'Mã số thuế tối đa 50 ký tự').optional(),
+  cccd: z.string().max(20, 'CCCD không được quá 20 ký tự').optional().or(z.literal('')),
+  issuedAt: z.string().optional(),
+  issuedBy: z.string().max(100, 'Nơi cấp không được quá 100 ký tự').optional().or(z.literal('')),
   creditLimit: z.number().min(0, 'Hạn mức tín dụng phải lớn hơn hoặc bằng 0').optional(),
   notes: z.string().max(255, 'Ghi chú tối đa 255 ký tự').optional(),
 });
@@ -64,6 +67,9 @@ export const updateCustomerSchema = z.object({
   province: z.string().max(100, 'Tỉnh/Thành phố tối đa 100 ký tự').optional(),
   district: z.string().max(100, 'Quận/Huyện tối đa 100 ký tự').optional(),
   taxCode: z.string().max(50, 'Mã số thuế tối đa 50 ký tự').optional(),
+  cccd: z.string().max(20, 'CCCD không được quá 20 ký tự').optional().or(z.literal('')),
+  issuedAt: z.string().optional(),
+  issuedBy: z.string().max(100, 'Nơi cấp không được quá 100 ký tự').optional().or(z.literal('')),
   creditLimit: z.number().min(0, 'Hạn mức tín dụng phải lớn hơn hoặc bằng 0').optional(),
   notes: z.string().max(255, 'Ghi chú tối đa 255 ký tự').optional(),
 });

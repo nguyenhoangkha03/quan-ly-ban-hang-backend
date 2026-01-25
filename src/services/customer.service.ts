@@ -292,6 +292,9 @@ class CustomerService {
         province: data.province,
         district: data.district,
         taxCode: data.taxCode,
+        cccd: data.cccd || null,
+        issuedAt: data.issuedAt ? new Date(data.issuedAt) : null,
+        issuedBy: data.issuedBy || null,
         creditLimit: data.creditLimit || 0,
         currentDebt: 0,
         notes: data.notes,
@@ -381,6 +384,9 @@ class CustomerService {
         ...(data.province !== undefined && { province: data.province }),
         ...(data.district !== undefined && { district: data.district }),
         ...(data.taxCode !== undefined && { taxCode: data.taxCode }),
+        ...(data.cccd !== undefined && { cccd: data.cccd || null }),
+        ...(data.issuedAt !== undefined && { issuedAt: data.issuedAt ? new Date(data.issuedAt) : null }),
+        ...(data.issuedBy !== undefined && { issuedBy: data.issuedBy || null }),
         ...(data.creditLimit !== undefined && { creditLimit: data.creditLimit }),
         ...(data.notes !== undefined && { notes: data.notes }),
         updatedBy: userId,
@@ -524,6 +530,10 @@ class CustomerService {
       debtAmount: Number(order.totalAmount) - Number(order.paidAmount),
     }));
 
+    // Calculate total revenue and paid amounts
+    const totalRevenue = customer.salesOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+    const totalPaid = customer.salesOrders.reduce((sum, order) => sum + Number(order.paidAmount), 0);
+
     const debtPercentage =
       Number(customer.creditLimit) > 0
         ? (Number(customer.currentDebt) / Number(customer.creditLimit)) * 100
@@ -544,6 +554,9 @@ class CustomerService {
       debtUpdatedAt: customer.debtUpdatedAt,
       unpaidOrders,
       totalUnpaidOrders: unpaidOrders.length,
+      totalRevenue,
+      totalOrders: customer.salesOrders.length,
+      totalPaid,
     };
   }
 
