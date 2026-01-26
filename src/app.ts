@@ -63,7 +63,6 @@ import cs_product_Routes from '@routes/cs-product.routes';
 // News routes
 import newsRoutes from '@routes/news.routes';
 import newsCategoryRoutes from '@routes/news-category.routes';
-import newsTagRoutes from '@routes/news-tag.routes';
 
 // Contact routes
 import contactRoutes from '@routes/contact.routes';
@@ -242,7 +241,6 @@ app.use('/api/cs/products', cs_product_Routes);
 // News routes
 app.use('/api/news', newsRoutes);
 app.use('/api/news-categories', newsCategoryRoutes);
-app.use('/api/news-tags', newsTagRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
