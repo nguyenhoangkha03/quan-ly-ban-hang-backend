@@ -41,15 +41,13 @@ class PublicProductController {
      // GET /api/store/products/:id (Chi tiết - Có đa giá & List khuyến mãi)
      // =================================================================
      async getById(req: Request, res: Response) {
-       const { id } = req.params;
-   
-       // 1. Lấy User Type tương tự như trên
-       const currentUser = (req as any).user;
-       const userType = currentUser?.classification || 'retail';
+       const { slug } = req.params;
+      //  const currentUser = (req as any).user;
+      //  const userType = currentUser?.classification || 'retail';
 
-       // 2. Gọi hàm detail kèm userType
-       const product = await storeProductService.getProductDetail(Number(id), userType);
-   
+      //  // 2. Gọi hàm detail kèm userType
+       const product = await storeProductService.getProductDetail(slug);
+      
        const response: ApiResponse = {
          success: true,
          data: product,

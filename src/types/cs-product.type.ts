@@ -5,12 +5,14 @@ export interface PublicProductDto {
   name: string;
   sku: string;
   slug: string;
-  image: string;
+  image?: string;
+  video?: string;
+  videoType?: string;
   unit: string;
   originalPrice: number;
   salePrice: number;
   discountPercentage: number;
-  isFeatured: boolean;
+  // isFeatured: boolean;
   inStock: boolean;
   category: { id: number; name: string; slug: string };
   promotion?: PromotionInfo | null;

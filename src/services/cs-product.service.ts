@@ -2,7 +2,9 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { NotFoundError } from '@utils/errors';
 import RedisService from './redis.service';
 import { serializeBigInt } from '@utils/serializer';
-import { PublicProductDto, PublicProductDetailDto } from '@custom-types/cs-product.type';
+import { PublicProductDto,
+   PublicProductDetailDto
+} from '@custom-types/cs-product.type';
 import { PromotionInfo } from '@custom-types/cs-promotion.type';
 const prisma = new PrismaClient();
 const redis = RedisService.getInstance();
@@ -21,7 +23,7 @@ class StoreProductService {
     packagingType?: 'bottle' | 'box' | 'bag' | 'label' | 'other';
   }) {
     const { 
-      page = 1, limit = 20, search, categoryId, isFeatured, sortBy = 'newest',
+      page = 1, limit = 20, search, categoryId, sortBy = 'newest',
       historySearch,
       packagingType 
     } = params;
@@ -37,7 +39,7 @@ class StoreProductService {
     const where: Prisma.ProductWhereInput = {
       status: 'active',
       productType: { in: ['finished_product', 'goods'] },
-      ...(isFeatured !== undefined && {  isFeatured }),
+      // ...(isFeatured !== undefined && {  isFeatured }),
       ...(categoryId && { categoryId }),
       ...(packagingType && { packagingType: packagingType as any }),
       ...(search && {
@@ -179,13 +181,13 @@ class StoreProductService {
     return result;
   }
 
-  async getProductDetail(id: number, userType: 'retail' | 'wholesale' | 'vip' = 'retail') {
-    const cacheKey = `store:product:detail:${id}:${userType}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) return cached;
+  async getProductDetail(slug: string) {
+    const cacheKey = `store:product:detail:${slug}`;
+    // const cached = await redis.get(cacheKey);
+    // if (cached) return cached;
 
     const product = await prisma.product.findUnique({
-      where: { id, status: 'active', productType: { in: ['finished_product', 'goods'] } },
+      where: { slug, status: 'active', productType: { in: ['finished_product', 'goods'] } },
       select: {
         id: true,
         productName: true,
@@ -200,7 +202,7 @@ class StoreProductService {
         weight: true,
         dimensions: true,
         packagingType: true,
-        isFeatured: true,
+        // isFeatured: true,
         
         category: { select: { id: true, categoryName: true, slug: true } },
         images: {
@@ -236,12 +238,16 @@ class StoreProductService {
       }
     });
 
+
+    
+
     if (!product) throw new NotFoundError('Sản phẩm không tồn tại');
 
     const basePrice = Number(product.sellingPriceRetail);
     const totalStock = product.inventory 
       ? product.inventory.reduce((sum: number, inv: any) => sum + Math.max(0, Number(inv.quantity) - Number(inv.reservedQuantity)), 0)
       : 0;
+
 
     const { salePrice, discountInfo, allPromotions } = this.calculateBestPrice(basePrice, product.promotionProducts);
 
@@ -250,13 +256,12 @@ class StoreProductService {
       name: product.productName,
       sku: product.sku,
       slug: product.slug || '',
-      image: (product.images && product.images.length > 0) ? product.images[0].imageUrl : '/placeholder.png',
       unit: product.unit,
       originalPrice: basePrice,
       salePrice: salePrice,
       discountPercentage: (discountInfo && discountInfo.type !== 'gift')
           ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0,
-      isFeatured: product.isFeatured,
+      // isFeatured: product.isFeatured,
       inStock: totalStock > 0,
       category: {
         id: product.category?.id || 0,
@@ -280,7 +285,6 @@ class StoreProductService {
         thumbnail: v.thumbnail || undefined,
         title: v.title || undefined
       })),
-      relatedProducts: [] 
     };
 
     await redis.set(cacheKey, serializeBigInt(result), STORE_CACHE_TTL);
