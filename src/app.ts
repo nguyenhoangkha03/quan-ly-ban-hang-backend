@@ -233,7 +233,7 @@ app.use('/api/settings/login-history', loginHistoryRoutes);
 // Smart Debt routes
 app.use('/api/smart-debt', smartDebtRoutes);
 //custommer service routes
-app.use('/api/cs/accounts', cs_authRoutes);
+app.use('/api/cs/auth', cs_authRoutes);
 app.use('/api/cs/categories', cs_categoryRoutes);
 app.use('/api/cs/products', cs_productRoutes);
 app.use('/api/cs/inventory', cs_inventoryRoutes);
